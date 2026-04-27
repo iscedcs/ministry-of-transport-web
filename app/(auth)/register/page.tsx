@@ -1,0 +1,209 @@
+"use client";
+
+/**
+ * External Applicant Registration — Ministry of Transport Platform
+ * STORY-007: User registration flows
+ */
+
+import { useActionState } from "react";
+import Link from "next/link";
+import { registerApplicant } from "@/app/actions/auth";
+import type { AuthFormState } from "@/app/actions/auth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+function FieldError({ id, errors }: { id: string; errors?: string[] }) {
+  if (!errors?.length) return null;
+  return (
+    <p id={id} className="text-xs text-destructive" role="alert">
+      {errors[0]}
+    </p>
+  );
+}
+
+export default function RegisterPage() {
+  const [state, action, isPending] = useActionState<AuthFormState, FormData>(
+    registerApplicant,
+    undefined,
+  );
+  const e = state?.errors;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle
+          className="text-xl"
+          style={{ fontFamily: "var(--font-display)" }}>
+          Create applicant account
+        </CardTitle>
+        <CardDescription>
+          Register to submit motor park or mass transit applications.
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent>
+        {state?.message && (
+          <Alert variant="destructive" className="mb-5">
+            <AlertDescription>{state.message}</AlertDescription>
+          </Alert>
+        )}
+
+        <form action={action} noValidate className="flex flex-col gap-4">
+          {/* Name row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="firstName">First name</Label>
+              <Input
+                id="firstName"
+                name="firstName"
+                type="text"
+                autoComplete="given-name"
+                required
+                aria-invalid={!!e?.firstName}
+                aria-describedby={e?.firstName ? "firstName-error" : undefined}
+                className={e?.firstName ? "border-destructive" : ""}
+              />
+              <FieldError id="firstName-error" errors={e?.firstName} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="lastName">Last name</Label>
+              <Input
+                id="lastName"
+                name="lastName"
+                type="text"
+                autoComplete="family-name"
+                required
+                aria-invalid={!!e?.lastName}
+                aria-describedby={e?.lastName ? "lastName-error" : undefined}
+                className={e?.lastName ? "border-destructive" : ""}
+              />
+              <FieldError id="lastName-error" errors={e?.lastName} />
+            </div>
+          </div>
+
+          {/* Email */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="email">Email address</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              aria-invalid={!!e?.email}
+              aria-describedby={e?.email ? "email-error" : undefined}
+              className={e?.email ? "border-destructive" : ""}
+            />
+            <FieldError id="email-error" errors={e?.email} />
+          </div>
+
+          {/* Phone */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="phone">
+              Phone number{" "}
+              <span className="text-muted-foreground font-normal text-xs">
+                (optional)
+              </span>
+            </Label>
+            <Input
+              id="phone"
+              name="phone"
+              type="tel"
+              autoComplete="tel"
+              placeholder="08012345678"
+              aria-invalid={!!e?.phone}
+              aria-describedby={e?.phone ? "phone-error" : undefined}
+              className={e?.phone ? "border-destructive" : ""}
+            />
+            <FieldError id="phone-error" errors={e?.phone} />
+          </div>
+
+          {/* ASIN */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="asinNumber">
+              ASIN Number{" "}
+              <span className="text-muted-foreground font-normal text-xs">
+                (Anambra State ID — 16 digits)
+              </span>
+            </Label>
+            <Input
+              id="asinNumber"
+              name="asinNumber"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]{16}"
+              maxLength={16}
+              placeholder="1234567890123456"
+              required
+              aria-invalid={!!e?.asinNumber}
+              aria-describedby={e?.asinNumber ? "asin-error" : undefined}
+              className={e?.asinNumber ? "border-destructive" : ""}
+            />
+            <FieldError id="asin-error" errors={e?.asinNumber} />
+          </div>
+
+          {/* Password */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              required
+              aria-invalid={!!e?.password}
+              aria-describedby={e?.password ? "password-error" : undefined}
+              className={e?.password ? "border-destructive" : ""}
+            />
+            <FieldError id="password-error" errors={e?.password} />
+          </div>
+
+          {/* Confirm Password */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="confirmPassword">Confirm password</Label>
+            <Input
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              autoComplete="new-password"
+              required
+              aria-invalid={!!e?.confirmPassword}
+              aria-describedby={
+                e?.confirmPassword ? "confirm-error" : undefined
+              }
+              className={e?.confirmPassword ? "border-destructive" : ""}
+            />
+            <FieldError id="confirm-error" errors={e?.confirmPassword} />
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full mt-2"
+            disabled={isPending}
+            aria-busy={isPending}>
+            {isPending ? "Creating account..." : "Create account"}
+          </Button>
+        </form>
+      </CardContent>
+
+      <CardFooter className="pt-0">
+        <p className="text-sm text-muted-foreground text-center w-full">
+          Already have an account?{" "}
+          <Link href="/login" className="text-primary hover:underline">
+            Sign in
+          </Link>
+        </p>
+      </CardFooter>
+    </Card>
+  );
+}

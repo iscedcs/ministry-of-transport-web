@@ -1,0 +1,160 @@
+/**
+ * Dashboard Home Page — Ministry of Transport Platform
+ * STORY-033: Status dashboard / overview
+ *
+ * Shows summary stats (motor park applications by status) and quick actions
+ * appropriate to the current user's role.
+ */
+
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { getSession } from "@/lib/auth";
+import { getParkStatusSummary } from "@/app/actions/motor-park";
+import { StatCard } from "@/components/ui/misc";
+import { Button } from "@/components/ui/button";
+import { StatusPill } from "@/components/ui/badge";
+
+export default async function DashboardPage() {
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  const summary = await getParkStatusSummary();
+  const stats = summary.success ? summary.data! : null;
+
+  const isApplicant = session.role === "EXTERNAL_APPLICANT";
+  const isExecutive =
+    session.role === "COMMISSIONER" || session.role === "PERMANENT_SECRETARY";
+  const isStaff = !isApplicant;
+
+  return (
+    <div className="flex flex-col gap-8 max-w-5xl">
+      {/* Page header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1
+            className="text-2xl font-bold text-foreground"
+            style={{ fontFamily: "var(--font-display)" }}>
+            {isApplicant ? "My Applications" : "Platform Overview"}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isApplicant
+              ? "Track the status of your motor park applications."
+              : "Real-time view of all applications and workflow activity."}
+          </p>
+        </div>
+        {isApplicant && (
+          <Button asChild>
+            <Link href="/motor-parks/apply">New Application</Link>
+          </Button>
+        )}
+      </div>
+
+      {/* Stats grid */}
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {isApplicant ? (
+            <>
+              <StatCard label="Total Submitted" value={stats.total} />
+              <StatCard
+                label="Under Review"
+                value={stats.underReview + stats.inspectionScheduled}
+              />
+              <StatCard label="Approved" value={stats.approved} />
+              <StatCard
+                label="Expiring Soon"
+                value={stats.expiringSoon}
+                deltaDirection={stats.expiringSoon > 0 ? "down" : "neutral"}
+                delta={stats.expiringSoon > 0 ? "Action needed" : undefined}
+              />
+            </>
+          ) : (
+            <>
+              <StatCard label="Total Applications" value={stats.total} />
+              <StatCard
+                label="Pending Review"
+                value={stats.submitted + stats.underReview}
+              />
+              <StatCard
+                label="Awaiting Inspection"
+                value={stats.inspectionScheduled}
+              />
+              <StatCard
+                label="Pending Approval"
+                value={stats.pendingApproval}
+                deltaDirection={stats.pendingApproval > 0 ? "up" : "neutral"}
+              />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Quick links */}
+      <div className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+          Quick Links
+        </h2>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/motor-parks">
+              {isApplicant ? "My Motor Parks" : "Motor Parks Queue"}
+            </Link>
+          </Button>
+          {isApplicant && (
+            <Button asChild variant="outline" size="sm">
+              <Link href="/motor-parks/apply">Submit Application</Link>
+            </Button>
+          )}
+          {isStaff && (
+            <Button asChild variant="outline" size="sm">
+              <Link href="/inspections">Inspections</Link>
+            </Button>
+          )}
+          {isExecutive && (
+            <Button asChild variant="outline" size="sm">
+              <Link href="/admin/users">Staff &amp; Users</Link>
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Status breakdown (staff only) */}
+      {isStaff && stats && (
+        <div className="flex flex-col gap-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            Application Status Breakdown
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: "SUBMITTED", count: stats.submitted },
+              { label: "UNDER_REVIEW", count: stats.underReview },
+              {
+                label: "INSPECTION_SCHEDULED",
+                count: stats.inspectionScheduled,
+              },
+              { label: "PENDING_APPROVAL", count: stats.pendingApproval },
+              { label: "APPROVED", count: stats.approved },
+              { label: "REJECTED", count: stats.rejected },
+              { label: "REVOKED", count: stats.revoked },
+            ]
+              .filter((s) => s.count > 0)
+              .map((s) => (
+                <Link
+                  key={s.label}
+                  href={`/motor-parks?status=${s.label}`}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-secondary transition-colors">
+                  <StatusPill
+                    status={
+                      s.label as Parameters<typeof StatusPill>[0]["status"]
+                    }
+                  />
+                  <span className="text-sm font-semibold text-foreground">
+                    {s.count}
+                  </span>
+                </Link>
+              ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

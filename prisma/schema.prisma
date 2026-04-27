@@ -1,0 +1,975 @@
+// Prisma Schema — Ministry of Transport Platform
+// Reference: docs/IMPLEMENTATION_PLAN.md | docs/ROLES_AND_DUTIES.md | docs/EPICS.md
+// 
+// Architecture: Server Actions (Next.js) with no external backend
+// Database: PostgreSQL (Neon) with Row-Level Security (RLS) via application logic
+// Auth: Role-based access control (RBAC) with 7 distinct roles
+//
+// Modules:
+// - Motor Parks (EPIC-002: FR-010–019)
+// - Mass Transit (EPIC-003: FR-020–030)
+// - Paystack Payments (EPIC-004: FR-040–044)
+// - AVIR Reports (EPIC-006: FR-070–081)
+// - Notifications (EPIC-007: FR-050–053)
+// - Admin & Audit (EPIC-005: FR-001–004)
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+}
+
+// ==================== ENUMS ====================
+
+enum UserRole {
+    COMMISSIONER // Executive authority; final approvals
+    PERMANENT_SECRETARY // Operational authority; staff management
+    HOD_PARKS // Head of Parks Department
+    HOD_VIS // Head of Vehicle Inspection Services
+    HOD_TRANSPORT_OPS // Head of Transport Operations
+    HOD_PARKS_REVALIDATION // Head of Parks Revalidation Services
+    FIELD_INSPECTOR // Site inspections; field data entry
+    FINANCE_OFFICER // Revenue tracking; payment reconciliation
+    VEHICLE_INSPECTION_OFFICER // Mechanical assessment; AVIR completion
+    EXTERNAL_APPLICANT // Public user: park owners, transit companies, driving schools
+    SYSTEM_ADMIN // Platform administration (internal)
+}
+
+enum ApplicationStatus {
+    SUBMITTED // Initial submission
+    UNDER_REVIEW // Documents being reviewed
+    INSPECTION_SCHEDULED // Inspection assigned to field team
+    INSPECTION_IN_PROGRESS
+    INSPECTION_COMPLETED // Inspection report submitted
+    PENDING_APPROVAL // Awaiting Commissioner/PS decision
+    APPROVED // Approval issued
+    REJECTED // Application rejected
+    REVOKED // Permit revoked post-approval
+}
+
+enum PermitStatus {
+    ACTIVE
+    EXPIRED
+    REVOKED
+    SUSPENDED
+}
+
+enum InspectionStatus {
+    SCHEDULED
+    IN_PROGRESS
+    COMPLETED
+    APPROVED
+    REJECTED
+}
+
+enum PaymentStatus {
+    PENDING // Payment initialized, awaiting customer action
+    PROCESSING // Payment processing (Paystack webhook received)
+    COMPLETED // Payment successful
+    FAILED // Payment failed
+    CANCELLED
+    REFUNDED
+}
+
+enum NotificationType {
+    APPLICATION_SUBMITTED
+    INSPECTION_SCHEDULED
+    INSPECTION_COMPLETED
+    PERMIT_ISSUED
+    PERMIT_REJECTED
+    PERMIT_REVOKED
+    PAYMENT_RECEIVED
+    PAYMENT_FAILED
+    RENEWAL_REMINDER_60DAYS
+    RENEWAL_REMINDER_30DAYS
+    SLA_BREACH
+    SYSTEM_ALERT
+}
+
+enum NotificationChannel {
+    EMAIL
+    SMS
+    BOTH
+}
+
+enum VehicleType {
+    BUS
+    MINIBUS
+    TRUCK
+    LIGHT_COMMERCIAL
+    TANKER
+    PRIVATE_CAR
+    TAXI
+    RIDE_HAILING
+}
+
+enum AVIRConditionBefore {
+    GOOD
+    FAIR
+    POOR
+    DEFECTIVE
+}
+
+enum AVIRConditionAfter {
+    INTACT
+    DAMAGED
+    DESTROYED
+    PARTIALLY_DAMAGED
+}
+
+// ==================== CORE USERS & AUTH ====================
+
+model User {
+    id           String   @id @default(cuid())
+    email        String   @unique
+    phone        String?
+    passwordHash String   @db.VarChar(255) // bcrypt hash
+    asinNumber   String?  @unique // Anambra State ID Number (for external applicants)
+    firstName    String
+    lastName     String
+    role         UserRole
+    departmentId String?  @db.VarChar(50) // For HOD roles: "parks", "vis", "transport-ops", "parks-revalidation"
+
+    // Profile details
+    designation     String? // Job title for Ministry staff
+    stationLocation String? // For Field Inspectors / VIOs
+
+    // Account status
+    isActive      Boolean   @default(true)
+    emailVerified DateTime?
+    phoneVerified DateTime?
+    lastLoginAt   DateTime?
+    createdAt     DateTime  @default(now())
+    updatedAt     DateTime  @updatedAt
+
+    // Relations
+    sessions             Session[]
+    createdApplications  Application[]            @relation("CreatedByUser")
+    assignedInspections  Inspection[]             @relation("AssignedToInspector")
+    scheduledInspections Inspection[]             @relation("ScheduledByHod")
+    motorParks           MotorPark[]              @relation("ApplicationContact")
+    massTransitCompanies MassTransitCompany[]     @relation("ApplicationContact")
+    notifications        NotificationPreference[]
+    payments             Payment[]                @relation("ProcessedByUser")
+    avirs                AVIRReport[]             @relation("CompletedByVIO")
+    auditLogs            AuditLog[]               @relation("PerformedByUser")
+    notificationsSent    Notification[]           @relation("SentToUser")
+
+    @@index([email])
+    @@index([role])
+    @@index([asinNumber])
+}
+
+model Session {
+    id           String   @id @default(cuid())
+    sessionToken String   @unique @db.VarChar(255)
+    userId       String
+    expires      DateTime
+    createdAt    DateTime @default(now())
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+}
+
+// ==================== DOCUMENTS ====================
+
+model Document {
+    id               String @id @default(cuid())
+    uploadedByUserId String
+    fileName         String
+    fileType         String @db.VarChar(50) // pdf, jpg, png, docx, etc.
+    fileSize         Int // bytes
+    fileUrl          String @db.VarChar(500) // S3 or local path
+    fileMimeType     String @db.VarChar(100)
+
+    // Link to application (polymorphic via documentable pattern)
+    linkedToType String @db.VarChar(50) // "MOTOR_PARK", "MASS_TRANSIT", etc.
+    linkedToId   String // ID of the linked entity
+
+    uploadedAt        DateTime  @default(now())
+    verifiedAt        DateTime?
+    verifiedByUserId  String?
+    verificationNotes String?   @db.Text
+
+    @@index([linkedToType, linkedToId])
+    @@index([uploadedByUserId])
+}
+
+// ==================== MOTOR PARKS MODULE ====================
+// Reference: docs/EPICS.md EPIC-002 (STORY-020 to STORY-033)
+// Functional Requirements: FR-010 to FR-019
+
+model MotorPark {
+    id String @id @default(cuid())
+
+    // Applicant details
+    businessName          String
+    transportCompanyName  String?
+    locationAddress       String  @db.Text
+    gpsCoordinates        String? // lat,lon format
+    cacRegistrationNumber String  @unique
+    anssidNumber          String  @unique
+
+    // Contact person
+    contactUserId String // Links to park owner (User with EXTERNAL_APPLICANT role)
+    contactPerson String
+    contactPhone  String
+    contactEmail  String
+
+    // Land documents (file references)
+    landOwnershipDocId String? // Document.id
+    cacDocumentId      String? // Document.id
+
+    // Status tracking
+    applicationStatus ApplicationStatus @default(SUBMITTED)
+    permitStatus      PermitStatus?
+
+    // Inspection workflow
+    firstInspectionId String?
+    reInspectionId    String?
+
+    // Permit details
+    permitIssuedAt    DateTime?
+    permitExpiresAt   DateTime?
+    permitNumber      String?   @unique
+    permitDocumentUrl String?   @db.VarChar(500) // Digital permit PDF
+
+    // Fees
+    assessedFeeAmount Int? // in kobo (from Payment.amount)
+    monthlyLevyAmount Int? // in kobo
+
+    // Revalidation
+    lastRevalidatedAt   DateTime?
+    nextRevalidationDue DateTime?
+
+    // Audit
+    appliedAt        DateTime  @default(now())
+    approvedAt       DateTime?
+    approvedByUserId String? // Commissioner or PS
+    revokedAt        DateTime?
+    revocationReason String?   @db.Text
+    createdAt        DateTime  @default(now())
+    updatedAt        DateTime  @updatedAt
+
+    // Relations
+    applicant     User           @relation("ApplicationContact", fields: [contactUserId], references: [id])
+    inspections   Inspection[]
+    fees          MotorParkFee[]
+    payments      Payment[]      @relation("MotorParkPayment")
+    notifications Notification[] @relation("MotorParkNotification")
+
+    @@index([applicationStatus])
+    @@index([permitStatus])
+    @@index([contactUserId])
+    @@index([nextRevalidationDue])
+}
+
+model Inspection {
+    id String @id @default(cuid())
+
+    // Inspection details
+    inspectionType   String @db.VarChar(50) // "INITIAL", "RE_INSPECTION"
+    linkedEntityType String @db.VarChar(50) // "MOTOR_PARK", "MASS_TRANSIT", "DRIVING_SCHOOL"
+    linkedEntityId   String // ID of the park/company
+
+    // Scheduling
+    scheduledDate     DateTime
+    scheduledByUserId String // HOD who scheduled
+    status            InspectionStatus @default(SCHEDULED)
+
+    // Inspector assignment
+    assignedToUserId         String
+    inspectorStationLocation String?
+
+    // Motor Park specific
+    motorParkId String?
+    motorPark   MotorPark? @relation(fields: [motorParkId], references: [id], onDelete: Cascade)
+
+    // Inspection execution
+    inspectionStartTime DateTime?
+    inspectionEndTime   DateTime?
+    checklist           InspectionChecklistResult[]
+
+    // Findings
+    overallAssessment   String? @db.Text // Narrative assessment
+    recommendedAction   String? @db.VarChar(100) // APPROVE, REJECT, CONDITIONAL
+    inspectionReportUrl String? @db.VarChar(500) // PDF report
+
+    // Audit
+    completedAt       DateTime?
+    completedByUserId String // Inspector who completed
+    approvedAt        DateTime?
+    approvedByUserId  String? // HOD approval
+    createdAt         DateTime  @default(now())
+    updatedAt         DateTime  @updatedAt
+
+    // Relations
+    assignedTo  User @relation("AssignedToInspector", fields: [assignedToUserId], references: [id])
+    scheduledBy User @relation("ScheduledByHod", fields: [scheduledByUserId], references: [id])
+
+    @@index([linkedEntityType, linkedEntityId])
+    @@index([assignedToUserId])
+    @@index([status])
+    @@index([motorParkId])
+}
+
+model InspectionChecklistResult {
+    id              String @id @default(cuid())
+    inspectionId    String
+    checklistItemId String
+
+    // Result
+    isCompliant Boolean
+    notes       String? @db.Text
+    photoUrls   String? @db.Text // JSON array of photo URLs
+
+    // Audit
+    recordedAt       DateTime @default(now())
+    recordedByUserId String
+
+    // Relations
+    inspection    Inspection              @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+    checklistItem InspectionChecklistItem @relation(fields: [checklistItemId], references: [id])
+
+    @@index([inspectionId])
+    @@index([checklistItemId])
+}
+
+model InspectionChecklistItem {
+    id         String @id @default(cuid())
+    templateId String
+
+    itemName     String
+    itemCategory String  @db.VarChar(100) // "parking", "conveniences", "fire_safety", etc.
+    description  String? @db.Text
+    isRequired   Boolean @default(true)
+    sortOrder    Int     @default(0)
+
+    // Relations
+    template InspectionChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+    results  InspectionChecklistResult[]
+
+    @@index([templateId])
+}
+
+model InspectionChecklistTemplate {
+    id               String  @id @default(cuid())
+    name             String
+    linkedEntityType String  @db.VarChar(50) // "MOTOR_PARK", "MASS_TRANSIT"
+    description      String? @db.Text
+    isActive         Boolean @default(true)
+
+    items     InspectionChecklistItem[]
+    createdAt DateTime                  @default(now())
+    updatedAt DateTime                  @updatedAt
+
+    @@index([linkedEntityType])
+}
+
+model MotorParkFee {
+    id          String        @id @default(cuid())
+    motorParkId String
+    feeType     String        @db.VarChar(50) // "APPLICATION", "MONTHLY_LEVY", "ANNUAL", "REVALIDATION"
+    amount      Int // in kobo
+    dueDate     DateTime
+    paidAt      DateTime?
+    paidAmount  Int? // in kobo
+    status      PaymentStatus @default(PENDING)
+
+    // Relations
+    motorPark MotorPark @relation(fields: [motorParkId], references: [id], onDelete: Cascade)
+
+    @@index([motorParkId])
+    @@index([status])
+    @@index([dueDate])
+}
+
+// ==================== MASS TRANSIT MODULE ====================
+// Reference: docs/EPICS.md EPIC-003 (STORY-040 to STORY-051)
+// Functional Requirements: FR-020 to FR-030
+
+model MassTransitCompany {
+    id String @id @default(cuid())
+
+    // Company details
+    companyName   String
+    contactPerson String
+    contactEmail  String
+    contactPhone  String
+    contactUserId String // User with EXTERNAL_APPLICANT role
+
+    // Registration documents
+    cacNumber            String  @unique
+    asinNumber           String  @unique
+    businessPremisesCert String?
+    ansaaRegistration    String?
+
+    // Fleet details
+    minFleetSize     Int     @default(5)
+    currentFleetSize Int     @default(0)
+    approvedColour   String? // Brand colour: "#RRGGBB"
+
+    // Status
+    applicationStatus ApplicationStatus @default(SUBMITTED)
+    permitStatus      PermitStatus?
+    permitIssuedAt    DateTime?
+    permitExpiresAt   DateTime?
+    permitNumber      String?           @unique
+    permitDocumentUrl String?           @db.VarChar(500)
+
+    // Inspection
+    terminalInspectionId    String?
+    terminalLocationAddress String?   @db.Text
+    terminalInspectionDueAt DateTime? // 5 working days per FR-023
+
+    // Revalidation
+    lastRevalidatedAt   DateTime?
+    nextRevalidationDue DateTime?
+
+    // Audit
+    appliedAt        DateTime  @default(now())
+    approvedAt       DateTime?
+    approvedByUserId String? // Commissioner or PS
+    createdAt        DateTime  @default(now())
+    updatedAt        DateTime  @updatedAt
+
+    // Relations
+    applicant     User           @relation("ApplicationContact", fields: [contactUserId], references: [id])
+    vehicles      Vehicle[]
+    drivers       Driver[]
+    staff         CompanyStaff[]
+    payments      Payment[]      @relation("MassTransitPayment")
+    notifications Notification[] @relation("MassTransitNotification")
+
+    @@index([applicationStatus])
+    @@index([permitStatus])
+    @@index([contactUserId])
+}
+
+model Vehicle {
+    id        String @id @default(cuid())
+    companyId String
+
+    // Vehicle particulars
+    registrationNumber   String      @unique
+    vehicleType          VehicleType
+    make                 String // e.g., "Mercedes"
+    model                String // e.g., "Sprinter 515"
+    engineNumber         String      @unique
+    chassisNumber        String      @unique
+    identificationMark   String? // Driver ID / registration mark
+    roadworthinessExpiry DateTime?
+
+    // Fleet management
+    assignedDriverId String?
+    routesServed     String?      @db.Text // JSON array or comma-separated
+    status           PermitStatus @default(ACTIVE)
+
+    // QR Code
+    qrCodeId          String?   @unique
+    qrCodeGeneratedAt DateTime?
+
+    // Audit
+    addedAt       DateTime  @default(now())
+    addedByUserId String
+    removedAt     DateTime?
+    createdAt     DateTime  @default(now())
+    updatedAt     DateTime  @updatedAt
+
+    // Relations
+    company MassTransitCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+    driver  Driver?            @relation(fields: [assignedDriverId], references: [id], onDelete: SetNull)
+    qrCode  VehicleQRCode?     @relation(fields: [qrCodeId], references: [id], onDelete: SetNull)
+
+    @@index([companyId])
+    @@index([registrationNumber])
+    @@index([assignedDriverId])
+}
+
+model Driver {
+    id        String @id @default(cuid())
+    companyId String
+
+    // Driver details
+    fullName                String
+    licenseNumber           String    @unique
+    licenseExpiry           DateTime?
+    phoneNumber             String
+    ngnDrivingLicenseNumber String?
+
+    // Proficiency card
+    proficiencyCardId     String?   @unique
+    proficiencyCardExpiry DateTime?
+
+    // Status
+    isActive Boolean      @default(true)
+    status   PermitStatus @default(ACTIVE)
+
+    // Audit
+    addedAt       DateTime @default(now())
+    addedByUserId String
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+
+    // Relations
+    company         MassTransitCompany     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+    vehicles        Vehicle[]
+    proficiencyCard DriverProficiencyCard? @relation(fields: [proficiencyCardId], references: [id], onDelete: SetNull)
+
+    @@index([companyId])
+    @@index([licenseNumber])
+}
+
+model DriverProficiencyCard {
+    id                String   @id @default(cuid())
+    cardNumber        String   @unique
+    issuedAt          DateTime
+    expiresAt         DateTime
+    issuedByAuthority String   @db.VarChar(100)
+
+    // Relations
+    driver Driver?
+
+    @@index([expiresAt])
+}
+
+model VehicleQRCode {
+    id             String   @id @default(cuid())
+    vehicleId      String   @unique
+    qrCodeData     String // QR code encoded data
+    qrCodeImageUrl String   @db.VarChar(500) // SVG or PNG
+    generatedAt    DateTime @default(now())
+
+    // Relations
+    vehicle Vehicle?
+}
+
+model CompanyStaff {
+    id        String @id @default(cuid())
+    companyId String
+
+    fullName    String
+    position    String  @db.VarChar(100)
+    phoneNumber String
+    email       String?
+
+    createdAt DateTime @default(now())
+
+    // Relations
+    company MassTransitCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+    @@index([companyId])
+}
+
+// ==================== PAYMENT MODULE ====================
+// Reference: docs/EPICS.md EPIC-004 (STORY-060 to STORY-070)
+// Functional Requirements: FR-040 to FR-044
+// Integration: docs/PAYSTACK_INTEGRATION.md
+
+model Payment {
+    id String @id @default(cuid())
+
+    // Payment reference
+    paystackTransactionId    String? @unique // From Paystack response
+    paystackAccessCode       String? @unique // From Paystack initialize response
+    paystackAuthorizationUrl String? @db.VarChar(500)
+
+    // Payer details
+    payerUserId     String
+    payerAsinNumber String // For reconciliation
+    payerEmail      String
+    payerPhone      String?
+
+    // Payment amount (always in kobo)
+    amount      Int // kobo (multiply naira by 100)
+    currency    String @default("NGN") @db.VarChar(3)
+    paymentType String @db.VarChar(50) // "PARK_APPLICATION", "PARK_RENEWAL", "TRANSIT_REGISTRATION", "AVIR_ASSESSMENT"
+
+    // Linked entity
+    linkedEntityType String @db.VarChar(50) // "MOTOR_PARK", "MASS_TRANSIT", "AVIR_REPORT"
+    linkedEntityId   String
+
+    motorParkId          String?
+    massTransitCompanyId String?
+
+    // Status
+    status PaymentStatus @default(PENDING)
+
+    // Paystack webhook
+    webhookReceivedAt DateTime?
+    webhookTimestamp  Int? // Unix timestamp from Paystack
+
+    // Reconciliation
+    processedByUserId   String? // Finance officer
+    processedAt         DateTime?
+    reconciliationNotes String?   @db.Text
+
+    // Digital receipt
+    receiptUrl         String?   @db.VarChar(500) // PDF receipt
+    receiptGeneratedAt DateTime?
+
+    // Audit
+    initiatedAt   DateTime  @default(now())
+    completedAt   DateTime?
+    failureReason String?   @db.Text
+    retryCount    Int       @default(0)
+    lastRetryAt   DateTime?
+    createdAt     DateTime  @default(now())
+    updatedAt     DateTime  @updatedAt
+
+    // Relations
+    payer              User                @relation("ProcessedByUser", fields: [payerUserId], references: [id])
+    motorPark          MotorPark?          @relation("MotorParkPayment", fields: [motorParkId], references: [id], onDelete: SetNull)
+    massTransitCompany MassTransitCompany? @relation("MassTransitPayment", fields: [massTransitCompanyId], references: [id], onDelete: SetNull)
+    receipt            PaymentReceipt?
+
+    @@index([payerUserId])
+    @@index([status])
+    @@index([paystackTransactionId])
+    @@index([linkedEntityType, linkedEntityId])
+    @@index([processedAt])
+}
+
+model PaymentReceipt {
+    id        String @id @default(cuid())
+    paymentId String @unique
+
+    receiptNumber String  @unique
+    receiptHtml   String  @db.Text
+    receiptPdfUrl String? @db.VarChar(500)
+
+    generatedAt DateTime  @default(now())
+    sentToEmail String?
+    sentAt      DateTime?
+
+    // Relations
+    payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+}
+
+model Revenue {
+    id String @id @default(cuid())
+
+    // Revenue tracking
+    paymentId        String @unique
+    linkedEntityType String @db.VarChar(50)
+    linkedEntityId   String
+
+    amount      Int // kobo
+    currency    String @default("NGN")
+    revenueCode String @db.VarChar(50) // Ministry code for accounting
+
+    recordedAt    DateTime  @default(now())
+    reconciliedAt DateTime?
+
+    // Relations
+    @@index([recordedAt])
+    @@index([reconciliedAt])
+}
+
+// ==================== ACCIDENT VEHICLE INSPECTION REPORT (AVIR) ====================
+// Reference: docs/EPICS.md EPIC-006 (STORY-100 to STORY-112)
+// Functional Requirements: FR-070 to FR-081
+// Form Reference: Government Form 0051
+
+model AVIRReport {
+    id String @id @default(cuid())
+
+    // Report identification
+    reportNumber String @unique // Auto-generated
+    formVersion  String @default("0051") // Government form number
+
+    // Accident details
+    accidentDateTime DateTime
+    accidentLocation String   @db.Text
+    gpsCoordinates   String? // lat,lon
+    reportingParty   String   @db.VarChar(100) // "DRIVER", "POLICE", "PUBLIC"
+
+    // Police details
+    investigatingOfficer  String
+    policeOfficeLocation  String?
+    policeReferenceNumber String?
+    policeReceiptDateTime DateTime?
+
+    // Vehicle particulars
+    vehicleId             String? // Link to Vehicle if in system
+    vehicleMake           String
+    vehicleModel          String?
+    vehicleType           VehicleType
+    registrationNumber    String
+    engineNumber          String
+    chassisNumber         String
+    identificationMark    String?
+    speedometerReading    String? // e.g., "42,500 km"
+    vehicleClassification String      @db.VarChar(50) // "COMMERCIAL", "PRIVATE"
+
+    // Insurance details
+    insuranceCompany    String?
+    insuranceCertNumber String?
+    insuranceCoverDate  DateTime?
+
+    // Roadworthiness certificate
+    roadworthinessCertNumber String?
+    roadworthinessIssuePlace String?
+    roadworthinessIssueDate  DateTime?
+
+    // Mechanical/electrical assessment BEFORE accident
+    conditionBeforeEngine              AVIRConditionBefore?
+    conditionBeforeClutch              AVIRConditionBefore?
+    conditionBeforeGearbox             AVIRConditionBefore?
+    conditionBeforeBackAxle            AVIRConditionBefore?
+    conditionBeforeBrakes              AVIRConditionBefore?
+    conditionBeforeSteering            AVIRConditionBefore?
+    conditionBeforeSuspension          AVIRConditionBefore?
+    conditionBeforeLights              AVIRConditionBefore?
+    conditionBeforeHorn                AVIRConditionBefore?
+    conditionBeforeWipers              AVIRConditionBefore?
+    conditionBeforeDirectionIndicators AVIRConditionBefore?
+    conditionBeforeElectrical          AVIRConditionBefore?
+    conditionBeforeSpeedometer         AVIRConditionBefore?
+    conditionBeforeMirrors             AVIRConditionBefore?
+
+    // Mechanical/electrical assessment AFTER accident/damages
+    damagesDescription                String?             @db.Text
+    conditionAfterEngine              AVIRConditionAfter?
+    conditionAfterClutch              AVIRConditionAfter?
+    conditionAfterGearbox             AVIRConditionAfter?
+    conditionAfterBackAxle            AVIRConditionAfter?
+    conditionAfterBrakes              AVIRConditionAfter?
+    conditionAfterSteering            AVIRConditionAfter?
+    conditionAfterSuspension          AVIRConditionAfter?
+    conditionAfterLights              AVIRConditionAfter?
+    conditionAfterHorn                AVIRConditionAfter?
+    conditionAfterWipers              AVIRConditionAfter?
+    conditionAfterDirectionIndicators AVIRConditionAfter?
+    conditionAfterElectrical          AVIRConditionAfter?
+    conditionAfterSpeedometer         AVIRConditionAfter?
+    conditionAfterMirrors             AVIRConditionAfter?
+
+    // Assessment and remarks
+    recommendedCauseOfAccident String? @db.Text
+    generalRemarks             String? @db.Text
+
+    // VIO sign-off
+    completedByVIOId    String
+    vioStation          String?
+    vioSignedAt         DateTime?
+    vioDigitalSignature String?   @db.VarChar(500)
+
+    // Form completion
+    status      ApplicationStatus @default(SUBMITTED)
+    completedAt DateTime?
+
+    // Routing
+    routedToSecurityAt   DateTime?
+    routedToMotAt        DateTime?
+    securityDashboardAck DateTime?
+    motDashboardAck      DateTime?
+
+    // Police copy delivery
+    policeCopyDeliveryMethod String?   @db.VarChar(50) // "EMAIL", "PORTAL", "API"
+    policeCopyDeliveredAt    DateTime?
+
+    // Audit
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    // Relations
+    completedByVIO User @relation("CompletedByVIO", fields: [completedByVIOId], references: [id])
+
+    @@index([status])
+    @@index([completedByVIOId])
+    @@index([accidentDateTime])
+    @@index([reportNumber])
+}
+
+// ==================== NOTIFICATIONS ====================
+// Reference: docs/EPICS.md EPIC-007 (STORY-120 to STORY-128)
+// Functional Requirements: FR-050 to FR-053
+
+model NotificationPreference {
+    id     String @id @default(cuid())
+    userId String @unique
+
+    preferredChannel           NotificationChannel @default(BOTH)
+    enableEmailNotifications   Boolean             @default(true)
+    enableSmsNotifications     Boolean             @default(true)
+    enableApplicationAlerts    Boolean             @default(true)
+    enableRenewalReminders     Boolean             @default(true)
+    enablePaymentNotifications Boolean             @default(true)
+
+    // Relations
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+}
+
+model Notification {
+    id String @id @default(cuid())
+
+    notificationType NotificationType
+    recipientUserId  String
+    channel          NotificationChannel @default(BOTH)
+
+    // Message content
+    subject     String
+    messageBody String @db.Text
+
+    // Linked entity
+    linkedEntityType     String? @db.VarChar(50) // "MOTOR_PARK", "MASS_TRANSIT", etc.
+    linkedEntityId       String?
+    motorParkId          String?
+    massTransitCompanyId String?
+    paymentId            String?
+    avIRReportId         String?
+
+    // Delivery status
+    status        String    @default("PENDING") @db.VarChar(50) // PENDING, SENT, FAILED, BOUNCED
+    sentAt        DateTime?
+    failureReason String?   @db.Text
+    retryCount    Int       @default(0)
+    maxRetries    Int       @default(3)
+
+    // Channels sent to
+    sentViaEmail Boolean   @default(false)
+    sentViaSMS   Boolean   @default(false)
+    emailSentAt  DateTime?
+    smsSentAt    DateTime?
+
+    // Audit
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    // Relations
+    recipient          User                @relation("SentToUser", fields: [recipientUserId], references: [id], onDelete: Cascade)
+    motorPark          MotorPark?          @relation("MotorParkNotification", fields: [motorParkId], references: [id], onDelete: SetNull)
+    massTransitCompany MassTransitCompany? @relation("MassTransitNotification", fields: [massTransitCompanyId], references: [id], onDelete: SetNull)
+
+    @@index([recipientUserId])
+    @@index([status])
+    @@index([notificationType])
+    @@index([createdAt])
+}
+
+model NotificationTemplate {
+    id               String           @id @default(cuid())
+    notificationType NotificationType @unique
+
+    // Email template
+    emailSubject  String
+    emailBodyHtml String  @db.Text
+    emailBodyText String? @db.Text
+
+    // SMS template
+    smsBody String @db.VarChar(500)
+
+    // Variables: {{applicantName}}, {{parkName}}, {{permitNumber}}, {{deadlineDate}}, {{inspectionDate}}
+
+    isActive  Boolean  @default(true)
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
+// ==================== AUDIT & COMPLIANCE ====================
+
+model AuditLog {
+    id String @id @default(cuid())
+
+    performedByUserId String
+    action            String @db.VarChar(100) // "CREATE", "UPDATE", "DELETE", "APPROVE", "REJECT"
+    entityType        String @db.VarChar(50) // "MOTOR_PARK", "PAYMENT", etc.
+    entityId          String
+
+    oldValues         String? @db.Text // JSON serialized
+    newValues         String? @db.Text // JSON serialized
+    changeDescription String? @db.Text
+
+    ipAddress String? @db.VarChar(50)
+    userAgent String? @db.VarChar(500)
+
+    createdAt DateTime @default(now())
+
+    // Relations
+    performedBy User @relation("PerformedByUser", fields: [performedByUserId], references: [id])
+
+    @@index([performedByUserId])
+    @@index([entityType, entityId])
+    @@index([action])
+    @@index([createdAt])
+}
+
+model FeeSchedule {
+    id String @id @default(cuid())
+
+    feeType     String  @db.VarChar(100) // "MOTOR_PARK_APPLICATION", "TRANSIT_REGISTRATION", "AVIR_ASSESSMENT"
+    description String? @db.Text
+    amount      Int // in kobo
+    currency    String  @default("NGN")
+
+    effectiveFrom DateTime
+    effectiveTo   DateTime?
+
+    revenueCode String? @db.VarChar(50) // For accounting
+
+    isActive  Boolean  @default(true)
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([feeType])
+    @@index([isActive])
+}
+
+model SystemConfiguration {
+    id String @id @default(cuid())
+
+    configKey   String  @unique @db.VarChar(100)
+    configValue String  @db.Text
+    description String? @db.Text
+
+    updatedAt DateTime @updatedAt
+
+    @@index([configKey])
+}
+
+// ==================== APPLICATION (Generic) ====================
+// Base model for polymorphic application tracking
+
+model Application {
+    id String @id @default(cuid())
+
+    applicationNumber String @unique
+    applicationType   String @db.VarChar(50) // "MOTOR_PARK", "MASS_TRANSIT", "DRIVING_SCHOOL", "VIS", "AVIR"
+    linkedEntityId    String // ID of specific application (MotorPark, MassTransitCompany, etc.)
+
+    status          ApplicationStatus @default(SUBMITTED)
+    createdByUserId String
+
+    submittedAt      DateTime @default(now())
+    submittedByName  String? // Applicant name for audit
+    submittedByEmail String? // Applicant email
+    submittedByPhone String? // Applicant phone
+
+    // Timeline
+    firstReviewDate DateTime?
+    decisionDate    DateTime?
+
+    notes String? @db.Text
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    // Relations
+    createdBy User @relation("CreatedByUser", fields: [createdByUserId], references: [id])
+
+    @@index([applicationNumber])
+    @@index([applicationType])
+    @@index([status])
+    @@index([submittedAt])
+}
+
+// ==================== INDEXES & CONSTRAINTS ====================
+// All indexes defined above within model blocks for clarity
+// Row-Level Security (RLS) will be enforced at the application layer via server actions
+// Example pattern in docs/.copilot-instructions.md under "Server Actions & RLS Pattern"
