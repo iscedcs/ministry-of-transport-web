@@ -141,7 +141,7 @@ export default function Home() {
         </div>
 
         {/* Dark Overlay - Main */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[rgb(0,0,0,0.5)] via-[rgb(0,0,0,0.6)] to-[rgb(0,0,0,0.65)]" />
+        <div className="absolute inset-0 bg-linear-to-b from-[rgb(0,0,0,0.5)] via-[rgb(0,0,0,0.6)] to-[rgb(0,0,0,0.65)]" />
 
         {/* Overlay - Radial gradient for focus */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.3)_0%,rgba(0,0,0,0.7)_100%)]" />

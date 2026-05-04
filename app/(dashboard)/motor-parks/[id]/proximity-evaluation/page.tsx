@@ -110,7 +110,7 @@ export default function ProximityEvaluationPage() {
           Proximity Evaluation
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          FR-015 — Evaluate the proposed site's proximity to public parks, major
+          FR-015 — Evaluate the proposed site&rsquo;s proximity to public parks, major
           transport routes, and road intersections during re-inspection.
         </p>
       </div>

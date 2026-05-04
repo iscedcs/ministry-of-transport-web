@@ -470,7 +470,28 @@ export async function listMotorParks(
     searchQuery?: string;
   } = {},
 ): Promise<
-  ActionResult<{ parks: any[]; total: number; page: number; limit: number }>
+  ActionResult<{
+    parks: Prisma.MotorParkGetPayload<{
+      select: {
+        id: true;
+        businessName: true;
+        applicationStatus: true;
+        permitStatus: true;
+        applicant: {
+          select: {
+            firstName: true;
+            lastName: true;
+            email: true;
+          };
+        };
+        appliedAt: true;
+        approvedAt: true;
+      };
+    }>[];
+    total: number;
+    page: number;
+    limit: number;
+  }>
 > {
   try {
     const page = options.page ?? 1;
@@ -567,8 +588,8 @@ async function logAuditEvent(
   action: string,
   entityType: string,
   entityId: string,
-  oldValues?: any,
-  newValues?: any,
+  oldValues?: unknown,
+  newValues?: unknown,
 ): Promise<void> {
   try {
     await db.auditLog.create({
