@@ -110,8 +110,8 @@ export default function ProximityEvaluationPage() {
           Proximity Evaluation
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          FR-015 — Evaluate the proposed site&rsquo;s proximity to public parks, major
-          transport routes, and road intersections during re-inspection.
+          FR-015 — Evaluate the proposed site&rsquo;s proximity to public parks,
+          major transport routes, and road intersections during re-inspection.
         </p>
       </div>
 
@@ -168,7 +168,7 @@ export default function ProximityEvaluationPage() {
                     type="number"
                     min="0"
                     placeholder="e.g. 150"
-                    className="max-w-[160px]"
+                    className="max-w-40"
                   />
                 </div>
               )}
@@ -218,7 +218,7 @@ export default function ProximityEvaluationPage() {
                     type="number"
                     min="0"
                     placeholder="e.g. 50"
-                    className="max-w-[160px]"
+                    className="max-w-40"
                   />
                 </div>
               )}
@@ -268,7 +268,7 @@ export default function ProximityEvaluationPage() {
                     type="number"
                     min="0"
                     placeholder="e.g. 200"
-                    className="max-w-[160px]"
+                    className="max-w-40"
                   />
                 </div>
               )}
@@ -295,9 +295,7 @@ export default function ProximityEvaluationPage() {
                   value={verdict}
                   onValueChange={setVerdict}
                   required>
-                  <SelectTrigger
-                    id="proximityVerdict"
-                    className="max-w-[240px]">
+                  <SelectTrigger id="proximityVerdict" className="max-w-60">
                     <SelectValue placeholder="Select verdict…" />
                   </SelectTrigger>
                   <SelectContent>
