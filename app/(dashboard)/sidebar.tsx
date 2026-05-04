@@ -1,12 +1,12 @@
-"use client";
-
 /**
- * Dashboard Sidebar — Ministry of Transport Platform
- * Reference: docs/ROLES_AND_DUTIES.md — role-based nav filtering
- *
- * Nav items are shown/hidden based on the user's role.
+ * Dashboard Sidebar — Mobile responsive navigation
+ * Shows as fixed sidebar on desktop (md+), drawer on mobile
+ * 
+ * Navigation items are shown/hidden based on the user's role.
  * Active item detected via usePathname().
  */
+
+"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -14,6 +14,8 @@ import type { UserRole } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { ROLE_LABELS } from "@/lib/utils/labels";
+import { useMobileMenu } from "./mobile-menu-context";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 // ─── Nav item definition ─────────────────────────────────────────────────────
 
@@ -159,17 +161,18 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Navigation Content (reusable for both desktop & mobile) ─────────────────
 
-export function DashboardSidebar({ role }: { role: UserRole; userId: string }) {
+function SidebarNavContent({ role }: { role: UserRole }) {
   const pathname = usePathname();
+  const { close } = useMobileMenu();
 
   const visibleItems = NAV_ITEMS.filter(
     (item) => item.allowedRoles === "ALL" || item.allowedRoles.includes(role),
   );
 
   return (
-    <aside className="w-(--sidebar-width,260px) h-full bg-card border-r border-border/50 flex-col overflow-y-auto overflow-x-hidden flex shrink-0">
+    <>
       {/* Brand */}
       <div className="px-5 pt-5 pb-4 border-b border-border/50">
         <div className="flex items-center gap-3">
@@ -195,7 +198,7 @@ export function DashboardSidebar({ role }: { role: UserRole; userId: string }) {
       </div>
 
       {/* Nav */}
-      <nav aria-label="Main navigation" className="p-3 flex-1">
+      <nav aria-label="Main navigation" className="p-3 flex-1 overflow-y-auto">
         <ul className="flex flex-col gap-0.5 list-none m-0 p-0">
           {visibleItems.map((item) => {
             const isActive =
@@ -207,6 +210,7 @@ export function DashboardSidebar({ role }: { role: UserRole; userId: string }) {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={close}
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
                     "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
@@ -231,6 +235,44 @@ export function DashboardSidebar({ role }: { role: UserRole; userId: string }) {
           ISCE Digital Concept · v0.1
         </p>
       </div>
+    </>
+  );
+}
+
+// ─── Desktop Sidebar (always visible on md+) ─────────────────────────────────
+
+function DesktopSidebar({ role }: { role: UserRole }) {
+  return (
+    <aside className="hidden md:flex w-60 h-full bg-card border-r border-border/50 flex-col overflow-hidden shrink-0 fixed left-0 top-0 bottom-0 z-40">
+      <SidebarNavContent role={role} />
     </aside>
+  );
+}
+
+// ─── Mobile Sidebar (drawer on mobile) ───────────────────────────────────────
+
+function MobileSidebar({ role }: { role: UserRole }) {
+  const { isOpen, close } = useMobileMenu();
+
+  return (
+    <Sheet open={isOpen} onOpenChange={(open) => !open && close()}>
+      <SheetTitle>Navigation Menu</SheetTitle>
+      <SheetContent side="left" className="w-60 p-0">
+        <div className="flex flex-col h-full overflow-hidden">
+          <SidebarNavContent role={role} />
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ─── Combined Sidebar Export ──────────────────────────────────────────────────
+
+export function DashboardSidebar({ role }: { role: UserRole; userId: string }) {
+  return (
+    <>
+      <DesktopSidebar role={role} />
+      <MobileSidebar role={role} />
+    </>
   );
 }

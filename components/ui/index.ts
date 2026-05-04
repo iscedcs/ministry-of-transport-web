@@ -37,6 +37,8 @@ export {
 export { Modal } from "./modal";
 export type { ModalProps } from "./modal";
 
+export { Sheet, SheetTrigger, SheetClose, SheetContent, SheetTitle } from "./sheet";
+
 export { Input } from "./input";
 export { Textarea } from "./textarea";
 export { Label } from "./label";
