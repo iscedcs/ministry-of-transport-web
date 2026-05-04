@@ -255,7 +255,7 @@ export function SystemConfigClient({
                       <td className="px-4 py-3 font-mono text-xs font-medium">
                         {cfg.configKey}
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground max-w-[200px] truncate">
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground max-w-50 truncate">
                         {cfg.configValue}
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">

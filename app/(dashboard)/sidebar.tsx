@@ -169,7 +169,7 @@ export function DashboardSidebar({ role }: { role: UserRole; userId: string }) {
   );
 
   return (
-    <aside className="w-[var(--sidebar-width,260px)] h-full bg-card border-r border-border/50 flex flex-col overflow-y-auto overflow-x-hidden flex-shrink-0">
+    <aside className="w-(--sidebar-width,260px) h-full bg-card border-r border-border/50 flex-col overflow-y-auto overflow-x-hidden flex shrink-0">
       {/* Brand */}
       <div className="px-5 pt-5 pb-4 border-b border-border/50">
         <div className="flex items-center gap-3">
