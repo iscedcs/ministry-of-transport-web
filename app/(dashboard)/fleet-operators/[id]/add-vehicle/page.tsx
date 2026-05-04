@@ -90,7 +90,7 @@ export default function AddVehiclePage() {
           <CardHeader>
             <CardTitle className="text-base">Vehicle Details</CardTitle>
             <CardDescription>
-              Provide the vehicle's technical and registration information
+              Provide the vehicle&rsquo;s technical and registration information
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">

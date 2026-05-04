@@ -123,7 +123,7 @@ export function SystemConfigClient({
         <p>
           API secrets and passwords must be set as{" "}
           <strong>environment variables</strong>. Do not store them here — keys
-          containing "SECRET" or "PASSWORD" are blocked.
+          containing &quot;SECRET&quot; or &quot;PASSWORD&quot; are blocked.
         </p>
       </div>
 

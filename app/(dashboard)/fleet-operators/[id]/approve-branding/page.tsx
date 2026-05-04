@@ -73,7 +73,7 @@ export default function ApproveBrandingPage() {
         </nav>
         <h1 className="text-2xl font-semibold">Approve Branding Scheme</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          FR-025: Approve the company's official brand colour for vehicle
+          FR-025: Approve the company&rsquo;s official brand colour for vehicle
           identification. Status will move to Pending Approval.
         </p>
       </div>
