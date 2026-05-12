@@ -88,8 +88,11 @@ export default function MassTransitRequirementsPage() {
             </h2>
             <p className="text-sm text-foreground/90">
               Your company must have a{" "}
-              <span className="font-semibold">minimum of five (5) branded vehicles</span>{" "}
-              in its fleet to be considered as a Mass Transit Company or Fleet Operator.
+              <span className="font-semibold">
+                minimum of five (5) branded vehicles
+              </span>{" "}
+              in its fleet to be considered as a Mass Transit Company or Fleet
+              Operator.
             </p>
           </section>
 
@@ -103,7 +106,9 @@ export default function MassTransitRequirementsPage() {
             </h2>
             <ul className="space-y-2.5">
               {requiredDocuments.map((doc, i) => (
-                <li key={i} className="flex items-start gap-2.5 text-sm text-foreground/90">
+                <li
+                  key={i}
+                  className="flex items-start gap-2.5 text-sm text-foreground/90">
                   <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                   {doc}
                 </li>
@@ -121,7 +126,9 @@ export default function MassTransitRequirementsPage() {
             </h2>
             <ul className="space-y-2.5">
               {fleetRequirements.map((req, i) => (
-                <li key={i} className="flex items-start gap-2.5 text-sm text-foreground/90">
+                <li
+                  key={i}
+                  className="flex items-start gap-2.5 text-sm text-foreground/90">
                   <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                   {req}
                 </li>
@@ -139,7 +146,9 @@ export default function MassTransitRequirementsPage() {
             </h2>
             <ol className="space-y-3">
               {processSteps.map((step, i) => (
-                <li key={i} className="flex items-start gap-3 text-sm text-foreground/90">
+                <li
+                  key={i}
+                  className="flex items-start gap-3 text-sm text-foreground/90">
                   <span className="w-5 h-5 rounded-full bg-secondary text-muted-foreground text-xs font-semibold flex items-center justify-center flex-shrink-0 mt-0.5">
                     {i + 1}
                   </span>
@@ -155,11 +164,11 @@ export default function MassTransitRequirementsPage() {
               Payment Notice
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              A one-off application fee is payable into the designated State Government
+              {` A one-off application fee is payable into the designated State Government
               PayDirect account, referenced by your company's ASIN. Companies that meet
               all requirements are issued a Permit to Operate Certificate, subject to
               annual renewal. Monthly payments to the State Government apply as specified
-              by the Ministry.
+              by the Ministry.`}
             </p>
           </section>
 
@@ -171,11 +180,13 @@ export default function MassTransitRequirementsPage() {
               onCheckedChange={(v) => setAgreed(!!v)}
               className="mt-0.5"
             />
-            <Label htmlFor="agree" className="text-sm leading-relaxed cursor-pointer">
-              I have read and understand all the requirements, fleet standards, and
-              terms above. I confirm that my company meets the minimum eligibility
-              criteria (5 branded vehicles) to apply for Mass Transit registration
-              in Anambra State.
+            <Label
+              htmlFor="agree"
+              className="text-sm leading-relaxed cursor-pointer">
+              I have read and understand all the requirements, fleet standards,
+              and terms above. I confirm that my company meets the minimum
+              eligibility criteria (5 branded vehicles) to apply for Mass
+              Transit registration in Anambra State.
             </Label>
           </div>
 
