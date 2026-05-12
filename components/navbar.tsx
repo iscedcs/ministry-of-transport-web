@@ -41,13 +41,13 @@ export function Navbar() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button
+          {/* <Button
             asChild
             variant="outline"
             size="sm"
             className="hidden sm:inline-flex">
             <Link href="/register">Sign Up</Link>
-          </Button>
+          </Button> */}
           <Button asChild size="sm">
             <Link href="/login">Sign In</Link>
           </Button>

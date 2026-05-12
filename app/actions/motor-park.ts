@@ -29,6 +29,7 @@ import {
   canPerformInspections,
   canIssuePermits,
 } from "@/lib/auth";
+import { uploadDocument } from "@/lib/spaces";
 import {
   motorParkApplicationSchema,
   motorParkStatusUpdateSchema,
@@ -55,7 +56,7 @@ export async function submitParkApplication(
     transportCompanyName: formData.get("transportCompanyName") || undefined,
     locationAddress: formData.get("locationAddress"),
     gpsCoordinates: formData.get("gpsCoordinates") || undefined,
-    cacRegistrationNumber: formData.get("cacRegistrationNumber"),
+    cacRegistrationNumber: formData.get("cacRegistrationNumber") || undefined,
     anssidNumber: formData.get("anssidNumber"),
     contactPerson: formData.get("contactPerson"),
     contactPhone: formData.get("contactPhone"),
@@ -72,25 +73,12 @@ export async function submitParkApplication(
 
   const data = parsed.data;
 
-  // Check for duplicate CAC or ANSSID
-  const [existingCac, existingAnssid] = await Promise.all([
-    db.motorPark.findUnique({
-      where: { cacRegistrationNumber: data.cacRegistrationNumber },
-      select: { id: true },
-    }),
-    db.motorPark.findUnique({
-      where: { anssidNumber: data.anssidNumber },
-      select: { id: true },
-    }),
-  ]);
+  // Check for duplicate ANSSID only (CAC is now optional and non-unique)
+  const existingAnssid = await db.motorPark.findUnique({
+    where: { anssidNumber: data.anssidNumber },
+    select: { id: true },
+  });
 
-  if (existingCac) {
-    return {
-      success: false,
-      error:
-        "A motor park application with this CAC registration number already exists.",
-    };
-  }
   if (existingAnssid) {
     return {
       success: false,
@@ -230,7 +218,7 @@ export type MotorParkDetail = {
   transportCompanyName: string | null;
   locationAddress: string;
   gpsCoordinates: string | null;
-  cacRegistrationNumber: string;
+  cacRegistrationNumber: string | null;
   anssidNumber: string;
   contactPerson: string;
   contactPhone: string;
@@ -250,6 +238,8 @@ export type MotorParkDetail = {
   approvedByUserId: string | null;
   revokedAt: Date | null;
   revocationReason: string | null;
+  cacDocumentId: string | null;
+  landOwnershipDocId: string | null;
   applicant: { id: string; firstName: string; lastName: string; email: string };
   inspections: {
     id: string;
@@ -308,6 +298,8 @@ export async function getMotorPark(
       approvedByUserId: true,
       revokedAt: true,
       revocationReason: true,
+      cacDocumentId: true,
+      landOwnershipDocId: true,
       applicant: {
         select: { id: true, firstName: true, lastName: true, email: true },
       },
@@ -1119,16 +1111,17 @@ export async function updateParkDocuments(
   const session = await requireRole(["EXTERNAL_APPLICANT"]);
 
   const parkId = formData.get("parkId") as string;
-  const cacDocumentUrl = (formData.get("cacDocumentUrl") as string)?.trim();
-  const landOwnershipDocUrl = (
-    formData.get("landOwnershipDocUrl") as string
-  )?.trim();
+  const cacDocumentFile = formData.get("cacDocument");
+  const landOwnershipDocFile = formData.get("landOwnershipDoc");
 
   if (!parkId) return { success: false, error: "Park ID required" };
-  if (!cacDocumentUrl && !landOwnershipDocUrl) {
+  if (
+    !(cacDocumentFile instanceof File) &&
+    !(landOwnershipDocFile instanceof File)
+  ) {
     return {
       success: false,
-      error: "At least one document reference is required",
+      error: "At least one document upload is required.",
     };
   }
 
@@ -1141,8 +1134,52 @@ export async function updateParkDocuments(
     return { success: false, error: "Motor park not found or access denied" };
 
   const data: Record<string, string> = {};
-  if (cacDocumentUrl) data.cacDocumentId = cacDocumentUrl;
-  if (landOwnershipDocUrl) data.landOwnershipDocId = landOwnershipDocUrl;
+  const uploadDetails: Array<{
+    file: File;
+    targetField: "cacDocumentId" | "landOwnershipDocId";
+  }> = [];
+
+  if (cacDocumentFile instanceof File && cacDocumentFile.size > 0) {
+    uploadDetails.push({ file: cacDocumentFile, targetField: "cacDocumentId" });
+  }
+
+  if (
+    landOwnershipDocFile instanceof File &&
+    landOwnershipDocFile.size > 0
+  ) {
+    uploadDetails.push({
+      file: landOwnershipDocFile,
+      targetField: "landOwnershipDocId",
+    });
+  }
+
+  for (const item of uploadDetails) {
+    let uploaded;
+    try {
+      uploaded = await uploadDocument(item.file, item.targetField === "cacDocumentId" ? "cac" : "land");
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Upload failed.",
+      };
+    }
+
+    const document = await db.document.create({
+      data: {
+        uploadedByUserId: session.userId,
+        fileName: uploaded.fileName,
+        fileType: uploaded.fileMimeType.split("/")[1] ?? "bin",
+        fileSize: uploaded.fileSize,
+        fileUrl: uploaded.url,
+        fileMimeType: uploaded.fileMimeType,
+        linkedToType: "MOTOR_PARK",
+        linkedToId: parkId,
+      },
+      select: { id: true },
+    });
+
+    data[item.targetField] = document.id;
+  }
 
   await db.motorPark.update({ where: { id: parkId }, data });
 
@@ -1152,7 +1189,7 @@ export async function updateParkDocuments(
       action: "DOCUMENTS_UPLOADED",
       entityType: "MOTOR_PARK",
       entityId: parkId,
-      changeDescription: `Documents updated. CAC: ${cacDocumentUrl ? "provided" : "unchanged"}. Land: ${landOwnershipDocUrl ? "provided" : "unchanged"}.`,
+      changeDescription: `Documents updated. CAC: ${uploadDetails.some((item) => item.targetField === "cacDocumentId") ? "uploaded" : "unchanged"}. Land: ${uploadDetails.some((item) => item.targetField === "landOwnershipDocId") ? "uploaded" : "unchanged"}.`,
     },
   });
 

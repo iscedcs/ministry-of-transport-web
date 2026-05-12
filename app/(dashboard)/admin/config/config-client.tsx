@@ -123,7 +123,7 @@ export function SystemConfigClient({
         <p>
           API secrets and passwords must be set as{" "}
           <strong>environment variables</strong>. Do not store them here — keys
-          containing &quot;SECRET&quot; or &quot;PASSWORD&quot; are blocked.
+          containing "SECRET" or "PASSWORD" are blocked.
         </p>
       </div>
 
@@ -255,7 +255,7 @@ export function SystemConfigClient({
                       <td className="px-4 py-3 font-mono text-xs font-medium">
                         {cfg.configKey}
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground max-w-50 truncate">
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground max-w-[200px] truncate">
                         {cfg.configValue}
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground hidden md:table-cell">

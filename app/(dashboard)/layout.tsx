@@ -10,6 +10,7 @@
 
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { DashboardSidebar } from "./sidebar";
 import { DashboardTopbar } from "./topbar";
 import { MobileMenuProvider } from "./mobile-menu-context";
@@ -22,15 +23,27 @@ export default async function DashboardLayout({
   const session = await getSession();
   if (!session) redirect("/login");
 
+  // Fetch registeredService for applicants (not stored in session)
+  let registeredService: string | null = null;
+  if (session.role === "EXTERNAL_APPLICANT") {
+    const user = await db.user.findUnique({
+      where: { id: session.userId },
+      select: { registeredService: true },
+    });
+    registeredService = user?.registeredService ?? null;
+  }
+
   return (
     <MobileMenuProvider>
       <div className="flex h-dvh overflow-hidden bg-background">
-        {/* Desktop sidebar - hidden on mobile */}
-        <div className="hidden md:block w-60 flex-shrink-0" />
+        {/* Sidebar — flex sibling so it occupies its own column */}
+        <DashboardSidebar
+          role={session.role}
+          userId={session.userId}
+          registeredService={registeredService}
+        />
 
         <div className="flex flex-col flex-1 overflow-hidden">
-          {/* Topbar with mobile menu toggle */}
-          <DashboardSidebar role={session.role} userId={session.userId} />
           <DashboardTopbar role={session.role} userId={session.userId} />
 
           {/* Main content - responsive padding */}

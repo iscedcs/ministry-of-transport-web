@@ -24,48 +24,56 @@ const launchModules = [
     description:
       "Digital application, inspection scheduling, permit-to-build, revalidation, and compliance enforcement.",
     icon: Building2,
+    href: "/register/motor-park",
   },
   {
     title: "Mass Transit Registration",
     description:
       "Company onboarding, fleet declarations, branding approval, and annual permit renewal workflows.",
     icon: Bus,
+    href: "/register/mass-transit",
   },
   {
     title: "Revenue and Payments",
     description:
       "ASIN-linked fee tracking, digital receipts, arrears visibility, and disaggregated revenue reporting.",
     icon: Wallet,
+    href: null,
   },
   {
     title: "Ministry Administration",
     description:
       "Role-based operations for Commissioner, Permanent Secretary, HODs, field teams, and finance staff.",
     icon: Landmark,
+    href: null,
   },
   {
     title: "VIS Inspection",
     description:
       "Private and commercial vehicle inspection intake with insurance and roadworthiness checkpoints.",
     icon: Car,
+    href: null,
   },
   {
     title: "Accident Reporting (AVIR)",
     description:
       "End-to-end digital AVIR workflow with MOT and Police routing, sign-off, and archive copies.",
     icon: ClipboardList,
+    href: null,
   },
   {
     title: "Driving School Registration",
     description:
       "Application, VIO test submission, certificate decisioning, and rejection reason transparency.",
     icon: School,
+    href: null,
   },
   {
     title: "Certificate Workflow Engine",
     description:
       "Reusable application-to-certificate flow with temporary/permanent issuance and policy controls.",
     icon: FileCheck2,
+    href: null,
   },
 ];
 
@@ -167,12 +175,12 @@ export default function Home() {
               </p>
 
               <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
-                <Button
+                {/* <Button
                   asChild
                   size="lg"
                   className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-xl">
                   <Link href="/register">Create Account</Link>
-                </Button>
+                </Button> */}
                 <Button
                   asChild
                   size="lg"
@@ -226,7 +234,7 @@ export default function Home() {
         <section id="modules" className="mx-auto w-full max-w-6xl px-6 py-16">
           <div className="mb-12 max-w-3xl">
             <p className="text-sm font-semibold uppercase tracking-[0.12em] text-primary mb-3">
-              Eight Core Services
+              Core Services
             </p>
             <h2 className="font-display text-3xl md:text-4xl font-bold tracking-[-0.02em] text-foreground">
               Everything in one place
@@ -241,7 +249,7 @@ export default function Home() {
           {/* Stats Cards */}
           <div className="grid gap-4 mb-12 sm:grid-cols-3">
             <div className="border border-border/60 rounded-lg p-6 bg-card/50">
-              <p className="text-3xl font-bold text-foreground">8</p>
+              <p className="text-3xl font-bold text-foreground">Solid</p>
               <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground mt-2">
                 Core Services
               </p>
@@ -263,13 +271,24 @@ export default function Home() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {launchModules.map((module) => {
               const Icon = module.icon;
-              return (
+              const cardContent = (
                 <Card
                   key={module.title}
-                  className="border-border/70 bg-card/60 hover:bg-card/80 transition-colors">
+                  className={`border-border/70 bg-card/60 transition-colors h-full ${
+                    module.href
+                      ? "hover:bg-card hover:border-primary/40 hover:shadow-sm cursor-pointer"
+                      : "opacity-70"
+                  }`}>
                   <CardHeader className="space-y-3 pb-3">
-                    <div className="grid h-9 w-9 place-content-center rounded-md bg-primary/10 text-primary">
-                      <Icon className="h-4 w-4" />
+                    <div className="flex items-start justify-between">
+                      <div className="grid h-9 w-9 place-content-center rounded-md bg-primary/10 text-primary">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      {!module.href && (
+                        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                          Coming Soon
+                        </span>
+                      )}
                     </div>
                     <CardTitle className="text-base leading-snug">
                       {module.title}
@@ -281,6 +300,13 @@ export default function Home() {
                     </p>
                   </CardContent>
                 </Card>
+              );
+              return module.href ? (
+                <Link key={module.title} href={module.href} className="block">
+                  {cardContent}
+                </Link>
+              ) : (
+                <div key={module.title}>{cardContent}</div>
               );
             })}
           </div>

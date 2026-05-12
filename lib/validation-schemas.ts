@@ -70,9 +70,7 @@ export const motorParkApplicationSchema = z.object({
     .string()
     .regex(GPS_REGEX, "GPS coordinates must be in lat,lon format")
     .optional(),
-  cacRegistrationNumber: z
-    .string()
-    .regex(CAC_REGEX, "Invalid CAC registration number format"),
+  cacRegistrationNumber: z.string().max(50).optional(),
   anssidNumber: z.string().regex(ASIN_REGEX, "Invalid ANSSID number format"),
   contactPerson: z.string().min(3).max(100),
   contactPhone: z.string().regex(PHONE_REGEX),
