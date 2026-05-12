@@ -98,7 +98,9 @@ jobs:
           cache: "pnpm"
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          pnpm approve-builds --all
+          pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
         run: pnpm prisma generate
