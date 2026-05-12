@@ -121,9 +121,10 @@ export function SystemConfigClient({
       <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-400">
         <Info className="h-4 w-4 shrink-0 mt-0.5" />
         <p>
-          API secrets and passwords must be set as{" "}
-          <strong>environment variables</strong>. Do not store them here — keys
-          containing "SECRET" or "PASSWORD" are blocked.
+          {`API secrets and passwords must be set as`}
+          <strong>environment variables</strong>.{" "}
+          {`Do not store them here — keys
+          containing "SECRET" or "PASSWORD" are blocked.`}
         </p>
       </div>
 
