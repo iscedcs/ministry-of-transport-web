@@ -26,10 +26,17 @@ import { decryptFromToken, refreshSession } from "@/lib/session";
 // ==================== ROUTE CONFIGURATION ====================
 
 /** Routes that never require authentication */
-const PUBLIC_ROUTES = ["/login", "/register", "/unauthorized", "/"];
+const PUBLIC_ROUTES = [
+  "/login",
+  "/staff/login",
+  "/register",
+  "/unauthorized",
+  "/",
+];
 
 /** Route prefixes that are entirely public (e.g. webhooks) */
 const PUBLIC_PREFIXES = [
+  "/register/",
   "/api/webhooks/",
   "/_next/",
   "/favicon.ico",

@@ -65,7 +65,8 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
 
   const canUploadDocuments =
     role === "EXTERNAL_APPLICANT" &&
-    ["SUBMITTED", "UNDER_REVIEW"].includes(status);
+    ["SUBMITTED", "UNDER_REVIEW"].includes(status) &&
+    !(park.cacDocumentId || park.landOwnershipDocId);
 
   const canProximityEval =
     [

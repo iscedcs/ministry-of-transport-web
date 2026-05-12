@@ -9,7 +9,10 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { getParkStatusSummary } from "@/app/actions/motor-park";
+import { APPLICANT_SERVICE_CARDS } from "@/lib/service-config";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/badge";
@@ -25,6 +28,21 @@ export default async function DashboardPage() {
   const isExecutive =
     session.role === "COMMISSIONER" || session.role === "PERMANENT_SECRETARY";
   const isStaff = !isApplicant;
+
+  const user = await db.user.findUnique({
+    where: { id: session.userId },
+    select: { registeredService: true },
+  });
+
+  const currentServices = user?.registeredService
+    ? user.registeredService.split(",").map((service) => service.trim())
+    : [];
+
+  const availableServices = isApplicant
+    ? APPLICANT_SERVICE_CARDS.filter(
+        (service) => !currentServices.includes(service.id),
+      )
+    : [];
 
   return (
     <div className="flex flex-col gap-8 max-w-5xl">
@@ -116,6 +134,23 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+
+      {isApplicant && availableServices.length > 0 && (
+        <Card className="border-border/60 bg-secondary/50">
+          <CardHeader>
+            <CardTitle className="text-base">Add another service to your account</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              You can add another registered service and gain access to its
+              workflows from the dashboard sidebar.
+            </p>
+            <Button asChild>
+              <Link href="/dashboard/services">Choose a new service</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Status breakdown (staff only) */}
       {isStaff && stats && (

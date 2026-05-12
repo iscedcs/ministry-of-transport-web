@@ -122,19 +122,20 @@ enum AVIRConditionAfter {
 // ==================== CORE USERS & AUTH ====================
 
 model User {
-    id           String   @id @default(cuid())
-    email        String   @unique
+    id           String  @id @default(cuid())
+    email        String  @unique
     phone        String?
-    passwordHash String   @db.VarChar(255) // bcrypt hash
-    asinNumber   String?  @unique // Anambra State ID Number (for external applicants)
+    passwordHash String? @db.VarChar(255) // bcrypt hash — null for passwordless applicants
+    asinNumber   String? @unique // Anambra State ID Number (for external applicants)
     firstName    String
     lastName     String
     role         UserRole
-    departmentId String?  @db.VarChar(50) // For HOD roles: "parks", "vis", "transport-ops", "parks-revalidation"
+    departmentId String? @db.VarChar(50) // For HOD roles: "parks", "vis", "transport-ops", "parks-revalidation"
 
     // Profile details
-    designation     String? // Job title for Ministry staff
-    stationLocation String? // For Field Inspectors / VIOs
+    designation       String? // Job title for Ministry staff
+    stationLocation   String? // For Field Inspectors / VIOs
+    registeredService String? // "MOTOR_PARK" | "MASS_TRANSIT" — set on applicant registration; null for staff
 
     // Account status
     isActive      Boolean   @default(true)
@@ -156,6 +157,7 @@ model User {
     avirs                AVIRReport[]             @relation("CompletedByVIO")
     auditLogs            AuditLog[]               @relation("PerformedByUser")
     notificationsSent    Notification[]           @relation("SentToUser")
+    motorParkDraft       MotorParkDraft?
 
     @@index([email])
     @@index([role])
@@ -210,7 +212,7 @@ model MotorPark {
     transportCompanyName  String?
     locationAddress       String  @db.Text
     gpsCoordinates        String? // lat,lon format
-    cacRegistrationNumber String  @unique
+    cacRegistrationNumber String? // optional — uploaded CAC doc takes precedence
     anssidNumber          String  @unique
 
     // Contact person
@@ -367,6 +369,16 @@ model InspectionChecklistTemplate {
     updatedAt DateTime                  @updatedAt
 
     @@index([linkedEntityType])
+}
+
+// Stores in-progress wizard data so applicants can resume across sessions/devices
+model MotorParkDraft {
+    id        String   @id @default(cuid())
+    userId    String   @unique
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    stepReached Int    @default(1)
+    data      Json
+    updatedAt DateTime @updatedAt
 }
 
 model MotorParkFee {

@@ -91,38 +91,36 @@ export default function UploadDocumentsPage() {
       <div className="rounded-lg border border-border/50 bg-secondary/50 p-4">
         <p className="text-xs text-muted-foreground leading-relaxed">
           <strong className="text-foreground">How to submit documents:</strong>{" "}
-          Upload your documents to a secure cloud storage service (e.g. Google
-          Drive, Dropbox) and share them with view access. Paste the public
-          document link in the fields below. Ensure the links remain accessible
-          throughout the review process.
+          Upload your documents directly from your device. The files will be
+          securely stored and made available to the appropriate review teams.
         </p>
       </div>
 
-      <form action={action} noValidate>
+      <form action={action} encType="multipart/form-data" noValidate>
         <input type="hidden" name="parkId" value={parkId} />
 
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Required Documents</CardTitle>
             <CardDescription>
-              Paste publicly accessible URLs for each document. At least one is
-              required.
+              Upload one or both documents below. At least one file is required.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
             {/* CAC Document */}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="cacDocumentUrl">
+              <Label htmlFor="cacDocument">
                 CAC Registration Certificate{" "}
                 <span className="text-muted-foreground text-xs font-normal">
                   (optional)
                 </span>
               </Label>
-              <Input
-                id="cacDocumentUrl"
-                name="cacDocumentUrl"
-                type="url"
-                placeholder="https://drive.google.com/file/d/…"
+              <input
+                id="cacDocument"
+                name="cacDocument"
+                type="file"
+                accept="application/pdf,image/*"
+                className="file-input"
               />
               <p className="text-xs text-muted-foreground">
                 Certificate of incorporation from the Corporate Affairs
@@ -134,17 +132,18 @@ export default function UploadDocumentsPage() {
 
             {/* Land Ownership Document */}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="landOwnershipDocUrl">
+              <Label htmlFor="landOwnershipDoc">
                 Land Ownership / Lease Agreement{" "}
                 <span className="text-muted-foreground text-xs font-normal">
                   (optional)
                 </span>
               </Label>
-              <Input
-                id="landOwnershipDocUrl"
-                name="landOwnershipDocUrl"
-                type="url"
-                placeholder="https://drive.google.com/file/d/…"
+              <input
+                id="landOwnershipDoc"
+                name="landOwnershipDoc"
+                type="file"
+                accept="application/pdf,image/*"
+                className="file-input"
               />
               <p className="text-xs text-muted-foreground">
                 Proof of land ownership or a valid lease agreement for the

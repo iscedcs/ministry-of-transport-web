@@ -3,10 +3,15 @@
 /**
  * External Applicant Registration — Ministry of Transport Platform
  * STORY-007: User registration flows
+ *
+ * Passwordless registration — applicants authenticate with email + ASIN.
+ * Requires a valid `service` query param (MOTOR_PARK | MASS_TRANSIT).
+ * If missing, redirects back to home to select a service first.
  */
 
-import { useActionState } from "react";
+import { useActionState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { registerApplicant } from "@/app/actions/auth";
 import type { AuthFormState } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -22,6 +27,11 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
+const SERVICE_LABELS: Record<string, string> = {
+  MOTOR_PARK: "Motor Park Registration",
+  MASS_TRANSIT: "Mass Transit Registration",
+};
+
 function FieldError({ id, errors }: { id: string; errors?: string[] }) {
   if (!errors?.length) return null;
   return (
@@ -31,23 +41,40 @@ function FieldError({ id, errors }: { id: string; errors?: string[] }) {
   );
 }
 
-export default function RegisterPage() {
+function RegisterForm() {
   const [state, action, isPending] = useActionState<AuthFormState, FormData>(
     registerApplicant,
     undefined,
   );
   const e = state?.errors;
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const service = searchParams.get("service");
+  const serviceLabel = service ? SERVICE_LABELS[service] : null;
+
+  // Guard: must arrive from a service requirements page
+  useEffect(() => {
+    if (!service || !SERVICE_LABELS[service]) {
+      router.replace("/");
+    }
+  }, [service, router]);
+
+  if (!service || !serviceLabel) return null;
 
   return (
     <Card>
       <CardHeader>
+        <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-1">
+          {serviceLabel}
+        </p>
         <CardTitle
           className="text-xl"
           style={{ fontFamily: "var(--font-display)" }}>
-          Create applicant account
+          Create your account
         </CardTitle>
         <CardDescription>
-          Register to submit motor park or mass transit applications.
+          You will sign in using your email address and ASIN number — no password required.
         </CardDescription>
       </CardHeader>
 
@@ -59,6 +86,9 @@ export default function RegisterPage() {
         )}
 
         <form action={action} noValidate className="flex flex-col gap-4">
+          {/* Hidden service field */}
+          <input type="hidden" name="service" value={service} />
+
           {/* Name row */}
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
@@ -133,7 +163,7 @@ export default function RegisterPage() {
             <Label htmlFor="asinNumber">
               ASIN Number{" "}
               <span className="text-muted-foreground font-normal text-xs">
-                (Anambra State ID — 16 digits)
+                (Anambra State ID — 6 to 16 digits)
               </span>
             </Label>
             <Input
@@ -141,49 +171,14 @@ export default function RegisterPage() {
               name="asinNumber"
               type="text"
               inputMode="numeric"
-              pattern="[0-9]{16}"
               maxLength={16}
-              placeholder="1234567890123456"
+              placeholder="Your Anambra State ID Number"
               required
               aria-invalid={!!e?.asinNumber}
               aria-describedby={e?.asinNumber ? "asin-error" : undefined}
               className={e?.asinNumber ? "border-destructive" : ""}
             />
             <FieldError id="asin-error" errors={e?.asinNumber} />
-          </div>
-
-          {/* Password */}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              required
-              aria-invalid={!!e?.password}
-              aria-describedby={e?.password ? "password-error" : undefined}
-              className={e?.password ? "border-destructive" : ""}
-            />
-            <FieldError id="password-error" errors={e?.password} />
-          </div>
-
-          {/* Confirm Password */}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="confirmPassword">Confirm password</Label>
-            <Input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              autoComplete="new-password"
-              required
-              aria-invalid={!!e?.confirmPassword}
-              aria-describedby={
-                e?.confirmPassword ? "confirm-error" : undefined
-              }
-              className={e?.confirmPassword ? "border-destructive" : ""}
-            />
-            <FieldError id="confirm-error" errors={e?.confirmPassword} />
           </div>
 
           <Button
@@ -205,5 +200,13 @@ export default function RegisterPage() {
         </p>
       </CardFooter>
     </Card>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
   );
 }

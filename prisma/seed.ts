@@ -9,7 +9,7 @@
  * 4. System Configuration defaults
  */
 
-import { NotificationType, PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
 
 const adapter = new PrismaNeon({
@@ -328,12 +328,7 @@ async function main() {
 
   // ==================== NOTIFICATION TEMPLATES ====================
 
-  const notificationTemplates: Array<{
-    notificationType: NotificationType;
-    emailSubject: string;
-    emailBodyHtml: string;
-    smsBody: string;
-  }> = [
+  const notificationTemplates = [
     {
       notificationType: "APPLICATION_SUBMITTED",
       emailSubject:
@@ -449,9 +444,9 @@ async function main() {
 
   for (const template of notificationTemplates) {
     await db.notificationTemplate.upsert({
-      where: { notificationType: template.notificationType },
+      where: { notificationType: template.notificationType as any },
       update: {},
-      create: template,
+      create: template as any,
     });
     console.log(
       `✅ Notification template seeded: ${template.notificationType}`,

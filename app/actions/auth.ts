@@ -18,6 +18,7 @@
  */
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -30,6 +31,13 @@ import type { ActionResult } from "@/lib/server-actions-pattern";
 const loginSchema = z.object({
   email: z.string().email("Enter a valid email address").trim().toLowerCase(),
   password: z.string().min(1, "Password is required"),
+});
+
+const loginApplicantSchema = z.object({
+  email: z.string().email("Enter a valid email address").trim().toLowerCase(),
+  asinNumber: z
+    .string()
+    .regex(/^\d{6,16}$/, "ASIN must be 6–16 digits (numbers only)"),
 });
 
 /**
@@ -59,20 +67,10 @@ const externalRegisterSchema = z
       .or(z.literal("")),
     asinNumber: z
       .string()
-      .regex(
-        /^\d{16}$/,
-        "ASIN must be exactly 16 digits (your Anambra State ID Number)",
-      ),
-    password: z
-      .string()
-      .min(8, "Password must be at least 8 characters")
-      .regex(/[a-zA-Z]/, "Password must contain at least one letter")
-      .regex(/[0-9]/, "Password must contain at least one number"),
-    confirmPassword: z.string(),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
+      .regex(/^\d{6,16}$/, "ASIN must be 6–16 digits (numbers only)"),
+    service: z.enum(["MOTOR_PARK", "MASS_TRANSIT"], {
+      error: "Please select a service to register for",
+    }),
   });
 
 /**
@@ -154,6 +152,11 @@ export async function login(
     },
   });
 
+  // 2a. Guard: applicants must use the applicant sign-in page
+  if (user?.role === "EXTERNAL_APPLICANT") {
+    return { message: "Applicants must sign in using the applicant login page." };
+  }
+
   // 3. Constant-time comparison (prevent timing attacks on user enumeration)
   const dummyHash =
     "$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RK.s5uO6u";
@@ -212,15 +215,14 @@ export async function registerApplicant(
     email: formData.get("email"),
     phone: formData.get("phone"),
     asinNumber: formData.get("asinNumber"),
-    password: formData.get("password"),
-    confirmPassword: formData.get("confirmPassword"),
+    service: formData.get("service"),
   });
 
   if (!validated.success) {
     return { errors: validated.error.flatten().fieldErrors };
   }
 
-  const { firstName, lastName, email, phone, asinNumber, password } =
+  const { firstName, lastName, email, phone, asinNumber, service } =
     validated.data;
 
   // 2. Check for duplicate email or ASIN
@@ -242,32 +244,121 @@ export async function registerApplicant(
     }
   }
 
-  // 3. Hash password (cost factor 12 — OWASP recommended minimum)
-  const passwordHash = await bcrypt.hash(password, 12);
-
-  // 4. Create user
-  const user = await db.user.create({
+  // 3. Create user (passwordless — applicants authenticate via email + ASIN)
+  await db.user.create({
     data: {
       firstName,
       lastName,
       email,
       phone: phone || null,
       asinNumber,
-      passwordHash,
+      passwordHash: null,
       role: "EXTERNAL_APPLICANT",
+      registeredService: service,
       isActive: true,
     },
-    select: { id: true, role: true, departmentId: true },
   });
 
-  // 5. Create session
+  // 4. Redirect to applicant login with success message
+  redirect("/login?registered=1");
+}
+
+const addServiceSchema = z.object({
+  service: z.enum(["MOTOR_PARK", "MASS_TRANSIT"]),
+});
+
+export async function addApplicantService(
+  prevState: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const session = await requireRole(["EXTERNAL_APPLICANT"]);
+
+  const validated = addServiceSchema.safeParse({
+    service: formData.get("service"),
+  });
+
+  if (!validated.success) {
+    return { success: false, error: "Please select a valid service." };
+  }
+
+  const service = validated.data.service;
+  const user = await db.user.findUnique({
+    where: { id: session.userId },
+    select: { registeredService: true },
+  });
+
+  if (!user) {
+    return { success: false, error: "User account not found." };
+  }
+
+  const existingServices = user.registeredService
+    ? user.registeredService.split(",").map((value) => value.trim())
+    : [];
+
+  if (existingServices.includes(service)) {
+    return { success: true };
+  }
+
+  const updatedValue = [...existingServices, service].join(",");
+
+  await db.user.update({
+    where: { id: session.userId },
+    data: { registeredService: updatedValue },
+  });
+
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+// ==================== LOGIN (EXTERNAL APPLICANTS — passwordless) ====================
+
+/**
+ * Passwordless login for External Applicants.
+ * Authentication is via email + ASIN number (no password).
+ * Ministry staff must use /staff/login.
+ */
+export async function loginApplicant(
+  state: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const validated = loginApplicantSchema.safeParse({
+    email: formData.get("email"),
+    asinNumber: formData.get("asinNumber"),
+  });
+
+  if (!validated.success) {
+    return { errors: validated.error.flatten().fieldErrors };
+  }
+
+  const { email, asinNumber } = validated.data;
+
+  const user = await db.user.findUnique({
+    where: { email },
+    select: { id: true, asinNumber: true, role: true, departmentId: true, isActive: true },
+  });
+
+  // Use constant-time string comparison stub — ASIN is not secret enough for
+  // full timing-safe compare, but we avoid early-return user enumeration
+  const asinMatch = user?.asinNumber === asinNumber;
+
+  if (!user || user.role !== "EXTERNAL_APPLICANT" || !asinMatch) {
+    return { message: "Invalid email or ASIN number" };
+  }
+
+  if (!user.isActive) {
+    return { message: "Your account has been deactivated. Contact the Ministry." };
+  }
+
   await createSession({
     userId: user.id,
     role: user.role,
     departmentId: undefined,
   });
 
-  // 6. Redirect to applicant dashboard
+  db.user
+    .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
+    .catch(() => {});
+
   redirect("/dashboard");
 }
 
@@ -392,6 +483,7 @@ export async function changePassword(
   });
 
   if (!user) return { success: false, error: "User not found" };
+  if (!user.passwordHash) return { success: false, error: "This account does not use password authentication" };
 
   const valid = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!valid) {
