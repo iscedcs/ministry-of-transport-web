@@ -129,7 +129,7 @@ export default function MassTransitRequirementsPage() {
                 <li
                   key={i}
                   className="flex items-start gap-2.5 text-sm text-foreground/90">
-                  <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 flex shrink-0" />
                   {req}
                 </li>
               ))}
@@ -183,10 +183,10 @@ export default function MassTransitRequirementsPage() {
             <Label
               htmlFor="agree"
               className="text-sm leading-relaxed cursor-pointer">
-              I have read and understand all the requirements, fleet standards,
+              {`I have read and understand all the requirements, fleet standards,
               and terms above. I confirm that my company meets the minimum
               eligibility criteria (5 branded vehicles) to apply for Mass
-              Transit registration in Anambra State.
+              Transit registration in Anambra State.`}
             </Label>
           </div>
 
@@ -195,7 +195,7 @@ export default function MassTransitRequirementsPage() {
             <Button
               onClick={() => router.push("/register?service=MASS_TRANSIT")}
               disabled={!agreed}
-              className="flex-1 sm:flex-none sm:min-w-[200px]">
+              className="flex-1 sm:flex-none sm:min-w-50">
               Continue to Register →
             </Button>
             <Button variant="outline" asChild>

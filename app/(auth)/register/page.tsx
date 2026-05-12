@@ -74,7 +74,8 @@ function RegisterForm() {
           Create your account
         </CardTitle>
         <CardDescription>
-          You will sign in using your email address and ASIN number — no password required.
+          You will sign in using your email address and ASIN number — no
+          password required.
         </CardDescription>
       </CardHeader>
 
@@ -96,6 +97,7 @@ function RegisterForm() {
               <Input
                 id="firstName"
                 name="firstName"
+                defaultValue={state?.fields?.firstName}
                 type="text"
                 autoComplete="given-name"
                 required
@@ -111,6 +113,7 @@ function RegisterForm() {
                 id="lastName"
                 name="lastName"
                 type="text"
+                defaultValue={state?.fields?.lastName}
                 autoComplete="family-name"
                 required
                 aria-invalid={!!e?.lastName}
@@ -128,6 +131,7 @@ function RegisterForm() {
               id="email"
               name="email"
               type="email"
+              defaultValue={state?.fields?.email}
               autoComplete="email"
               required
               aria-invalid={!!e?.email}
@@ -150,6 +154,7 @@ function RegisterForm() {
               name="phone"
               type="tel"
               autoComplete="tel"
+              defaultValue={state?.fields?.phone}
               placeholder="08012345678"
               aria-invalid={!!e?.phone}
               aria-describedby={e?.phone ? "phone-error" : undefined}
@@ -171,6 +176,7 @@ function RegisterForm() {
               name="asinNumber"
               type="text"
               inputMode="numeric"
+              defaultValue={state?.fields?.asinNumber}
               maxLength={16}
               placeholder="Your Anambra State ID Number"
               required

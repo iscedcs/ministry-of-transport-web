@@ -46,32 +46,28 @@ const loginApplicantSchema = z.object({
  * Reference: docs/ROLES_AND_DUTIES.md — External Applicant type
  * PRD: ASIN number required for all external users (Anambra State ID)
  */
-const externalRegisterSchema = z
-  .object({
-    firstName: z
-      .string()
-      .min(2, "First name must be at least 2 characters")
-      .trim(),
-    lastName: z
-      .string()
-      .min(2, "Last name must be at least 2 characters")
-      .trim(),
-    email: z.string().email("Enter a valid email address").trim().toLowerCase(),
-    phone: z
-      .string()
-      .regex(
-        /^(\+234|0)[0-9]{10}$/,
-        "Enter a valid Nigerian phone number (e.g. 08012345678)",
-      )
-      .optional()
-      .or(z.literal("")),
-    asinNumber: z
-      .string()
-      .regex(/^\d{6,16}$/, "ASIN must be 6–16 digits (numbers only)"),
-    service: z.enum(["MOTOR_PARK", "MASS_TRANSIT"], {
-      error: "Please select a service to register for",
-    }),
-  });
+const externalRegisterSchema = z.object({
+  firstName: z
+    .string()
+    .min(2, "First name must be at least 2 characters")
+    .trim(),
+  lastName: z.string().min(2, "Last name must be at least 2 characters").trim(),
+  email: z.string().email("Enter a valid email address").trim().toLowerCase(),
+  phone: z
+    .string()
+    .regex(
+      /^(\+234|0)[0-9]{10}$/,
+      "Enter a valid Nigerian phone number (e.g. 08012345678)",
+    )
+    .optional()
+    .or(z.literal("")),
+  asinNumber: z
+    .string()
+    .regex(/^\d{6,16}$/, "ASIN must be 6–16 digits (numbers only)"),
+  service: z.enum(["MOTOR_PARK", "MASS_TRANSIT"], {
+    error: "Please select a service to register for",
+  }),
+});
 
 /**
  * Ministry staff provisioning schema.
@@ -107,10 +103,19 @@ const provisionStaffSchema = z.object({
 
 // ==================== FORM STATE TYPE ====================
 
+type RegisterFields = {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  asinNumber?: string;
+};
+
 export type AuthFormState =
   | {
       errors?: Record<string, string[]>;
       message?: string;
+      fields?: RegisterFields;
     }
   | undefined;
 
@@ -154,7 +159,9 @@ export async function login(
 
   // 2a. Guard: applicants must use the applicant sign-in page
   if (user?.role === "EXTERNAL_APPLICANT") {
-    return { message: "Applicants must sign in using the applicant login page." };
+    return {
+      message: "Applicants must sign in using the applicant login page.",
+    };
   }
 
   // 3. Constant-time comparison (prevent timing attacks on user enumeration)
@@ -208,18 +215,25 @@ export async function registerApplicant(
   state: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
+  const fields = {
+    firstName: formData.get("firstName") as string,
+    lastName: formData.get("lastName") as string,
+    email: formData.get("email") as string,
+    phone: formData.get("phone") as string,
+    asinNumber: formData.get("asinNumber") as string,
+  };
+
   // 1. Validate
   const validated = externalRegisterSchema.safeParse({
-    firstName: formData.get("firstName"),
-    lastName: formData.get("lastName"),
-    email: formData.get("email"),
-    phone: formData.get("phone"),
-    asinNumber: formData.get("asinNumber"),
+    ...fields,
     service: formData.get("service"),
   });
 
   if (!validated.success) {
-    return { errors: validated.error.flatten().fieldErrors };
+    return {
+      errors: validated.error.flatten().fieldErrors,
+      fields,
+    };
   }
 
   const { firstName, lastName, email, phone, asinNumber, service } =
@@ -235,11 +249,14 @@ export async function registerApplicant(
     if (existing.email === email) {
       return {
         errors: { email: ["An account with this email already exists"] },
+        fields,
       };
     }
+
     if (existing.asinNumber === asinNumber) {
       return {
         errors: { asinNumber: ["This ASIN number is already registered"] },
+        fields,
       };
     }
   }
@@ -334,7 +351,13 @@ export async function loginApplicant(
 
   const user = await db.user.findUnique({
     where: { email },
-    select: { id: true, asinNumber: true, role: true, departmentId: true, isActive: true },
+    select: {
+      id: true,
+      asinNumber: true,
+      role: true,
+      departmentId: true,
+      isActive: true,
+    },
   });
 
   // Use constant-time string comparison stub — ASIN is not secret enough for
@@ -346,7 +369,9 @@ export async function loginApplicant(
   }
 
   if (!user.isActive) {
-    return { message: "Your account has been deactivated. Contact the Ministry." };
+    return {
+      message: "Your account has been deactivated. Contact the Ministry.",
+    };
   }
 
   await createSession({
@@ -483,7 +508,11 @@ export async function changePassword(
   });
 
   if (!user) return { success: false, error: "User not found" };
-  if (!user.passwordHash) return { success: false, error: "This account does not use password authentication" };
+  if (!user.passwordHash)
+    return {
+      success: false,
+      error: "This account does not use password authentication",
+    };
 
   const valid = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!valid) {

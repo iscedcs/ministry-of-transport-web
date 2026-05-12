@@ -52,9 +52,7 @@ export async function uploadDocument(
   folder: string,
 ): Promise<UploadResult> {
   if (!ALLOWED_MIME.has(file.type)) {
-    throw new Error(
-      "Only PDF, JPEG, PNG and WEBP files are accepted.",
-    );
+    throw new Error("Only PDF, JPEG, PNG and WEBP files are accepted.");
   }
   if (file.size > MAX_SIZE_BYTES) {
     throw new Error("File must be smaller than 5 MB.");
