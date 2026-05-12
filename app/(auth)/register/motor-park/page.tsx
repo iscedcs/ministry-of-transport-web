@@ -88,7 +88,9 @@ export default function MotorParkRequirementsPage() {
             </h2>
             <ul className="space-y-2.5">
               {requiredDocuments.map((doc, i) => (
-                <li key={i} className="flex items-start gap-2.5 text-sm text-foreground/90">
+                <li
+                  key={i}
+                  className="flex items-start gap-2.5 text-sm text-foreground/90">
                   <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                   {doc}
                 </li>
@@ -105,11 +107,14 @@ export default function MotorParkRequirementsPage() {
               Site Standards for Approval
             </h2>
             <p className="text-sm text-muted-foreground mb-4">
-              The proposed park must meet all of the following physical standards:
+              The proposed park must meet all of the following physical
+              standards:
             </p>
             <ul className="space-y-2.5">
               {siteStandards.map((std, i) => (
-                <li key={i} className="flex items-start gap-2.5 text-sm text-foreground/90">
+                <li
+                  key={i}
+                  className="flex items-start gap-2.5 text-sm text-foreground/90">
                   <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                   {std}
                 </li>
@@ -127,7 +132,9 @@ export default function MotorParkRequirementsPage() {
             </h2>
             <ol className="space-y-3">
               {processSteps.map((step, i) => (
-                <li key={i} className="flex items-start gap-3 text-sm text-foreground/90">
+                <li
+                  key={i}
+                  className="flex items-start gap-3 text-sm text-foreground/90">
                   <span className="w-5 h-5 rounded-full bg-secondary text-muted-foreground text-xs font-semibold flex items-center justify-center flex-shrink-0 mt-0.5">
                     {i + 1}
                   </span>
@@ -143,11 +150,12 @@ export default function MotorParkRequirementsPage() {
               Terms &amp; Conditions
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              The Ministry reserves the right to revoke or withdraw its approval if the
-              terms and conditions governing the park operations are not complied with,
-              or if the applicant wilfully misinformed or misled the Ministry during the
-              process of application and approval. Approved parks are subject to annual
-              revalidation and fee reassessment.
+              The Ministry reserves the right to revoke or withdraw its approval
+              if the terms and conditions governing the park operations are not
+              complied with, or if the applicant wilfully misinformed or misled
+              the Ministry during the process of application and approval.
+              Approved parks are subject to annual revalidation and fee
+              reassessment.
             </p>
           </section>
 
@@ -159,10 +167,12 @@ export default function MotorParkRequirementsPage() {
               onCheckedChange={(v) => setAgreed(!!v)}
               className="mt-0.5"
             />
-            <Label htmlFor="agree" className="text-sm leading-relaxed cursor-pointer">
-              I have read and understand all the requirements, standards, and terms
-              above. I confirm that I meet the eligibility criteria to apply for a
-              Motor Park registration in Anambra State.
+            <Label
+              htmlFor="agree"
+              className="text-sm leading-relaxed cursor-pointer">
+              I have read and understand all the requirements, standards, and
+              terms above. I confirm that I meet the eligibility criteria to
+              apply for a Motor Park registration in Anambra State.
             </Label>
           </div>
 
