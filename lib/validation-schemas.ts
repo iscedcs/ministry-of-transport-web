@@ -18,7 +18,7 @@ const GPS_REGEX = /^(-?\d+\.\d+),(-?\d+\.\d+)$/; // lat,lon format
 const PHONE_REGEX = /^(\+234|0)[0-9]{10}$/; // Nigerian phone format
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CAC_REGEX = /^[A-Z]{2}:?\d{6,10}$/; // CAC format: e.g. RC:9428574 or RC9428574 (2 letters, optional colon, 6–10 digits)
-const ASIN_REGEX = /^\d{16}$/; // ASIN format
+const ASIN_REGEX = /^\d{6,16}$/; // ASIN format: 6-16 digits
 
 // ==================== USER & AUTH ====================
 
