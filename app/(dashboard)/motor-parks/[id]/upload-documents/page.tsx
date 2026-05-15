@@ -109,12 +109,7 @@ export default function UploadDocumentsPage() {
           <CardContent className="flex flex-col gap-5">
             {/* CAC Document */}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="cacDocument">
-                CAC Registration Certificate{" "}
-                <span className="text-muted-foreground text-xs font-normal">
-                  (optional)
-                </span>
-              </Label>
+              <Label htmlFor="cacDocument">CAC Registration Certificate </Label>
               <input
                 id="cacDocument"
                 name="cacDocument"
@@ -134,9 +129,6 @@ export default function UploadDocumentsPage() {
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="landOwnershipDoc">
                 Land Ownership / Lease Agreement{" "}
-                <span className="text-muted-foreground text-xs font-normal">
-                  (optional)
-                </span>
               </Label>
               <input
                 id="landOwnershipDoc"
