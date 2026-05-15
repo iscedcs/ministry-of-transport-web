@@ -146,7 +146,11 @@ function StepProgress({
                       ? "border-primary text-primary bg-primary/10"
                       : "border-border text-muted-foreground bg-background",
                 )}>
-                {isDone ? <CheckCircle2 className="w-4 h-4" /> : <span>{step.id}</span>}
+                {isDone ? (
+                  <CheckCircle2 className="w-4 h-4" />
+                ) : (
+                  <span>{step.id}</span>
+                )}
               </div>
               <span
                 className={cn(
@@ -209,7 +213,9 @@ function FileUploadField({
             <p className="text-sm font-medium text-foreground truncate">
               {documentName}
             </p>
-            <p className="text-xs text-muted-foreground">Uploaded successfully</p>
+            <p className="text-xs text-muted-foreground">
+              Uploaded successfully
+            </p>
           </div>
           <button
             type="button"
@@ -235,7 +241,8 @@ function FileUploadField({
             </>
           ) : (
             <>
-              <Upload className="w-4 h-4" /> Click to upload PDF, JPEG, or PNG (max 5 MB)
+              <Upload className="w-4 h-4" /> Click to upload PDF, JPEG, or PNG
+              (max 5 MB)
             </>
           )}
         </button>
@@ -282,7 +289,9 @@ export default function ApplyMotorParkPage() {
           setCompletedSteps(done);
         }
       })
-      .catch(() => {/* ignore — user stays at step 1 */})
+      .catch(() => {
+        /* ignore — user stays at step 1 */
+      })
       .finally(() => setDraftLoading(false));
   }, []);
 
@@ -337,7 +346,9 @@ export default function ApplyMotorParkPage() {
     setCompletedSteps((prev) => new Set([...prev, currentStep]));
     setCurrentStep(nextStep);
     // Auto-save to DB so progress survives logout
-    saveParkDraft(nextStep, data).catch(() => {/* best-effort */});
+    saveParkDraft(nextStep, data).catch(() => {
+      /* best-effort */
+    });
   }
 
   function handleBack() {
@@ -392,12 +403,12 @@ export default function ApplyMotorParkPage() {
     startSubmit(async () => {
       const result = await submitParkApplication(undefined as never, fd);
       if (result?.success) {
-        clearParkDraft().catch(() => {/* best-effort */});
+        clearParkDraft().catch(() => {
+          /* best-effort */
+        });
         setSubmitted({ parkId: result.data?.parkId ?? "" });
       } else {
-        setSubmitError(
-          result?.error ?? "Submission failed. Please try again.",
-        );
+        setSubmitError(result?.error ?? "Submission failed. Please try again.");
       }
     });
   }
@@ -480,7 +491,8 @@ export default function ApplyMotorParkPage() {
           Motor Park Application
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Complete all required fields. Your progress is saved automatically - you can resume any time.
+          Complete all required fields. Your progress is saved automatically -
+          you can resume any time.
         </p>
       </div>
 
@@ -532,9 +544,7 @@ export default function ApplyMotorParkPage() {
                 <Input
                   id="cacRegistrationNumber"
                   value={data.cacRegistrationNumber}
-                  onChange={(e) =>
-                    set("cacRegistrationNumber", e.target.value)
-                  }
+                  onChange={(e) => set("cacRegistrationNumber", e.target.value)}
                   placeholder="e.g. RC 1234567"
                   className={
                     errors.cacRegistrationNumber ? "border-destructive" : ""
@@ -544,7 +554,7 @@ export default function ApplyMotorParkPage() {
 
               <Field
                 id="anssidNumber"
-                label="ANSSID Number"
+                label="Company ANSSID Number"
                 required
                 hint="Anambra State Social Insurance & Dev. number."
                 error={errors.anssidNumber}>
@@ -671,7 +681,8 @@ export default function ApplyMotorParkPage() {
           <CardHeader>
             <CardTitle className="text-base">Documents</CardTitle>
             <CardDescription>
-              Upload your CAC certificate. This is optional but recommended - you can also add it after submission.
+              Upload your CAC certificate. This is optional but recommended -
+              you can also add it after submission.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
