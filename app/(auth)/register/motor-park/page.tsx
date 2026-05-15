@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
 const requiredDocuments = [
-  "Application letter from the intending private Park Owner",
+  "create account as owner and proceed with the form new application",
   "Business / Transport Company Name",
   "Location of the motor park",
   "Evidence of CAC (Corporate Affairs Commission) Registration",

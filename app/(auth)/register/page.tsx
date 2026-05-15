@@ -166,7 +166,7 @@ function RegisterForm() {
           {/* ASIN */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="asinNumber">
-              ASIN Number{" "}
+              Your Personal ASIN Number{" "}
               <span className="text-muted-foreground font-normal text-xs">
                 (Anambra State ID — 6 to 16 digits)
               </span>

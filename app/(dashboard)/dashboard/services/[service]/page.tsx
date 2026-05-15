@@ -16,15 +16,18 @@ const serviceSlugToKey: Record<string, keyof typeof SERVICE_LABELS> = {
   "mass-transit": "MASS_TRANSIT",
 };
 
-const serviceRequirements: Record<keyof typeof SERVICE_LABELS, {
-  requiredDocuments: string[];
-  siteStandards: string[];
-  processSteps: string[];
-  terms: string;
-}> = {
+const serviceRequirements: Record<
+  keyof typeof SERVICE_LABELS,
+  {
+    requiredDocuments: string[];
+    siteStandards: string[];
+    processSteps: string[];
+    terms: string;
+  }
+> = {
   MOTOR_PARK: {
     requiredDocuments: [
-      "Application letter from the intending private Park Owner",
+      "Create account as owner and proceed with the form new application",
       "Business / Transport Company Name",
       "Location of the motor park",
       "Evidence of CAC (Corporate Affairs Commission) Registration",
@@ -103,7 +106,13 @@ export default function AddServiceRequirementsPage({
   const [state, action, isPending] = useActionState<
     ActionResult | undefined,
     FormData
-  >(addApplicantService as (s: ActionResult | undefined, f: FormData) => Promise<ActionResult>, undefined);
+  >(
+    addApplicantService as (
+      s: ActionResult | undefined,
+      f: FormData,
+    ) => Promise<ActionResult>,
+    undefined,
+  );
 
   useEffect(() => {
     if (!serviceKey) {
@@ -154,7 +163,9 @@ export default function AddServiceRequirementsPage({
             </h2>
             <ul className="space-y-2.5">
               {requirements.requiredDocuments.map((doc, index) => (
-                <li key={index} className="flex items-start gap-2.5 text-sm text-foreground/90">
+                <li
+                  key={index}
+                  className="flex items-start gap-2.5 text-sm text-foreground/90">
                   <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                   {doc}
                 </li>
@@ -171,7 +182,9 @@ export default function AddServiceRequirementsPage({
             </h2>
             <ol className="space-y-3">
               {requirements.processSteps.map((step, index) => (
-                <li key={index} className="flex items-start gap-3 text-sm text-foreground/90">
+                <li
+                  key={index}
+                  className="flex items-start gap-3 text-sm text-foreground/90">
                   <span className="w-5 h-5 rounded-full bg-secondary text-muted-foreground text-xs font-semibold flex items-center justify-center flex-shrink-0 mt-0.5">
                     {index + 1}
                   </span>
@@ -197,7 +210,9 @@ export default function AddServiceRequirementsPage({
               onCheckedChange={(value) => setAgreed(!!value)}
               className="mt-0.5"
             />
-            <Label htmlFor="agree" className="text-sm leading-relaxed cursor-pointer">
+            <Label
+              htmlFor="agree"
+              className="text-sm leading-relaxed cursor-pointer">
               I have read and understand all the requirements and terms above. I
               confirm my eligibility to add this service to my account.
             </Label>
@@ -206,7 +221,10 @@ export default function AddServiceRequirementsPage({
           <form action={action} noValidate>
             <input type="hidden" name="service" value={serviceKey} />
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <Button type="submit" disabled={!agreed || isPending} className="flex-1 sm:flex-none sm:min-w-[200px]">
+              <Button
+                type="submit"
+                disabled={!agreed || isPending}
+                className="flex-1 sm:flex-none sm:min-w-[200px]">
                 {isPending ? "Adding…" : "Add Service"}
               </Button>
               <Button variant="outline" asChild>
