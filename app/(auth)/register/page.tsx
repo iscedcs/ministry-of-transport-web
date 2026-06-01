@@ -17,6 +17,7 @@ import type { AuthFormState } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Card,
   CardHeader,
@@ -143,12 +144,7 @@ function RegisterForm() {
 
           {/* Phone */}
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="phone">
-              Phone number{" "}
-              <span className="text-muted-foreground font-normal text-xs">
-                (optional)
-              </span>
-            </Label>
+            <Label htmlFor="phone">Phone number</Label>
             <Input
               id="phone"
               name="phone"
@@ -156,11 +152,29 @@ function RegisterForm() {
               autoComplete="tel"
               defaultValue={state?.fields?.phone}
               placeholder="08012345678"
+              required
               aria-invalid={!!e?.phone}
               aria-describedby={e?.phone ? "phone-error" : undefined}
               className={e?.phone ? "border-destructive" : ""}
             />
             <FieldError id="phone-error" errors={e?.phone} />
+          </div>
+
+          {/* Residential Address */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="residentialAddress">Residential / Home Address</Label>
+            <Textarea
+              id="residentialAddress"
+              name="residentialAddress"
+              defaultValue={state?.fields?.residentialAddress}
+              placeholder="House/flat number, street, area, LGA, city"
+              required
+              rows={3}
+              aria-invalid={!!e?.residentialAddress}
+              aria-describedby={e?.residentialAddress ? "address-error" : undefined}
+              className={e?.residentialAddress ? "border-destructive" : ""}
+            />
+            <FieldError id="address-error" errors={e?.residentialAddress} />
           </div>
 
           {/* ASIN */}

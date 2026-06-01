@@ -8,14 +8,39 @@ export interface DraftData {
   transportCompanyName: string;
   cacRegistrationNumber: string;
   anssidNumber: string;
-  locationAddress: string;
+  streetAddress: string;
+  lga: string;
+  townCity: string;
   gpsCoordinates: string;
   contactPerson: string;
   contactPhone: string;
   contactEmail: string;
+  managerStreetAddress: string;
+  managerLga: string;
+  managerTownCity: string;
+  nextOfKinName: string;
+  nextOfKinPhone: string;
   cacDocumentId: string;
   cacDocumentUrl: string;
   cacDocumentName: string;
+  landOwnershipDocId: string;
+  landOwnershipDocUrl: string;
+  landOwnershipDocName: string;
+  corporateAsinDocumentId: string;
+  corporateAsinDocumentUrl: string;
+  corporateAsinDocumentName: string;
+  toiletPhotoId: string;
+  toiletPhotoUrl: string;
+  toiletPhotoName: string;
+  waitingAreaPhotoId: string;
+  waitingAreaPhotoUrl: string;
+  waitingAreaPhotoName: string;
+  signagePhotoId: string;
+  signagePhotoUrl: string;
+  signagePhotoName: string;
+  waterFacilityPhotoId: string;
+  waterFacilityPhotoUrl: string;
+  waterFacilityPhotoName: string;
 }
 
 export interface DraftState {

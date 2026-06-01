@@ -89,7 +89,7 @@ function LoginForm() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="asinNumber">ASIN Number</Label>
+            <Label htmlFor="asinNumber">Your Personal Registered ASIN Number</Label>
             <Input
               id="asinNumber"
               name="asinNumber"

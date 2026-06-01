@@ -43,6 +43,8 @@ type WorkflowStatus =
   | "INSPECTION_SCHEDULED"
   | "INSPECTION_IN_PROGRESS"
   | "PENDING_APPROVAL"
+  | "PENDING_PAYMENT"
+  | "TEMPORAL_APPROVAL"
   | "PERMIT_TO_BUILD_ISSUED"
   | "CONSTRUCTION_IN_PROGRESS"
   | "FINAL_INSPECTION_SCHEDULED"
@@ -70,6 +72,10 @@ const STATUS_STYLES: Record<string, string> = {
     "bg-[var(--info-sub)] text-[var(--info-text)] border-[oklch(62%_0.21_265_/_0.2)]",
   PENDING_APPROVAL:
     "bg-[var(--warning-sub)] text-[var(--warning-text)] border-[oklch(75%_0.19_65_/_0.2)]",
+  PENDING_PAYMENT:
+    "bg-[oklch(76%_0.24_45_/_0.12)] text-[oklch(45%_0.21_65)] border-[oklch(76%_0.24_45_/_0.25)]",
+  TEMPORAL_APPROVAL:
+    "bg-[oklch(76%_0.24_80_/_0.12)] text-[var(--brand-gold)] border-[oklch(76%_0.24_80_/_0.25)]",
   PERMIT_TO_BUILD_ISSUED:
     "bg-[oklch(76%_0.24_80_/_0.12)] text-[var(--brand-gold)] border-[oklch(76%_0.24_80_/_0.25)]",
   CONSTRUCTION_IN_PROGRESS:
@@ -112,6 +118,8 @@ const STATUS_LABELS: Record<string, string> = {
   INSPECTION_SCHEDULED: "Inspection Scheduled",
   INSPECTION_IN_PROGRESS: "Inspection In Progress",
   PENDING_APPROVAL: "Pending Approval",
+  PENDING_PAYMENT: "Pending Payment",
+  TEMPORAL_APPROVAL: "Temporal Approval",
   PERMIT_TO_BUILD_ISSUED: "Permit to Build",
   CONSTRUCTION_IN_PROGRESS: "Under Construction",
   FINAL_INSPECTION_SCHEDULED: "Final Insp. Scheduled",

@@ -140,42 +140,55 @@ export default async function MotorParksPage({ searchParams }: PageProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {parks.map((park) => (
-                <tr
-                  key={park.id}
-                  className="hover:bg-secondary/50 transition-colors">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-foreground">
-                      {park.businessName}
-                    </p>
-                    {park.transportCompanyName && (
-                      <p className="text-xs text-muted-foreground">
-                        {park.transportCompanyName}
-                      </p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground hidden md:table-cell max-w-[180px] truncate">
-                    {park.locationAddress}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusPill
-                      status={
-                        park.applicationStatus as Parameters<
-                          typeof StatusPill
-                        >[0]["status"]
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs hidden lg:table-cell">
-                    {formatDate(park.appliedAt)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Button asChild variant="ghost" size="sm">
-                      <Link href={`/motor-parks/${park.id}`}>View</Link>
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+              {parks.map((park) => {
+                const hasPendingPayment = park.fees && park.fees.length > 0;
+                return (
+                  <tr
+                    key={park.id}
+                    className="hover:bg-secondary/50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <p className="font-medium text-foreground">
+                            {park.businessName}
+                          </p>
+                          {park.transportCompanyName && (
+                            <p className="text-xs text-muted-foreground">
+                              {park.transportCompanyName}
+                            </p>
+                          )}
+                        </div>
+                        {hasPendingPayment && (
+                          <StatusPill
+                            status="PENDING_PAYMENT"
+                            className="text-xs"
+                          />
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground hidden md:table-cell max-w-[180px] truncate">
+                      {park.locationAddress}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusPill
+                        status={
+                          park.applicationStatus as Parameters<
+                            typeof StatusPill
+                          >[0]["status"]
+                        }
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs hidden lg:table-cell">
+                      {formatDate(park.appliedAt)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href={`/motor-parks/${park.id}`}>View</Link>
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 

@@ -79,10 +79,10 @@ export default async function DashboardPage() {
               />
               <StatCard label="Approved" value={stats.approved} />
               <StatCard
-                label="Expiring Soon"
-                value={stats.expiringSoon}
-                deltaDirection={stats.expiringSoon > 0 ? "down" : "neutral"}
-                delta={stats.expiringSoon > 0 ? "Action needed" : undefined}
+                label="Pending Payments"
+                value={stats.pendingPayments}
+                deltaDirection={stats.pendingPayments > 0 ? "down" : "neutral"}
+                delta={stats.pendingPayments > 0 ? "Payment required" : undefined}
               />
             </>
           ) : (
@@ -134,6 +134,24 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Payment Reminder Card — only for applicants with pending payments */}
+      {isApplicant && stats && stats.pendingPayments > 0 && (
+        <Card className="border-l-4 border-l-amber-500 border-border bg-amber-50 dark:bg-amber-950/20">
+          <CardHeader>
+            <CardTitle className="text-base text-amber-900 dark:text-amber-200">Payment Reminder</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-amber-900 dark:text-amber-200 mb-4">
+              You have <span className="font-semibold">{stats.pendingPayments}</span> application{stats.pendingPayments !== 1 ? "s" : ""} awaiting payment. 
+              Please complete payment to proceed with your application.
+            </p>
+            <Button asChild variant="default" size="sm" className="bg-amber-600 hover:bg-amber-700">
+              <Link href="/motor-parks?status=SUBMITTED">View Applications</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {isApplicant && availableServices.length > 0 && (
         <Card className="border-border/60 bg-secondary/50">

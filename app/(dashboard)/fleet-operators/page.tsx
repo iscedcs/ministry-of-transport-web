@@ -3,7 +3,7 @@
  * STORY-051 | FR-020 through FR-027
  *
  * Staff: full queue with status/search filters
- * Applicant: own fleet applications only
+ * Applicant: own fleet applications only + vehicle submission reminders
  */
 
 import { redirect } from "next/navigation";
@@ -11,6 +11,7 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import {
   listFleetApplications,
+  getPendingVehicleSubmissionRequests,
   type FleetApplicationListItem,
 } from "@/app/actions/mass-transit";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,8 @@ import { StatusPill } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
 import { APPLICATION_STATUS_OPTIONS as STATUS_OPTIONS } from "@/lib/utils/labels";
 import { fmtDateShort as formatDate } from "@/lib/utils/format";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // ── Page ────────────────────────────────────────────────────────────────────────
 
@@ -46,6 +49,16 @@ export default async function FleetOperatorsPage({ searchParams }: PageProps) {
     : [];
   const total = result.success ? result.data!.total : 0;
   const isApplicant = session.role === "EXTERNAL_APPLICANT";
+
+  // Fetch pending vehicle submission requests for applicants
+  let pendingVehicleRequests: { companyName: string; vehicleCount: number }[] =
+    [];
+  if (isApplicant) {
+    const vrResult = await getPendingVehicleSubmissionRequests();
+    if (vrResult.success && vrResult.data) {
+      pendingVehicleRequests = vrResult.data;
+    }
+  }
 
   function filterUrl(overrides: Record<string, string | undefined>) {
     const p = new URLSearchParams();
@@ -79,6 +92,32 @@ export default async function FleetOperatorsPage({ searchParams }: PageProps) {
           </Button>
         )}
       </div>
+
+      {/* Vehicle Submission Reminder */}
+      {isApplicant && pendingVehicleRequests.length > 0 && (
+        <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="ml-2">
+            <p className="font-semibold text-amber-900 dark:text-amber-200">
+              {pendingVehicleRequests.length} Vehicle Submission{" "}
+              {pendingVehicleRequests.length === 1 ? "Request" : "Requests"}
+            </p>
+            <p className="text-sm text-amber-800 dark:text-amber-300 mt-1">
+              {pendingVehicleRequests
+                .map((req) => `${req.companyName} (${req.vehicleCount} vehicles)`)
+                .join(", ")}
+            </p>
+            <Button
+              asChild
+              size="sm"
+              className="mt-3 bg-amber-600 hover:bg-amber-700 text-white">
+              <Link href="/fleet-operators/submit-vehicles">
+                Submit Vehicle Details →
+              </Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Filters */}
       <form method="GET" className="flex flex-wrap gap-3">
@@ -162,43 +201,57 @@ export default async function FleetOperatorsPage({ searchParams }: PageProps) {
               </tr>
             </thead>
             <tbody>
-              {companies.map((co, i) => (
-                <tr
-                  key={co.id}
-                  className={i % 2 === 0 ? "bg-background" : "bg-muted/20"}>
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-foreground">
-                      {co.companyName}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {co.contactPerson}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
-                    {co.contactPhone}
-                  </td>
-                  <td className="px-4 py-3 text-center font-medium">
-                    {co.currentFleetSize}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusPill status={co.applicationStatus} />
-                    {co.permitStatus && co.permitStatus !== "ACTIVE" && (
-                      <StatusPill status={co.permitStatus} className="ml-1" />
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">
-                    {formatDate(co.appliedAt)}
-                  </td>
-                  <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">
-                    {formatDate(co.permitExpiresAt)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Button asChild variant="ghost" size="sm">
-                      <Link href={`/fleet-operators/${co.id}`}>View →</Link>
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+              {companies.map((co, i) => {
+                const hasPendingVehicles = pendingVehicleRequests.some(
+                  (req) => req.companyName === co.companyName
+                );
+                return (
+                  <tr
+                    key={co.id}
+                    className={i % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div>
+                          <div className="font-medium text-foreground">
+                            {co.companyName}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {co.contactPerson}
+                          </div>
+                        </div>
+                        {hasPendingVehicles && (
+                          <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 shrink-0">
+                            Pending Vehicle Details
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
+                      {co.contactPhone}
+                    </td>
+                    <td className="px-4 py-3 text-center font-medium">
+                      {co.currentFleetSize}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusPill status={co.applicationStatus} />
+                      {co.permitStatus && co.permitStatus !== "ACTIVE" && (
+                        <StatusPill status={co.permitStatus} className="ml-1" />
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">
+                      {formatDate(co.appliedAt)}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">
+                      {formatDate(co.permitExpiresAt)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href={`/fleet-operators/${co.id}`}>View →</Link>
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

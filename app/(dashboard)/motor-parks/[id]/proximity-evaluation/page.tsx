@@ -9,24 +9,21 @@
  *   1. Proximity to an existing public park
  *   2. Proximity to a major transport route or public road
  *   3. Proximity to a major road intersection
- *
- * Verdict:
- *   PASS        → applicationStatus → PENDING_APPROVAL
- *   CONDITIONAL → applicationStatus → PENDING_APPROVAL (with conditions)
- *   FAIL        → applicationStatus → REJECTED
- *
- * Access: FIELD_INSPECTOR, HOD_PARKS, HOD_VIS, HOD_TRANSPORT_OPS, HOD_PARKS_REVALIDATION
  */
 
 import { useActionState, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { recordProximityEvaluation } from "@/app/actions/motor-park";
+import {
+  recordProximityEvaluation,
+  getMotorPark,
+} from "@/app/actions/motor-park";
 import type { ActionResult } from "@/lib/server-actions-pattern";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -43,20 +40,127 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { Calculator, AlertTriangle } from "lucide-react";
 
 type ProximityState = ActionResult | undefined;
 
 type FactorValue = "yes" | "no" | "";
+
+const SENSITIVE_INTERSECTIONS = [
+  { name: "Arroma Junction, Awka", lat: 6.2209, lng: 7.0731 },
+  { name: "Unizik Junction, Awka", lat: 6.2251, lng: 7.0812 },
+  { name: "Amawbia Junction, Awka", lat: 6.2045, lng: 7.0422 },
+  { name: "Upper Iweka, Onitsha", lat: 6.1345, lng: 6.8012 },
+  { name: "Bridge Head, Onitsha", lat: 6.1329, lng: 6.7823 },
+  { name: "Ekwulobia Roundabout", lat: 6.0278, lng: 7.0825 },
+];
+
+function calculateHaversine(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const R = 6371000; // meters
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+
+function DistancePills({
+  value,
+  onChange,
+  options = [50, 100, 150, 200, 300, 500],
+  name,
+  id,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options?: number[];
+  name?: string;
+  id?: string;
+}) {
+  const numValue = parseInt(value, 10);
+  const isPillMatch = !isNaN(numValue) && options.includes(numValue);
+  const [explicitCustomMode, setExplicitCustomMode] = useState(false);
+  
+  const isCustomMode = explicitCustomMode || (value !== "" && !isPillMatch);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 mt-1">
+      {options.map((p) => (
+        <button
+          key={p}
+          type="button"
+          onClick={() => {
+            onChange(String(p));
+            setExplicitCustomMode(false);
+          }}
+          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-150 ${
+            !isCustomMode && value === String(p)
+              ? "bg-primary text-primary-foreground border-primary shadow-sm scale-105"
+              : "bg-secondary/60 text-foreground border-border hover:bg-primary/10 hover:border-primary/50"
+          }`}
+        >
+          {p}m
+        </button>
+      ))}
+      {!isCustomMode ? (
+        <button
+          type="button"
+          onClick={() => setExplicitCustomMode(true)}
+          className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-primary/50 transition-all"
+        >
+          custom…
+        </button>
+      ) : (
+        <div className="flex items-center gap-1.5">
+          <Input
+            id={id}
+            name={name}
+            type="number"
+            min="0"
+            value={value}
+            autoFocus
+            onChange={(e) => onChange(e.target.value)}
+            className="w-24 h-8 text-xs px-2 py-1"
+            placeholder="e.g. 150"
+          />
+          <span className="text-xs text-muted-foreground font-medium">metres</span>
+        </div>
+      )}
+      {!isCustomMode && <input type="hidden" name={name} value={value} />}
+    </div>
+  );
+}
 
 export default function ProximityEvaluationPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const parkId = params.id;
 
+  const [motorPark, setMotorPark] = useState<any>(null);
+
   const [nearPublicPark, setNearPublicPark] = useState<FactorValue>("");
   const [nearMajorRoad, setNearMajorRoad] = useState<FactorValue>("");
   const [nearIntersection, setNearIntersection] = useState<FactorValue>("");
   const [verdict, setVerdict] = useState("");
+
+  const [selectedIntersection, setSelectedIntersection] = useState("");
+  const [suggestedDistance, setSuggestedDistance] = useState<number | null>(
+    null,
+  );
+  const [intersectionDistance, setIntersectionDistance] = useState("");
+  const [publicParkDistance, setPublicParkDistance] = useState("");
+  const [majorRoadDistance, setMajorRoadDistance] = useState("");
+  const [tooClose, setTooClose] = useState(false);
 
   const [state, action, isPending] = useActionState<ProximityState, FormData>(
     recordProximityEvaluation as (
@@ -67,10 +171,61 @@ export default function ProximityEvaluationPage() {
   );
 
   useEffect(() => {
+    getMotorPark(parkId).then((result) => {
+      if (result.success) {
+        setMotorPark(result.data);
+      }
+    });
+  }, [parkId]);
+
+  useEffect(() => {
     if (state?.success) {
       router.push(`/motor-parks/${parkId}`);
     }
   }, [state, parkId, router]);
+
+  useEffect(() => {
+    if (!selectedIntersection || !motorPark?.gpsCoordinates) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSuggestedDistance(null);
+       
+      setTooClose(false);
+      return;
+    }
+
+    const intersectionObj = SENSITIVE_INTERSECTIONS.find(
+      (i) => i.name === selectedIntersection,
+    );
+    if (!intersectionObj) return;
+
+    // Parse park GPS coordinates
+    const coordsStr = motorPark.gpsCoordinates.trim();
+    const parts = coordsStr.split(/[\s,]+/);
+    const parkLat = parseFloat(parts[0]);
+    const parkLng = parseFloat(parts[1]);
+
+    if (isNaN(parkLat) || isNaN(parkLng)) {
+       
+      setSuggestedDistance(null);
+       
+      setTooClose(false);
+      return;
+    }
+
+    // Calculate distance
+    const dist = calculateHaversine(
+      parkLat,
+      parkLng,
+      intersectionObj.lat,
+      intersectionObj.lng,
+    );
+
+     
+    setSuggestedDistance(dist);
+    // Mark as too close if within 150 meters
+     
+    setTooClose(dist < 150);
+  }, [selectedIntersection, motorPark]);
 
   const err = state && !state.success ? state.error : undefined;
 
@@ -162,13 +317,11 @@ export default function ProximityEvaluationPage() {
                   <Label htmlFor="publicParkDistanceM" className="text-xs">
                     Approximate distance (metres)
                   </Label>
-                  <Input
+                  <DistancePills
                     id="publicParkDistanceM"
                     name="publicParkDistanceM"
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 150"
-                    className="max-w-40"
+                    value={publicParkDistance}
+                    onChange={setPublicParkDistance}
                   />
                 </div>
               )}
@@ -212,13 +365,11 @@ export default function ProximityEvaluationPage() {
                   <Label htmlFor="majorRoadDistanceM" className="text-xs">
                     Approximate distance (metres)
                   </Label>
-                  <Input
+                  <DistancePills
                     id="majorRoadDistanceM"
                     name="majorRoadDistanceM"
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 50"
-                    className="max-w-40"
+                    value={majorRoadDistance}
+                    onChange={setMajorRoadDistance}
                   />
                 </div>
               )}
@@ -258,18 +409,104 @@ export default function ProximityEvaluationPage() {
                 </div>
               </div>
               {nearIntersection === "yes" && (
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="intersectionDistanceM" className="text-xs">
-                    Approximate distance (metres)
-                  </Label>
-                  <Input
-                    id="intersectionDistanceM"
-                    name="intersectionDistanceM"
-                    type="number"
-                    min="0"
-                    placeholder="e.g. 200"
-                    className="max-w-40"
-                  />
+                <div className="flex flex-col gap-4 border border-border/50 rounded-lg p-3 bg-secondary/10 mt-2">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="sensitiveIntersection" className="text-xs">
+                      Analyze Distance to Sensitive Major Intersection
+                    </Label>
+                    <Select
+                      name="sensitiveIntersection"
+                      value={selectedIntersection}
+                      onValueChange={setSelectedIntersection}>
+                      <SelectTrigger
+                        id="sensitiveIntersection"
+                        className="bg-background">
+                        <SelectValue placeholder="Select sensitive intersection…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SENSITIVE_INTERSECTIONS.map((i) => (
+                          <SelectItem key={i.name} value={i.name}>
+                            {i.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {motorPark?.gpsCoordinates ? (
+                    <div className="text-[11px] text-muted-foreground bg-background p-2 rounded border border-border/40">
+                      Site Coordinates registered:{" "}
+                      <span className="font-semibold text-foreground">
+                        {motorPark.gpsCoordinates}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/5 p-2 rounded border border-amber-500/10">
+                      No coordinates registered for this park. Intersection
+                      calculator requires site coordinates.
+                    </div>
+                  )}
+
+                  {suggestedDistance !== null && (
+                    <div className="flex flex-col gap-2 bg-background p-3 rounded-lg border border-border">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          <Calculator className="w-3.5 h-3.5 text-primary" />
+                          Calculated Distance:
+                        </span>
+                        <span className="font-bold text-foreground">
+                          {suggestedDistance} metres
+                        </span>
+                      </div>
+
+                      {tooClose && (
+                        <div className="flex items-start gap-1.5 text-[11px] text-destructive bg-destructive/5 p-2 rounded border border-destructive/20 mt-1 font-semibold leading-normal">
+                          <AlertTriangle className="w-4 h-4 shrink-0 text-destructive mt-0.5" />
+                          <span>
+                            WARNING: Proposed site is too close (under 150m) to
+                            this sensitive intersection!
+                          </span>
+                        </div>
+                      )}
+
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() =>
+                          setIntersectionDistance(String(suggestedDistance))
+                        }
+                        className="text-[10px] w-fit mt-1 self-end">
+                        Use Suggested Distance
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="intersectionDistanceM" className="text-xs">
+                      Approximate distance (metres)
+                    </Label>
+                    <DistancePills
+                      id="intersectionDistanceM"
+                      name="intersectionDistanceM"
+                      value={intersectionDistance}
+                      onChange={setIntersectionDistance}
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-1">
+                    <Checkbox
+                      id="tooCloseToSensitiveIntersection"
+                      name="tooCloseToSensitiveIntersection"
+                      checked={tooClose}
+                      onCheckedChange={(v) => setTooClose(!!v)}
+                    />
+                    <label
+                      htmlFor="tooCloseToSensitiveIntersection"
+                      className="text-xs font-semibold text-destructive cursor-pointer">
+                      Flag as &quot;too close&quot; to a sensitive intersection
+                    </label>
+                  </div>
                 </div>
               )}
             </CardContent>

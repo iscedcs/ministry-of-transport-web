@@ -17,6 +17,7 @@ import { useState, useEffect, useTransition, useRef } from "react";
 import Link from "next/link";
 import { submitParkApplication } from "@/app/actions/motor-park";
 import { uploadCacDocument } from "@/app/actions/upload";
+import { getMyProfile, type UserProfile } from "@/app/actions/auth";
 import {
   loadParkDraft,
   saveParkDraft,
@@ -48,23 +49,49 @@ const EMPTY: WizardData = {
   transportCompanyName: "",
   cacRegistrationNumber: "",
   anssidNumber: "",
-  locationAddress: "",
+  streetAddress: "",
+  lga: "",
+  townCity: "",
   gpsCoordinates: "",
   contactPerson: "",
   contactPhone: "",
   contactEmail: "",
+  managerStreetAddress: "",
+  managerLga: "",
+  managerTownCity: "",
+  nextOfKinName: "",
+  nextOfKinPhone: "",
   cacDocumentId: "",
   cacDocumentUrl: "",
   cacDocumentName: "",
+  landOwnershipDocId: "",
+  landOwnershipDocUrl: "",
+  landOwnershipDocName: "",
+  corporateAsinDocumentId: "",
+  corporateAsinDocumentUrl: "",
+  corporateAsinDocumentName: "",
+  toiletPhotoId: "",
+  toiletPhotoUrl: "",
+  toiletPhotoName: "",
+  waitingAreaPhotoId: "",
+  waitingAreaPhotoUrl: "",
+  waitingAreaPhotoName: "",
+  signagePhotoId: "",
+  signagePhotoUrl: "",
+  signagePhotoName: "",
+  waterFacilityPhotoId: "",
+  waterFacilityPhotoUrl: "",
+  waterFacilityPhotoName: "",
 };
 
 // -- Step config -------------------------------------------------------------
 
 const STEPS = [
-  { id: 1, label: "Business Details" },
-  { id: 2, label: "Park Location" },
-  { id: 3, label: "Park Manager" },
-  { id: 4, label: "Documents" },
+  { id: 1, label: "Owner Details" },
+  { id: 2, label: "Business Details" },
+  { id: 3, label: "Park Location" },
+  { id: 4, label: "Park Manager" },
+  { id: 5, label: "Documents" },
 ];
 
 // -- Helpers -----------------------------------------------------------------
@@ -184,6 +211,7 @@ function StepProgress({
 function FileUploadField({
   label,
   hint,
+  required,
   documentName,
   documentUrl,
   uploading,
@@ -193,6 +221,7 @@ function FileUploadField({
 }: {
   label: string;
   hint?: string;
+  required?: boolean;
   documentName: string;
   documentUrl: string;
   uploading: boolean;
@@ -275,18 +304,28 @@ export default function ApplyMotorParkPage() {
   const [submitting, startSubmit] = useTransition();
   const [submitted, setSubmitted] = useState<{ parkId: string } | null>(null);
   const [uploadingCac, setUploadingCac] = useState(false);
+  const [uploadingLand, setUploadingLand] = useState(false);
+  const [uploadingAsin, setUploadingAsin] = useState(false);
+  const [uploadingToilet, setUploadingToilet] = useState(false);
+  const [uploadingWaitingArea, setUploadingWaitingArea] = useState(false);
+  const [uploadingSignage, setUploadingSignage] = useState(false);
+  const [uploadingWaterFacility, setUploadingWaterFacility] = useState(false);
   const [draftLoading, setDraftLoading] = useState(true);
+  const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
 
   // Load draft from DB on mount (falls back to empty state)
   useEffect(() => {
-    loadParkDraft()
-      .then((draft) => {
+    Promise.all([loadParkDraft(), getMyProfile()])
+      .then(([draft, profileResult]) => {
         if (draft) {
           setData(draft.data);
           setCurrentStep(draft.stepReached);
           const done = new Set<number>();
           for (let i = 1; i < draft.stepReached; i++) done.add(i);
           setCompletedSteps(done);
+        }
+        if (profileResult.success) {
+          setOwnerProfile(profileResult.data as UserProfile);
         }
       })
       .catch(() => {
@@ -301,7 +340,7 @@ export default function ApplyMotorParkPage() {
   // Per-step validation
   function validateStep(step: number): StepErrors {
     const e: StepErrors = {};
-    if (step === 1) {
+    if (step === 2) {
       if (!data.businessName.trim())
         e.businessName = "Business / Park name is required";
       else if (data.businessName.trim().length < 3)
@@ -309,28 +348,46 @@ export default function ApplyMotorParkPage() {
       if (!data.anssidNumber.trim())
         e.anssidNumber = "ANSSID number is required";
     }
-    if (step === 2) {
-      if (!data.locationAddress.trim())
-        e.locationAddress = "Address is required";
-      else if (data.locationAddress.trim().length < 10)
-        e.locationAddress = "Please provide a detailed address";
+    if (step === 3) {
+      if (!data.streetAddress.trim())
+        e.streetAddress = "Street address is required";
+      else if (data.streetAddress.trim().length < 5)
+        e.streetAddress = "Must be at least 5 characters";
+      if (!data.lga.trim()) e.lga = "LGA is required";
+      if (!data.townCity.trim()) e.townCity = "Town/City is required";
       if (
         data.gpsCoordinates &&
         !/^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(data.gpsCoordinates.trim())
       )
         e.gpsCoordinates = "Must be in lat,lon format - e.g. 6.2088, 7.0676";
     }
-    if (step === 3) {
+    if (step === 4) {
       if (!data.contactPerson.trim())
         e.contactPerson = "Manager name is required";
       if (!data.contactPhone.trim())
         e.contactPhone = "Phone number is required";
-      else if (!/^(\+234|0)[789]\d{9}$/.test(data.contactPhone.trim()))
+      else if (!/^(\+234|0)[0-9]{10}$/.test(data.contactPhone.trim()))
         e.contactPhone = "Enter a valid Nigerian phone number";
       if (!data.contactEmail.trim())
         e.contactEmail = "Email address is required";
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.contactEmail))
         e.contactEmail = "Enter a valid email address";
+      
+      if (!data.managerStreetAddress.trim()) e.managerStreetAddress = "Street address is required";
+      if (!data.managerLga.trim()) e.managerLga = "LGA is required";
+      if (!data.managerTownCity.trim()) e.managerTownCity = "Town/City is required";
+
+      if (data.nextOfKinPhone && !/^(\+234|0)[0-9]{10}$/.test(data.nextOfKinPhone.trim())) {
+        e.nextOfKinPhone = "Enter a valid Nigerian phone number";
+      }
+    }
+    if (step === 5) {
+      if (!data.cacDocumentId) e.cacDocumentId = "CAC Registration Certificate is required";
+      if (!data.landOwnershipDocId) e.landOwnershipDocId = "Land Ownership/Lease Agreement is required";
+      if (!data.toiletPhotoId) e.toiletPhotoId = "Toilet/convenience photo is required";
+      if (!data.waitingAreaPhotoId) e.waitingAreaPhotoId = "Waiting lounge photo is required";
+      if (!data.signagePhotoId) e.signagePhotoId = "Signage photo is required";
+      if (!data.waterFacilityPhotoId) e.waterFacilityPhotoId = "Water facility/borehole photo is required";
     }
     return e;
   }
@@ -384,6 +441,174 @@ export default function ApplyMotorParkPage() {
     }));
   }
 
+  async function handleLandUpload(file: File) {
+    setUploadingLand(true);
+    setErrors((prev) => ({ ...prev, landOwnershipDocId: undefined }));
+    const fd = new globalThis.FormData();
+    fd.append("file", file);
+    const result = await uploadCacDocument(fd);
+    if (result.success) {
+      setData((prev) => ({
+        ...prev,
+        landOwnershipDocId: result.documentId,
+        landOwnershipDocUrl: result.url,
+        landOwnershipDocName: file.name,
+      }));
+    } else {
+      setErrors((prev) => ({ ...prev, landOwnershipDocId: result.error }));
+    }
+    setUploadingLand(false);
+  }
+
+  function clearLandDocument() {
+    setData((prev) => ({
+      ...prev,
+      landOwnershipDocId: "",
+      landOwnershipDocUrl: "",
+      landOwnershipDocName: "",
+    }));
+  }
+
+  async function handleAsinUpload(file: File) {
+    setUploadingAsin(true);
+    setErrors((prev) => ({ ...prev, corporateAsinDocumentId: undefined }));
+    const fd = new globalThis.FormData();
+    fd.append("file", file);
+    const result = await uploadCacDocument(fd);
+    if (result.success) {
+      setData((prev) => ({
+        ...prev,
+        corporateAsinDocumentId: result.documentId,
+        corporateAsinDocumentUrl: result.url,
+        corporateAsinDocumentName: file.name,
+      }));
+    } else {
+      setErrors((prev) => ({ ...prev, corporateAsinDocumentId: result.error }));
+    }
+    setUploadingAsin(false);
+  }
+
+  function clearAsinDocument() {
+    setData((prev) => ({
+      ...prev,
+      corporateAsinDocumentId: "",
+      corporateAsinDocumentUrl: "",
+      corporateAsinDocumentName: "",
+    }));
+  }
+
+  async function handleToiletUpload(file: File) {
+    setUploadingToilet(true);
+    setErrors((prev) => ({ ...prev, toiletPhotoId: undefined }));
+    const fd = new globalThis.FormData();
+    fd.append("file", file);
+    const result = await uploadCacDocument(fd);
+    if (result.success) {
+      setData((prev) => ({
+        ...prev,
+        toiletPhotoId: result.documentId,
+        toiletPhotoUrl: result.url,
+        toiletPhotoName: file.name,
+      }));
+    } else {
+      setErrors((prev) => ({ ...prev, toiletPhotoId: result.error }));
+    }
+    setUploadingToilet(false);
+  }
+
+  function clearToiletPhoto() {
+    setData((prev) => ({
+      ...prev,
+      toiletPhotoId: "",
+      toiletPhotoUrl: "",
+      toiletPhotoName: "",
+    }));
+  }
+
+  async function handleWaitingAreaUpload(file: File) {
+    setUploadingWaitingArea(true);
+    setErrors((prev) => ({ ...prev, waitingAreaPhotoId: undefined }));
+    const fd = new globalThis.FormData();
+    fd.append("file", file);
+    const result = await uploadCacDocument(fd);
+    if (result.success) {
+      setData((prev) => ({
+        ...prev,
+        waitingAreaPhotoId: result.documentId,
+        waitingAreaPhotoUrl: result.url,
+        waitingAreaPhotoName: file.name,
+      }));
+    } else {
+      setErrors((prev) => ({ ...prev, waitingAreaPhotoId: result.error }));
+    }
+    setUploadingWaitingArea(false);
+  }
+
+  function clearWaitingAreaPhoto() {
+    setData((prev) => ({
+      ...prev,
+      waitingAreaPhotoId: "",
+      waitingAreaPhotoUrl: "",
+      waitingAreaPhotoName: "",
+    }));
+  }
+
+  async function handleSignageUpload(file: File) {
+    setUploadingSignage(true);
+    setErrors((prev) => ({ ...prev, signagePhotoId: undefined }));
+    const fd = new globalThis.FormData();
+    fd.append("file", file);
+    const result = await uploadCacDocument(fd);
+    if (result.success) {
+      setData((prev) => ({
+        ...prev,
+        signagePhotoId: result.documentId,
+        signagePhotoUrl: result.url,
+        signagePhotoName: file.name,
+      }));
+    } else {
+      setErrors((prev) => ({ ...prev, signagePhotoId: result.error }));
+    }
+    setUploadingSignage(false);
+  }
+
+  function clearSignagePhoto() {
+    setData((prev) => ({
+      ...prev,
+      signagePhotoId: "",
+      signagePhotoUrl: "",
+      signagePhotoName: "",
+    }));
+  }
+
+  async function handleWaterFacilityUpload(file: File) {
+    setUploadingWaterFacility(true);
+    setErrors((prev) => ({ ...prev, waterFacilityPhotoId: undefined }));
+    const fd = new globalThis.FormData();
+    fd.append("file", file);
+    const result = await uploadCacDocument(fd);
+    if (result.success) {
+      setData((prev) => ({
+        ...prev,
+        waterFacilityPhotoId: result.documentId,
+        waterFacilityPhotoUrl: result.url,
+        waterFacilityPhotoName: file.name,
+      }));
+    } else {
+      setErrors((prev) => ({ ...prev, waterFacilityPhotoId: result.error }));
+    }
+    setUploadingWaterFacility(false);
+  }
+
+  function clearWaterFacilityPhoto() {
+    setData((prev) => ({
+      ...prev,
+      waterFacilityPhotoId: "",
+      waterFacilityPhotoUrl: "",
+      waterFacilityPhotoName: "",
+    }));
+  }
+
   function handleSubmit() {
     setSubmitError(null);
     const fd = new globalThis.FormData();
@@ -393,12 +618,28 @@ export default function ApplyMotorParkPage() {
     if (data.cacRegistrationNumber)
       fd.append("cacRegistrationNumber", data.cacRegistrationNumber);
     fd.append("anssidNumber", data.anssidNumber);
-    fd.append("locationAddress", data.locationAddress);
+    fd.append("streetAddress", data.streetAddress);
+    fd.append("lga", data.lga);
+    fd.append("townCity", data.townCity);
     if (data.gpsCoordinates) fd.append("gpsCoordinates", data.gpsCoordinates);
     fd.append("contactPerson", data.contactPerson);
     fd.append("contactPhone", data.contactPhone);
     fd.append("contactEmail", data.contactEmail);
-    if (data.cacDocumentId) fd.append("cacDocumentId", data.cacDocumentId);
+    
+    const combinedManagerAddress = [data.managerStreetAddress, data.managerLga, data.managerTownCity]
+      .filter(Boolean)
+      .join(", ");
+    if (combinedManagerAddress) fd.append("managerResidentialAddress", combinedManagerAddress);
+    if (data.nextOfKinName) fd.append("nextOfKinName", data.nextOfKinName);
+    if (data.nextOfKinPhone) fd.append("nextOfKinPhone", data.nextOfKinPhone);
+
+    fd.append("cacDocumentId", data.cacDocumentId);
+    fd.append("landOwnershipDocId", data.landOwnershipDocId);
+    fd.append("corporateAsinDocumentId", data.corporateAsinDocumentId);
+    fd.append("toiletPhotoId", data.toiletPhotoId);
+    fd.append("waitingAreaPhotoId", data.waitingAreaPhotoId);
+    fd.append("signagePhotoId", data.signagePhotoId);
+    fd.append("waterFacilityPhotoId", data.waterFacilityPhotoId);
 
     startSubmit(async () => {
       const result = await submitParkApplication(undefined as never, fd);
@@ -499,8 +740,41 @@ export default function ApplyMotorParkPage() {
       {/* Step progress */}
       <StepProgress current={currentStep} completed={completedSteps} />
 
-      {/* -- Step 1: Business Details -- */}
+      {/* -- Step 1: Owner Details -- */}
       {currentStep === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Owner Details</CardTitle>
+            <CardDescription>
+              These are your registered account details. Update them from your profile settings before applying if needed.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field id="ownerFirstName" label="First Name" required>
+                <Input value={ownerProfile?.firstName || ""} disabled />
+              </Field>
+              <Field id="ownerLastName" label="Last Name" required>
+                <Input value={ownerProfile?.lastName || ""} disabled />
+              </Field>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field id="ownerEmail" label="Email Address" required>
+                <Input value={ownerProfile?.email || ""} disabled />
+              </Field>
+              <Field id="ownerPhone" label="Phone Number" required>
+                <Input value={ownerProfile?.phone || ""} disabled />
+              </Field>
+            </div>
+            <Field id="ownerAddress" label="Residential Address" required>
+              <Input value={ownerProfile?.residentialAddress || ""} disabled />
+            </Field>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* -- Step 2: Business Details -- */}
+      {currentStep === 2 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Business Details</CardTitle>
@@ -571,8 +845,8 @@ export default function ApplyMotorParkPage() {
         </Card>
       )}
 
-      {/* -- Step 2: Park Location -- */}
-      {currentStep === 2 && (
+      {/* -- Step 3: Park Location -- */}
+      {currentStep === 3 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Park Location</CardTitle>
@@ -582,19 +856,39 @@ export default function ApplyMotorParkPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <Field
-              id="locationAddress"
-              label="Full Address"
+              id="streetAddress"
+              label="Street Address"
               required
-              hint="Street address, LGA, and town/city."
-              error={errors.locationAddress}>
+              error={errors.streetAddress}>
               <Input
-                id="locationAddress"
-                value={data.locationAddress}
-                onChange={(e) => set("locationAddress", e.target.value)}
-                placeholder="e.g. 12 Zik Avenue, Awka South LGA, Awka"
-                className={errors.locationAddress ? "border-destructive" : ""}
+                id="streetAddress"
+                value={data.streetAddress}
+                onChange={(e) => set("streetAddress", e.target.value)}
+                placeholder="e.g. 12 Zik Avenue"
+                className={errors.streetAddress ? "border-destructive" : ""}
               />
             </Field>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field id="lga" label="LGA" required error={errors.lga}>
+                <Input
+                  id="lga"
+                  value={data.lga}
+                  onChange={(e) => set("lga", e.target.value)}
+                  placeholder="e.g. Awka South"
+                  className={errors.lga ? "border-destructive" : ""}
+                />
+              </Field>
+              <Field id="townCity" label="Town / City" required error={errors.townCity}>
+                <Input
+                  id="townCity"
+                  value={data.townCity}
+                  onChange={(e) => set("townCity", e.target.value)}
+                  placeholder="e.g. Awka"
+                  className={errors.townCity ? "border-destructive" : ""}
+                />
+              </Field>
+            </div>
 
             <Field
               id="gpsCoordinates"
@@ -613,8 +907,8 @@ export default function ApplyMotorParkPage() {
         </Card>
       )}
 
-      {/* -- Step 3: Park Manager -- */}
-      {currentStep === 3 && (
+      {/* -- Step 4: Park Manager -- */}
+      {currentStep === 4 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Park Manager Contact</CardTitle>
@@ -671,41 +965,182 @@ export default function ApplyMotorParkPage() {
                 />
               </Field>
             </div>
+            
+            {/* Manager Residential Address */}
+            <div className="pt-4 border-t border-border">
+              <h3 className="text-sm font-semibold mb-3">Manager Residential Address</h3>
+              <div className="flex flex-col gap-4">
+                <Field
+                  id="managerStreetAddress"
+                  label="Manager Street Address"
+                  required
+                  error={errors.managerStreetAddress}>
+                  <Input
+                    id="managerStreetAddress"
+                    value={data.managerStreetAddress}
+                    onChange={(e) => set("managerStreetAddress", e.target.value)}
+                    placeholder="e.g. 15 Enugu Road"
+                    className={errors.managerStreetAddress ? "border-destructive" : ""}
+                  />
+                </Field>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field id="managerLga" label="Manager LGA" required error={errors.managerLga}>
+                    <Input
+                      id="managerLga"
+                      value={data.managerLga}
+                      onChange={(e) => set("managerLga", e.target.value)}
+                      placeholder="e.g. Awka South"
+                      className={errors.managerLga ? "border-destructive" : ""}
+                    />
+                  </Field>
+                  <Field id="managerTownCity" label="Manager Town / City" required error={errors.managerTownCity}>
+                    <Input
+                      id="managerTownCity"
+                      value={data.managerTownCity}
+                      onChange={(e) => set("managerTownCity", e.target.value)}
+                      placeholder="e.g. Awka"
+                      className={errors.managerTownCity ? "border-destructive" : ""}
+                    />
+                  </Field>
+                </div>
+              </div>
+            </div>
+
+            {/* Next of Kin */}
+            <div className="pt-4 border-t border-border">
+              <h3 className="text-sm font-semibold mb-3">Next of Kin <span className="text-muted-foreground font-normal text-xs ml-1">(optional)</span></h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field id="nextOfKinName" label="Next of Kin Name" error={errors.nextOfKinName}>
+                  <Input
+                    id="nextOfKinName"
+                    value={data.nextOfKinName}
+                    onChange={(e) => set("nextOfKinName", e.target.value)}
+                    placeholder="Full name"
+                  />
+                </Field>
+                <Field id="nextOfKinPhone" label="Next of Kin Phone" error={errors.nextOfKinPhone}>
+                  <Input
+                    id="nextOfKinPhone"
+                    value={data.nextOfKinPhone}
+                    onChange={(e) => set("nextOfKinPhone", e.target.value)}
+                    placeholder="08012345678"
+                    type="tel"
+                    className={errors.nextOfKinPhone ? "border-destructive" : ""}
+                  />
+                </Field>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* -- Step 4: Documents -- */}
-      {currentStep === 4 && (
+      {/* -- Step 5: Documents -- */}
+      {currentStep === 5 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Documents</CardTitle>
+            <CardTitle className="text-base">Documents & Facility Infrastructure Photos</CardTitle>
             <CardDescription>
-              Upload your CAC certificate. This is optional but recommended -
-              you can also add it after submission.
+              Upload all required documentation and facility pictures to verify compliance with site standards.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
-            <FileUploadField
-              label="CAC Certificate"
-              hint="Certificate of Incorporation from the Corporate Affairs Commission."
-              documentName={data.cacDocumentName}
-              documentUrl={data.cacDocumentUrl}
-              uploading={uploadingCac}
-              error={errors.cacDocumentId}
-              onSelect={handleCacUpload}
-              onClear={clearCacDocument}
-            />
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-foreground">Required Documents</h3>
+              <div className="grid grid-cols-1 gap-6">
+                <FileUploadField
+                  label="CAC Certificate"
+                  hint="Certificate of Incorporation from the Corporate Affairs Commission."
+                  required
+                  documentName={data.cacDocumentName}
+                  documentUrl={data.cacDocumentUrl}
+                  uploading={uploadingCac}
+                  error={errors.cacDocumentId}
+                  onSelect={handleCacUpload}
+                  onClear={clearCacDocument}
+                />
 
-            <div className="rounded-lg border border-border/50 bg-secondary/50 p-4">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                <strong className="text-foreground">
-                  Land ownership evidence
-                </strong>{" "}
-                (C of O, deed of assignment, etc.) can be uploaded after
-                submission. The Parks Inspection Team will contact you within 5
-                working days.
-              </p>
+                <FileUploadField
+                  label="Land Ownership / Lease Agreement"
+                  hint="Proof of land ownership or valid lease agreement for the proposed park site."
+                  required
+                  documentName={data.landOwnershipDocName}
+                  documentUrl={data.landOwnershipDocUrl}
+                  uploading={uploadingLand}
+                  error={errors.landOwnershipDocId}
+                  onSelect={handleLandUpload}
+                  onClear={clearLandDocument}
+                />
+
+                <FileUploadField
+                  label="Corporate ASIN Certificate"
+                  hint="Your Corporate Anambra State Identity Number (ASIN) certificate."
+                  required
+                  documentName={data.corporateAsinDocumentName}
+                  documentUrl={data.corporateAsinDocumentUrl}
+                  uploading={uploadingAsin}
+                  error={errors.corporateAsinDocumentId}
+                  onSelect={handleAsinUpload}
+                  onClear={clearAsinDocument}
+                />
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-border space-y-4">
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-foreground">Facility Infrastructure Photos</h3>
+                <p className="text-xs text-muted-foreground">
+                  Provide evidence of compliance with Anambra State Ministry of Transport Site Standards for Approval.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <FileUploadField
+                  label="Toilet/Convenience Photo"
+                  hint="Separate male/female Urinals & Toilets."
+                  required
+                  documentName={data.toiletPhotoName}
+                  documentUrl={data.toiletPhotoUrl}
+                  uploading={uploadingToilet}
+                  error={errors.toiletPhotoId}
+                  onSelect={handleToiletUpload}
+                  onClear={clearToiletPhoto}
+                />
+
+                <FileUploadField
+                  label="Waiting Area / Lounge Photo"
+                  hint="Waiting lounge with seats and/or ticketing office."
+                  required
+                  documentName={data.waitingAreaPhotoName}
+                  documentUrl={data.waitingAreaPhotoUrl}
+                  uploading={uploadingWaitingArea}
+                  error={errors.waitingAreaPhotoId}
+                  onSelect={handleWaitingAreaUpload}
+                  onClear={clearWaitingAreaPhoto}
+                />
+
+                <FileUploadField
+                  label="Signage Photo"
+                  hint="Entrance and/or exit signage showing the park name."
+                  required
+                  documentName={data.signagePhotoName}
+                  documentUrl={data.signagePhotoUrl}
+                  uploading={uploadingSignage}
+                  error={errors.signagePhotoId}
+                  onSelect={handleSignageUpload}
+                  onClear={clearSignagePhoto}
+                />
+
+                <FileUploadField
+                  label="Water Facility Photo"
+                  hint="Borehole or dedicated water tank facility."
+                  required
+                  documentName={data.waterFacilityPhotoName}
+                  documentUrl={data.waterFacilityPhotoUrl}
+                  uploading={uploadingWaterFacility}
+                  error={errors.waterFacilityPhotoId}
+                  onSelect={handleWaterFacilityUpload}
+                  onClear={clearWaterFacilityPhoto}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -735,7 +1170,16 @@ export default function ApplyMotorParkPage() {
         ) : (
           <Button
             onClick={handleSubmit}
-            disabled={submitting || uploadingCac}
+            disabled={
+              submitting ||
+              uploadingCac ||
+              uploadingLand ||
+              uploadingAsin ||
+              uploadingToilet ||
+              uploadingWaitingArea ||
+              uploadingSignage ||
+              uploadingWaterFacility
+            }
             aria-busy={submitting}>
             {submitting ? (
               <>

@@ -51,18 +51,35 @@ export async function submitParkApplication(
 ): Promise<ActionResult<{ parkId: string }>> {
   const session = await requireRole(["EXTERNAL_APPLICANT"]);
 
+  const getCleanString = (val: unknown, isRequired = false): string | undefined => {
+    if (val === null || val === undefined || val === "undefined" || val === "null" || val === "") {
+      return isRequired ? "" : undefined;
+    }
+    return String(val).trim();
+  };
+
   const raw = {
-    businessName: formData.get("businessName"),
-    transportCompanyName: formData.get("transportCompanyName") || undefined,
-    locationAddress: formData.get("locationAddress"),
-    gpsCoordinates: formData.get("gpsCoordinates") || undefined,
-    cacRegistrationNumber: formData.get("cacRegistrationNumber") || undefined,
-    anssidNumber: formData.get("anssidNumber"),
-    contactPerson: formData.get("contactPerson"),
-    contactPhone: formData.get("contactPhone"),
-    contactEmail: formData.get("contactEmail"),
-    landOwnershipDocId: formData.get("landOwnershipDocId") || undefined,
-    cacDocumentId: formData.get("cacDocumentId") || undefined,
+    businessName: getCleanString(formData.get("businessName"), true),
+    transportCompanyName: getCleanString(formData.get("transportCompanyName")),
+    streetAddress: getCleanString(formData.get("streetAddress"), true),
+    lga: getCleanString(formData.get("lga"), true),
+    townCity: getCleanString(formData.get("townCity"), true),
+    gpsCoordinates: getCleanString(formData.get("gpsCoordinates")),
+    cacRegistrationNumber: getCleanString(formData.get("cacRegistrationNumber")),
+    anssidNumber: getCleanString(formData.get("anssidNumber"), true),
+    contactPerson: getCleanString(formData.get("contactPerson"), true),
+    contactPhone: getCleanString(formData.get("contactPhone"), true),
+    contactEmail: getCleanString(formData.get("contactEmail"), true),
+    managerResidentialAddress: getCleanString(formData.get("managerResidentialAddress")),
+    nextOfKinName: getCleanString(formData.get("nextOfKinName")),
+    nextOfKinPhone: getCleanString(formData.get("nextOfKinPhone")),
+    landOwnershipDocId: getCleanString(formData.get("landOwnershipDocId"), true),
+    cacDocumentId: getCleanString(formData.get("cacDocumentId"), true),
+    corporateAsinDocumentId: getCleanString(formData.get("corporateAsinDocumentId")),
+    toiletPhotoId: getCleanString(formData.get("toiletPhotoId"), true),
+    waitingAreaPhotoId: getCleanString(formData.get("waitingAreaPhotoId"), true),
+    signagePhotoId: getCleanString(formData.get("signagePhotoId"), true),
+    waterFacilityPhotoId: getCleanString(formData.get("waterFacilityPhotoId"), true),
   };
 
   const parsed = motorParkApplicationSchema.safeParse(raw);
@@ -90,7 +107,9 @@ export async function submitParkApplication(
     data: {
       businessName: data.businessName,
       transportCompanyName: data.transportCompanyName,
-      locationAddress: data.locationAddress,
+      streetAddress: data.streetAddress,
+      lga: data.lga,
+      townCity: data.townCity,
       gpsCoordinates: data.gpsCoordinates,
       cacRegistrationNumber: data.cacRegistrationNumber,
       anssidNumber: data.anssidNumber,
@@ -98,11 +117,33 @@ export async function submitParkApplication(
       contactPerson: data.contactPerson,
       contactPhone: data.contactPhone,
       contactEmail: data.contactEmail,
+      managerResidentialAddress: data.managerResidentialAddress,
+      nextOfKinName: data.nextOfKinName,
+      nextOfKinPhone: data.nextOfKinPhone,
       landOwnershipDocId: data.landOwnershipDocId,
       cacDocumentId: data.cacDocumentId,
+      corporateAsinDocumentId: data.corporateAsinDocumentId || null,
+      toiletPhotoId: data.toiletPhotoId,
+      waitingAreaPhotoId: data.waitingAreaPhotoId,
+      signagePhotoId: data.signagePhotoId,
+      waterFacilityPhotoId: data.waterFacilityPhotoId,
       applicationStatus: "SUBMITTED",
     },
     select: { id: true },
+  });
+
+  // Create application fee (₦50,000)
+  const feeDueDate = new Date();
+  feeDueDate.setDate(feeDueDate.getDate() + 7);
+
+  await db.motorParkFee.create({
+    data: {
+      motorParkId: motorPark.id,
+      feeType: "APPLICATION",
+      amount: 5000000, // ₦50,000 in kobo
+      dueDate: feeDueDate,
+      status: "PENDING",
+    },
   });
 
   // Audit log
@@ -136,6 +177,12 @@ export type MotorParkListItem = {
   nextRevalidationDue: Date | null;
   contactPerson: string;
   contactPhone: string;
+  fees: Array<{
+    id: string;
+    amount: number;
+    status: string;
+    dueDate: Date;
+  }>;
 };
 
 /**
@@ -196,7 +243,9 @@ export async function listMotorParks(filters?: {
         id: true,
         businessName: true,
         transportCompanyName: true,
-        locationAddress: true,
+        streetAddress: true,
+        lga: true,
+        townCity: true,
         applicationStatus: true,
         permitStatus: true,
         appliedAt: true,
@@ -204,12 +253,35 @@ export async function listMotorParks(filters?: {
         nextRevalidationDue: true,
         contactPerson: true,
         contactPhone: true,
+        fees: {
+          select: {
+            id: true,
+            amount: true,
+            status: true,
+            dueDate: true,
+          },
+          where: {
+            status: "PENDING",
+          },
+        },
       },
     }),
     db.motorPark.count({ where }),
   ]);
 
-  return { success: true, data: { parks, total } };
+  return { 
+    success: true, 
+    data: { 
+      parks: parks.map(p => ({
+        ...p,
+        locationAddress: `${p.streetAddress}, ${p.lga} LGA, ${p.townCity}`,
+        streetAddress: undefined,
+        lga: undefined,
+        townCity: undefined,
+      })) as MotorParkListItem[], 
+      total 
+    } 
+  };
 }
 
 export type MotorParkDetail = {
@@ -217,12 +289,18 @@ export type MotorParkDetail = {
   businessName: string;
   transportCompanyName: string | null;
   locationAddress: string;
+  streetAddress: string;
+  lga: string;
+  townCity: string;
   gpsCoordinates: string | null;
   cacRegistrationNumber: string | null;
   anssidNumber: string;
   contactPerson: string;
   contactPhone: string;
   contactEmail: string;
+  managerResidentialAddress: string | null;
+  nextOfKinName: string | null;
+  nextOfKinPhone: string | null;
   applicationStatus: string;
   permitStatus: string | null;
   permitNumber: string | null;
@@ -240,6 +318,20 @@ export type MotorParkDetail = {
   revocationReason: string | null;
   cacDocumentId: string | null;
   landOwnershipDocId: string | null;
+  corporateAsinDocumentId: string | null;
+  toiletPhotoId: string | null;
+  waitingAreaPhotoId: string | null;
+  signagePhotoId: string | null;
+  waterFacilityPhotoId: string | null;
+  documents: {
+    cac?: { id: string; fileName: string; fileUrl: string; verifiedAt?: Date | null; verifiedByUserId?: string | null; verificationNotes?: string | null; };
+    land?: { id: string; fileName: string; fileUrl: string; verifiedAt?: Date | null; verifiedByUserId?: string | null; verificationNotes?: string | null; };
+    asin?: { id: string; fileName: string; fileUrl: string; verifiedAt?: Date | null; verifiedByUserId?: string | null; verificationNotes?: string | null; };
+    toilet?: { id: string; fileName: string; fileUrl: string; verifiedAt?: Date | null; verifiedByUserId?: string | null; verificationNotes?: string | null; };
+    waitingArea?: { id: string; fileName: string; fileUrl: string; verifiedAt?: Date | null; verifiedByUserId?: string | null; verificationNotes?: string | null; };
+    signage?: { id: string; fileName: string; fileUrl: string; verifiedAt?: Date | null; verifiedByUserId?: string | null; verificationNotes?: string | null; };
+    waterFacility?: { id: string; fileName: string; fileUrl: string; verifiedAt?: Date | null; verifiedByUserId?: string | null; verificationNotes?: string | null; };
+  };
   applicant: { id: string; firstName: string; lastName: string; email: string };
   inspections: {
     id: string;
@@ -276,13 +368,18 @@ export async function getMotorPark(
       id: true,
       businessName: true,
       transportCompanyName: true,
-      locationAddress: true,
+      streetAddress: true,
+      lga: true,
+      townCity: true,
       gpsCoordinates: true,
       cacRegistrationNumber: true,
       anssidNumber: true,
       contactPerson: true,
       contactPhone: true,
       contactEmail: true,
+      managerResidentialAddress: true,
+      nextOfKinName: true,
+      nextOfKinPhone: true,
       applicationStatus: true,
       permitStatus: true,
       permitNumber: true,
@@ -300,6 +397,11 @@ export async function getMotorPark(
       revocationReason: true,
       cacDocumentId: true,
       landOwnershipDocId: true,
+      corporateAsinDocumentId: true,
+      toiletPhotoId: true,
+      waitingAreaPhotoId: true,
+      signagePhotoId: true,
+      waterFacilityPhotoId: true,
       applicant: {
         select: { id: true, firstName: true, lastName: true, email: true },
       },
@@ -340,7 +442,47 @@ export async function getMotorPark(
     return { success: false, error: "Access denied" };
   }
 
-  return { success: true, data: park };
+  // Fetch documents
+  const docIds = [
+    park.cacDocumentId,
+    park.landOwnershipDocId,
+    park.corporateAsinDocumentId,
+    park.toiletPhotoId,
+    park.waitingAreaPhotoId,
+    park.signagePhotoId,
+    park.waterFacilityPhotoId,
+  ].filter(Boolean) as string[];
+
+  const docs = await db.document.findMany({
+    where: { id: { in: docIds } },
+    select: {
+      id: true,
+      fileName: true,
+      fileUrl: true,
+      verifiedAt: true,
+      verifiedByUserId: true,
+      verificationNotes: true,
+    },
+  });
+
+  const documents = {
+    cac: docs.find((d) => d.id === park.cacDocumentId),
+    land: docs.find((d) => d.id === park.landOwnershipDocId),
+    asin: docs.find((d) => d.id === park.corporateAsinDocumentId),
+    toilet: docs.find((d) => d.id === park.toiletPhotoId),
+    waitingArea: docs.find((d) => d.id === park.waitingAreaPhotoId),
+    signage: docs.find((d) => d.id === park.signagePhotoId),
+    waterFacility: docs.find((d) => d.id === park.waterFacilityPhotoId),
+  };
+
+  return { 
+    success: true, 
+    data: {
+      ...park,
+      documents,
+      locationAddress: `${park.streetAddress}, ${park.lga} LGA, ${park.townCity}`,
+    } as unknown as MotorParkDetail
+  };
 }
 
 // ==================== INSPECTION SCHEDULING (FR-011, STORY-023) ====================
@@ -501,6 +643,8 @@ export async function submitInspectionReport(
     checklistItemId: string;
     isCompliant: boolean;
     notes?: string;
+    photoUrls?: string;
+    score?: number;
   }> = [];
 
   if (checklistJson) {
@@ -515,6 +659,11 @@ export async function submitInspectionReport(
 
   // Create checklist results and update inspection in one transaction
   await db.$transaction(async (tx) => {
+    // Delete existing checklist results first to prevent duplicates or constraint errors
+    await tx.inspectionChecklistResult.deleteMany({
+      where: { inspectionId },
+    });
+
     // Insert checklist results
     if (checklistItems.length > 0) {
       await tx.inspectionChecklistResult.createMany({
@@ -522,7 +671,9 @@ export async function submitInspectionReport(
           inspectionId,
           checklistItemId: item.checklistItemId,
           isCompliant: item.isCompliant,
-          notes: item.notes,
+          notes: item.notes || null,
+          photoUrls: item.photoUrls || null,
+          score: item.score !== undefined ? item.score : null,
           recordedAt: now,
           recordedByUserId: session.userId,
         })),
@@ -718,7 +869,7 @@ export async function recordFeeAssessment(
   prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult<{ feeId: string }>> {
-  await requireRole(["FINANCE_OFFICER", "COMMISSIONER", "PERMANENT_SECRETARY"]);
+  await requireRole(["FINANCE_OFFICER", "COMMISSIONER", "PERMANENT_SECRETARY", "HOD_PARKS"]);
   const session = await requireAuth();
 
   const raw = {
@@ -780,6 +931,55 @@ export async function recordFeeAssessment(
   return { success: true, data: { feeId: fee.id } };
 }
 
+// ==================== TEMPORAL APPROVAL ====================
+
+export async function issueTemporalApproval(
+  prevState: ActionResult,
+  formData: FormData,
+): Promise<ActionResult<{ parkId: string }>> {
+  await requireRole(["HOD_PARKS", "COMMISSIONER", "PERMANENT_SECRETARY"]);
+  const session = await requireAuth();
+
+  const parkId = formData.get("parkId") as string;
+  const notes = formData.get("notes") as string;
+
+  if (!parkId) return { success: false, error: "Park ID required" };
+
+  const park = await db.motorPark.findUnique({
+    where: { id: parkId },
+    select: { id: true, applicationStatus: true, businessName: true },
+  });
+
+  if (!park) return { success: false, error: "Motor park not found" };
+
+  if (park.applicationStatus !== "INSPECTION_COMPLETED" && park.applicationStatus !== "PENDING_APPROVAL") {
+    return {
+      success: false,
+      error: "Temporal approval requires a completed inspection",
+    };
+  }
+
+  await db.motorPark.update({
+    where: { id: parkId },
+    data: {
+      applicationStatus: "TEMPORAL_APPROVAL",
+    },
+  });
+
+  await db.auditLog.create({
+    data: {
+      performedByUserId: session.userId,
+      action: "TEMPORAL_APPROVAL_ISSUED",
+      entityType: "MOTOR_PARK",
+      entityId: parkId,
+      changeDescription: `Temporal Approval issued for ${park.businessName}. Notes: ${notes || "None"}`,
+    },
+  });
+
+  revalidatePath(`/motor-parks/${parkId}`);
+  return { success: true, data: { parkId } };
+}
+
 // ==================== FINAL APPROVAL LETTER (FR-017, STORY-030) ====================
 
 /**
@@ -810,10 +1010,14 @@ export async function issueFinalApproval(
 
   if (!park) return { success: false, error: "Motor park not found" };
 
-  if (park.applicationStatus !== "INSPECTION_COMPLETED") {
+  if (
+    park.applicationStatus !== "INSPECTION_COMPLETED" &&
+    park.applicationStatus !== "PENDING_APPROVAL" &&
+    park.applicationStatus !== "TEMPORAL_APPROVAL"
+  ) {
     return {
       success: false,
-      error: "Final approval requires a completed re-inspection",
+      error: "Final approval requires a completed inspection or temporal approval",
     };
   }
 
@@ -991,6 +1195,7 @@ export type ParkStatusSummary = {
   rejected: number;
   revoked: number;
   expiringSoon: number; // permits expiring within 60 days
+  pendingPayments: number; // applications with unpaid fees
 };
 
 /**
@@ -1008,7 +1213,7 @@ export async function getParkStatusSummary(): Promise<
   const sixtyDaysFromNow = new Date();
   sixtyDaysFromNow.setDate(sixtyDaysFromNow.getDate() + 60);
 
-  const [statusCounts, expiringSoon] = await Promise.all([
+  const [statusCounts, expiringSoon, pendingPayments] = await Promise.all([
     db.motorPark.groupBy({
       by: ["applicationStatus"],
       where: userId ? { contactUserId: userId } : {},
@@ -1019,6 +1224,16 @@ export async function getParkStatusSummary(): Promise<
         ...(userId ? { contactUserId: userId } : {}),
         permitStatus: "ACTIVE",
         permitExpiresAt: { lte: sixtyDaysFromNow, gte: new Date() },
+      },
+    }),
+    db.motorPark.count({
+      where: {
+        ...(userId ? { contactUserId: userId } : {}),
+        fees: {
+          some: {
+            status: "PENDING",
+          },
+        },
       },
     }),
   ]);
@@ -1043,6 +1258,7 @@ export async function getParkStatusSummary(): Promise<
       rejected: counts.REJECTED ?? 0,
       revoked: counts.REVOKED ?? 0,
       expiringSoon,
+      pendingPayments,
     },
   };
 }
@@ -1063,6 +1279,7 @@ export async function getMotorParkChecklistTemplate(): Promise<
       itemCategory: string;
       description: string | null;
       isRequired: boolean;
+      maxPoints: number;
     }[];
   }>
 > {
@@ -1080,6 +1297,7 @@ export async function getMotorParkChecklistTemplate(): Promise<
           itemCategory: true,
           description: true,
           isRequired: true,
+          maxPoints: true,
         },
         orderBy: [{ itemCategory: "asc" }, { sortOrder: "asc" }],
       },
@@ -1091,6 +1309,184 @@ export async function getMotorParkChecklistTemplate(): Promise<
   }
 
   return { success: true, data: template };
+}
+
+export async function getInspection(inspectionId: string): Promise<
+  ActionResult<{
+    id: string;
+    inspectionType: string;
+    status: string;
+    overallAssessment: string | null;
+    recommendedAction: string | null;
+    assignedToUserId: string;
+    checklist: Array<{
+      checklistItemId: string;
+      isCompliant: boolean;
+      notes: string | null;
+      photoUrls: string | null;
+      score: number | null;
+    }>;
+    assignedTo: {
+      hasEntranceExitAccess: boolean;
+      hasGatehouseAccess: boolean;
+    };
+  }>
+> {
+  const session = await requireAuth();
+
+  const inspection = await db.inspection.findUnique({
+    where: { id: inspectionId },
+    select: {
+      id: true,
+      inspectionType: true,
+      status: true,
+      overallAssessment: true,
+      recommendedAction: true,
+      assignedToUserId: true,
+      checklist: {
+        select: {
+          checklistItemId: true,
+          isCompliant: true,
+          notes: true,
+          photoUrls: true,
+          score: true,
+        },
+      },
+      assignedTo: {
+        select: {
+          hasEntranceExitAccess: true,
+          hasGatehouseAccess: true,
+        },
+      },
+    },
+  });
+
+  if (!inspection) {
+    return { success: false, error: "Inspection not found" };
+  }
+
+  return { success: true, data: inspection };
+}
+
+export async function saveInspectionDraft(
+  inspectionId: string,
+  checklistItems: Array<{
+    checklistItemId: string;
+    isCompliant: boolean;
+    notes?: string;
+    photoUrls?: string;
+    score?: number;
+  }>,
+  overallAssessment?: string,
+  recommendedAction?: string,
+): Promise<ActionResult> {
+  const session = await requireAuth();
+
+  if (!canPerformInspections(session.role)) {
+    return {
+      success: false,
+      error: "Only field inspectors can perform inspections",
+    };
+  }
+
+  const now = new Date();
+
+  try {
+    await db.$transaction(async (tx) => {
+      // Clean existing draft items for this inspection
+      await tx.inspectionChecklistResult.deleteMany({
+        where: { inspectionId },
+      });
+
+      // Write current draft items
+      if (checklistItems.length > 0) {
+        await tx.inspectionChecklistResult.createMany({
+          data: checklistItems.map((item) => ({
+            inspectionId,
+            checklistItemId: item.checklistItemId,
+            isCompliant: item.isCompliant,
+            notes: item.notes || null,
+            photoUrls: item.photoUrls || null,
+            score: item.score !== undefined ? item.score : null,
+            recordedAt: now,
+            recordedByUserId: session.userId,
+          })),
+        });
+      }
+
+      // Update narrative draft fields
+      await tx.inspection.update({
+        where: { id: inspectionId },
+        data: {
+          overallAssessment: overallAssessment || null,
+          recommendedAction: recommendedAction || null,
+        },
+      });
+    });
+
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to save draft.",
+    };
+  }
+}
+
+export async function verifyDocument(
+  documentId: string,
+  isApproved: boolean,
+  notes: string,
+): Promise<ActionResult> {
+  const session = await requireAuth();
+
+  const allowedRoles = [
+    "HOD_PARKS",
+    "HOD_VIS",
+    "HOD_TRANSPORT_OPS",
+    "HOD_PARKS_REVALIDATION",
+    "PERMANENT_SECRETARY",
+    "COMMISSIONER",
+    "SYSTEM_ADMIN",
+  ];
+
+  if (!allowedRoles.includes(session.role)) {
+    return {
+      success: false,
+      error: "Only HODs, PS, or Commissioner can review documents.",
+    };
+  }
+
+  if (!documentId) return { success: false, error: "Document ID is required." };
+
+  try {
+    await db.document.update({
+      where: { id: documentId },
+      data: {
+        verifiedAt: isApproved ? new Date() : null,
+        verifiedByUserId: session.userId,
+        verificationNotes: notes || null,
+      },
+    });
+
+    // Audit log
+    await db.auditLog.create({
+      data: {
+        performedByUserId: session.userId,
+        action: "DOCUMENT_VERIFIED",
+        entityType: "Document",
+        entityId: documentId,
+        changeDescription: `Document ${documentId} verified. Status: ${isApproved ? "APPROVED" : "REJECTED"}. Notes: ${notes || "None"}`,
+      },
+    });
+
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to verify document.",
+    };
+  }
 }
 
 // ==================== FIELD INSPECTOR ASSIGNMENTS ====================

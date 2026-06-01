@@ -9,23 +9,16 @@
  * - Each row links to the entity detail page where contextual actions live
  */
 
+import type { InspectionListItem } from "@/app/actions/inspections";
+import { listInspections } from "@/app/actions/inspections";
+import { StatusPill } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/misc";
+import { requireRole } from "@/lib/auth";
+import { PAGE_SIZE } from "@/lib/consts";
+import { fmtDate, fmtDateShort } from "@/lib/utils/format";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { requireRole } from "@/lib/auth";
-import { listInspections } from "@/app/actions/inspections";
-import type { InspectionListItem } from "@/app/actions/inspections";
-import { Button } from "@/components/ui/button";
-import { StatusPill } from "@/components/ui/badge";
-import { EmptyState } from "@/components/ui/misc";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { fmtDateShort, fmtDate } from "@/lib/utils/format";
-import { PAGE_SIZE } from "@/lib/consts";
 
 // ── Page ────────────────────────────────────────────────────────────────────────
 

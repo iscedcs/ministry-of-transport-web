@@ -34,6 +34,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { RowGrid as Row } from "@/components/ui/row";
 import { fmtDateShort as fmt } from "@/lib/utils/format";
+import { FileText, Download } from "lucide-react";
 
 // ── Action Bar ─────────────────────────────────────────────────────────────────
 
@@ -278,9 +279,47 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
               value={co.businessPremisesCert}
             />
             <Row label="ANSAA Registration" value={co.ansaaRegistration} />
-            <Row label="Terminal Address" value={co.terminalLocationAddress} />
           </CardContent>
         </Card>
+
+        {/* Terminals */}
+        {co.terminals && co.terminals.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                Terminals ({co.terminals.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {co.terminals.map((terminal, idx) => (
+                <div
+                  key={terminal.id}
+                  className="border-l-4 border-primary/30 pl-4 space-y-2">
+                  <h4 className="font-semibold">Terminal {idx + 1}</h4>
+                  <Row label="Location Address" value={terminal.locationAddress} />
+                  {terminal.gpsCoordinates && (
+                    <Row label="GPS Coordinates" value={terminal.gpsCoordinates} />
+                  )}
+                  <div className="mt-3 pt-3 border-t border-border/50">
+                    <p className="text-xs font-semibold text-muted-foreground mb-2">
+                      Manager Details
+                    </p>
+                    <Row label="Manager Name" value={terminal.managerName} />
+                    <Row label="Phone" value={terminal.managerPhone} />
+                    <Row label="Email" value={terminal.managerEmail} />
+                    <Row
+                      label="Residential Address"
+                      value={terminal.managerResidentialAddress}
+                    />
+                  </div>
+                  {idx < co.terminals.length - 1 && (
+                    <Separator className="mt-6" />
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Contact & Status */}
         <Card>
@@ -318,6 +357,70 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Documents */}
+      {co.documents && (Object.values(co.documents).some(Boolean)) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Uploaded Documents</CardTitle>
+            <CardDescription>
+              Documents submitted during application
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {co.documents.cac && (
+                <div className="flex items-center justify-between p-3 border border-border/50 rounded-lg bg-secondary/20">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <FileText className="w-5 h-5 text-primary shrink-0" />
+                    <div className="flex flex-col overflow-hidden">
+                      <span className="text-sm font-medium">CAC Certificate</span>
+                      <span className="text-xs text-muted-foreground truncate">{co.documents.cac.fileName}</span>
+                    </div>
+                  </div>
+                  <Button asChild variant="ghost" size="sm" className="shrink-0">
+                    <a href={co.documents.cac.fileUrl} target="_blank" rel="noreferrer">
+                      <Download className="w-4 h-4 mr-2" /> View
+                    </a>
+                  </Button>
+                </div>
+              )}
+              {co.documents.land && (
+                <div className="flex items-center justify-between p-3 border border-border/50 rounded-lg bg-secondary/20">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <FileText className="w-5 h-5 text-primary shrink-0" />
+                    <div className="flex flex-col overflow-hidden">
+                      <span className="text-sm font-medium">Land Ownership/Lease</span>
+                      <span className="text-xs text-muted-foreground truncate">{co.documents.land.fileName}</span>
+                    </div>
+                  </div>
+                  <Button asChild variant="ghost" size="sm" className="shrink-0">
+                    <a href={co.documents.land.fileUrl} target="_blank" rel="noreferrer">
+                      <Download className="w-4 h-4 mr-2" /> View
+                    </a>
+                  </Button>
+                </div>
+              )}
+              {co.documents.asin && (
+                <div className="flex items-center justify-between p-3 border border-border/50 rounded-lg bg-secondary/20">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <FileText className="w-5 h-5 text-primary shrink-0" />
+                    <div className="flex flex-col overflow-hidden">
+                      <span className="text-sm font-medium">Corporate ASIN</span>
+                      <span className="text-xs text-muted-foreground truncate">{co.documents.asin.fileName}</span>
+                    </div>
+                  </div>
+                  <Button asChild variant="ghost" size="sm" className="shrink-0">
+                    <a href={co.documents.asin.fileUrl} target="_blank" rel="noreferrer">
+                      <Download className="w-4 h-4 mr-2" /> View
+                    </a>
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Vehicle Fleet */}
       <Card>

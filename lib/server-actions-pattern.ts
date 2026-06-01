@@ -218,7 +218,9 @@ export async function fetchMotorParkWithRLS(
  * Usage:
  *   const result = await createMotorParkApplication(userContext, {
  *     businessName: "...",
- *     locationAddress: "...",
+ *     streetAddress: "...",
+ *     lga: "...",
+ *     townCity: "...",
  *     ...
  *   });
  */
@@ -227,7 +229,9 @@ export async function createMotorParkApplication(
   input: {
     businessName: string;
     transportCompanyName?: string;
-    locationAddress: string;
+    streetAddress: string;
+    lga: string;
+    townCity: string;
     cacRegistrationNumber: string;
     anssidNumber: string;
     contactPerson: string;
@@ -277,7 +281,9 @@ export async function createMotorParkApplication(
         data: {
           businessName: input.businessName,
           transportCompanyName: input.transportCompanyName,
-          locationAddress: input.locationAddress,
+          streetAddress: input.streetAddress,
+          lga: input.lga,
+          townCity: input.townCity,
           cacRegistrationNumber: input.cacRegistrationNumber,
           anssidNumber: input.anssidNumber,
           contactPerson: input.contactPerson,
@@ -378,8 +384,9 @@ export async function updateMotorParkStatus(
       INSPECTION_SCHEDULED: ["INSPECTION_IN_PROGRESS"],
       INSPECTION_IN_PROGRESS: ["INSPECTION_COMPLETED", "INSPECTION_SCHEDULED"],
       INSPECTION_COMPLETED: ["PENDING_APPROVAL"],
-      PENDING_APPROVAL: ["APPROVED", "REJECTED"],
+      PENDING_APPROVAL: ["APPROVED", "TEMPORAL_APPROVAL", "REJECTED"],
       APPROVED: ["REVOKED"],
+      TEMPORAL_APPROVAL: ["APPROVED", "REVOKED"],
       REJECTED: [],
       REVOKED: [],
     };
