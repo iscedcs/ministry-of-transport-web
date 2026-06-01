@@ -451,8 +451,9 @@ export default function InspectionChecklistPage() {
   useEffect(() => {
     getInspection(inspectionId).then((inspectResult) => {
         const savedDraft: Record<
-        { compliant: boolean; notes: string; photoUrl: string; score: number }
-      > = {};
+          string,
+          { compliant: boolean; notes: string; photoUrl: string; score: number }
+        > = {};
 
       if (inspectResult.success && inspectResult.data) {
         const data = inspectResult.data;
