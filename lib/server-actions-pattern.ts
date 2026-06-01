@@ -175,7 +175,6 @@ export async function checkMotorParkWriteAccess(
 export async function fetchMotorParkWithRLS(
   userContext: UserContext,
   motorParkId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<ActionResult<any>> {
   try {
     // Step 1: RLS Check
@@ -218,9 +217,7 @@ export async function fetchMotorParkWithRLS(
  * Usage:
  *   const result = await createMotorParkApplication(userContext, {
  *     businessName: "...",
- *     streetAddress: "...",
- *     lga: "...",
- *     townCity: "...",
+ *     locationAddress: "...",
  *     ...
  *   });
  */
@@ -229,9 +226,7 @@ export async function createMotorParkApplication(
   input: {
     businessName: string;
     transportCompanyName?: string;
-    streetAddress: string;
-    lga: string;
-    townCity: string;
+    locationAddress: string;
     cacRegistrationNumber: string;
     anssidNumber: string;
     contactPerson: string;
@@ -281,9 +276,7 @@ export async function createMotorParkApplication(
         data: {
           businessName: input.businessName,
           transportCompanyName: input.transportCompanyName,
-          streetAddress: input.streetAddress,
-          lga: input.lga,
-          townCity: input.townCity,
+          locationAddress: input.locationAddress,
           cacRegistrationNumber: input.cacRegistrationNumber,
           anssidNumber: input.anssidNumber,
           contactPerson: input.contactPerson,
@@ -384,9 +377,8 @@ export async function updateMotorParkStatus(
       INSPECTION_SCHEDULED: ["INSPECTION_IN_PROGRESS"],
       INSPECTION_IN_PROGRESS: ["INSPECTION_COMPLETED", "INSPECTION_SCHEDULED"],
       INSPECTION_COMPLETED: ["PENDING_APPROVAL"],
-      PENDING_APPROVAL: ["APPROVED", "TEMPORAL_APPROVAL", "REJECTED"],
+      PENDING_APPROVAL: ["APPROVED", "REJECTED"],
       APPROVED: ["REVOKED"],
-      TEMPORAL_APPROVAL: ["APPROVED", "REVOKED"],
       REJECTED: [],
       REVOKED: [],
     };

@@ -317,7 +317,6 @@ export async function listFleetApplications(filters?: {
   const limit = filters?.limit ?? 20;
   const skip = (page - 1) * limit;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: Record<string, any> = {};
 
   if (session.role === "EXTERNAL_APPLICANT") {

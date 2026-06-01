@@ -204,7 +204,6 @@ export async function listMotorParks(filters?: {
   const skip = (page - 1) * limit;
 
   // Build where clause for role-based access
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: Record<string, any> = {};
 
   if (session.role === "EXTERNAL_APPLICANT") {

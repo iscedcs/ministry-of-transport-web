@@ -111,11 +111,6 @@ function ScorePills({
   const [customMode, setCustomMode] = useState(false);
   const [rawInput, setRawInput] = useState(String(value));
 
-  // Sync rawInput when value changes externally
-  useEffect(() => {
-    if (!customMode) setRawInput(String(value));
-  }, [value, customMode]);
-
   if (disabled) {
     return (
       <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-secondary text-muted-foreground">
@@ -149,7 +144,10 @@ function ScorePills({
       {!customMode ? (
         <button
           type="button"
-          onClick={() => setCustomMode(true)}
+          onClick={() => {
+            setCustomMode(true);
+            setRawInput(String(value));
+          }}
           className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border border-dashed border-border text-muted-foreground hover:text-foreground hover:border-primary/50 transition-all"
         >
           custom…
@@ -452,8 +450,7 @@ export default function InspectionChecklistPage() {
 
   useEffect(() => {
     getInspection(inspectionId).then((inspectResult) => {
-      let savedDraft: Record<
-        string,
+        const savedDraft: Record<
         { compliant: boolean; notes: string; photoUrl: string; score: number }
       > = {};
 
