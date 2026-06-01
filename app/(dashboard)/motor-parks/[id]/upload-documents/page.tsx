@@ -12,14 +12,9 @@
  * Access: EXTERNAL_APPLICANT (own parks only)
  */
 
-import { useActionState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { updateParkDocuments } from "@/app/actions/motor-park";
-import type { ActionResult } from "@/lib/server-actions-pattern";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
@@ -27,8 +22,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import type { ActionResult } from "@/lib/server-actions-pattern";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useActionState, useEffect } from "react";
 
 type UploadState = ActionResult | undefined;
 
@@ -118,8 +117,8 @@ export default function UploadDocumentsPage() {
                 className="file-input"
               />
               <p className="text-xs text-muted-foreground">
-                Certificate of incorporation from the Corporate Affairs
-                Commission (CAC).
+                {`Certificate of incorporation from the Corporate Affairs
+                Commission (CAC).`}
               </p>
             </div>
 
@@ -128,7 +127,7 @@ export default function UploadDocumentsPage() {
             {/* Land Ownership Document */}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="landOwnershipDoc">
-                Land Ownership / Lease Agreement{" "}
+                {`Land Ownership / Lease Agreement`}
               </Label>
               <input
                 id="landOwnershipDoc"
@@ -138,8 +137,8 @@ export default function UploadDocumentsPage() {
                 className="file-input"
               />
               <p className="text-xs text-muted-foreground">
-                Proof of land ownership or a valid lease agreement for the
-                proposed motor park site.
+                {`Proof of land ownership or a valid lease agreement for the
+                proposed motor park site.`}
               </p>
             </div>
           </CardContent>

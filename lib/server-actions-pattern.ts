@@ -15,7 +15,7 @@ import {
   UserRole,
 } from "@prisma/client";
 import { db } from "./db";
-import { motorParkApplicationSchema } from "./validation-schemas";
+import { motorParkApplicationSchema, type MotorParkApplicationInput } from "./validation-schemas";
 
 // ==================== TYPE DEFINITIONS ====================
 
@@ -175,7 +175,6 @@ export async function checkMotorParkWriteAccess(
 export async function fetchMotorParkWithRLS(
   userContext: UserContext,
   motorParkId: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<ActionResult<any>> {
   try {
     // Step 1: RLS Check
@@ -224,16 +223,7 @@ export async function fetchMotorParkWithRLS(
  */
 export async function createMotorParkApplication(
   userContext: UserContext,
-  input: {
-    businessName: string;
-    transportCompanyName?: string;
-    locationAddress: string;
-    cacRegistrationNumber: string;
-    anssidNumber: string;
-    contactPerson: string;
-    contactPhone: string;
-    contactEmail: string;
-  },
+  input: MotorParkApplicationInput,
 ): Promise<ActionResult<{ parkId: string; applicationNumber: string }>> {
   try {
     // Step 1: Role check (only external applicants can create)
@@ -277,7 +267,10 @@ export async function createMotorParkApplication(
         data: {
           businessName: input.businessName,
           transportCompanyName: input.transportCompanyName,
-          locationAddress: input.locationAddress,
+          streetAddress: input.streetAddress,
+          lga: input.lga,
+          townCity: input.townCity,
+          gpsCoordinates: input.gpsCoordinates,
           cacRegistrationNumber: input.cacRegistrationNumber,
           anssidNumber: input.anssidNumber,
           contactPerson: input.contactPerson,
@@ -379,6 +372,7 @@ export async function updateMotorParkStatus(
       INSPECTION_IN_PROGRESS: ["INSPECTION_COMPLETED", "INSPECTION_SCHEDULED"],
       INSPECTION_COMPLETED: ["PENDING_APPROVAL"],
       PENDING_APPROVAL: ["APPROVED", "REJECTED"],
+      TEMPORAL_APPROVAL: ["APPROVED"],
       APPROVED: ["REVOKED"],
       REJECTED: [],
       REVOKED: [],

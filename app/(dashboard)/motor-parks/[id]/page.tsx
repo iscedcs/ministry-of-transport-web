@@ -17,7 +17,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
-import { getMotorPark, type MotorParkDetail } from "@/app/actions/motor-park";
+import { getMotorPark, verifyDocument, type MotorParkDetail } from "@/app/actions/motor-park";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,12 +30,14 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { RowGrid as Row } from "@/components/ui/row";
 import { fmtDateShort as fmt, formatNaira as naira } from "@/lib/utils/format";
+import { FileText, Download, Eye, ExternalLink } from "lucide-react";
 
 // ── Status-based workflow actions ──────────────────────────────────────────────
 
 function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
   const status = park.applicationStatus;
 
+  const pendingApplicationFee = park.fees?.find((f) => f.feeType === "APPLICATION" && f.status === "PENDING");
   const canSchedule =
     [
       "HOD_PARKS",
@@ -43,7 +45,8 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
       "HOD_TRANSPORT_OPS",
       "HOD_PARKS_REVALIDATION",
     ].includes(role) &&
-    ["SUBMITTED", "UNDER_REVIEW", "INSPECTION_COMPLETED"].includes(status);
+    ["SUBMITTED", "UNDER_REVIEW", "INSPECTION_COMPLETED"].includes(status) &&
+    !pendingApplicationFee;
 
   const canInspect =
     role === "FIELD_INSPECTOR" &&
@@ -84,10 +87,14 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
   const pendingFee = park.fees?.find((f) => f.status === "PENDING");
 
   const canAssessFees =
-    ["FINANCE_OFFICER", "COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
+    ["FINANCE_OFFICER", "COMMISSIONER", "PERMANENT_SECRETARY", "HOD_PARKS"].includes(role) &&
     !["REVOKED", "REJECTED"].includes(status) &&
     !pendingFee;
   const canPayFee = role === "EXTERNAL_APPLICANT" && !!pendingFee;
+
+  const canIssueTemporal =
+    ["HOD_PARKS", "COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
+    (status === "INSPECTION_COMPLETED" || status === "PENDING_APPROVAL");
 
   const canRevoke =
     ["COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
@@ -108,7 +115,8 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
     !canInitiateRevalidation &&
     !canAssessFees &&
     !canPayFee &&
-    !canRevoke
+    !canRevoke &&
+    !canIssueTemporal
   ) {
     return null;
   }
@@ -140,6 +148,13 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
           <Button asChild size="sm">
             <Link href={`/motor-parks/${park.id}/issue-permit`}>
               Issue Permit to Build
+            </Link>
+          </Button>
+        )}
+        {canIssueTemporal && (
+          <Button asChild size="sm">
+            <Link href={`/motor-parks/${park.id}/issue-temporal-approval`}>
+              Issue Temporal Approval
             </Link>
           </Button>
         )}
@@ -317,6 +332,16 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
 
   const park = result.data!;
 
+  const isHodOrPs = [
+    "HOD_PARKS",
+    "HOD_VIS",
+    "HOD_TRANSPORT_OPS",
+    "HOD_PARKS_REVALIDATION",
+    "PERMANENT_SECRETARY",
+    "COMMISSIONER",
+    "SYSTEM_ADMIN",
+  ].includes(session.role);
+
   return (
     <div className="flex flex-col gap-6 max-w-4xl">
       {/* Breadcrumb + header */}
@@ -447,6 +472,401 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Documents */}
+      {park.documents && (Object.values(park.documents).some(Boolean)) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Uploaded Documents</CardTitle>
+            <CardDescription>
+              Documents submitted during application
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {park.documents.cac && (
+                <div className="flex flex-col p-4 border border-border/50 rounded-lg bg-secondary/20 justify-between gap-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <FileText className="w-5 h-5 text-primary shrink-0" />
+                      <div className="flex flex-col overflow-hidden">
+                        <span className="text-sm font-medium">CAC Certificate</span>
+                        <span className="text-xs text-muted-foreground truncate">{park.documents.cac.fileName}</span>
+                      </div>
+                    </div>
+                    <Button asChild variant="ghost" size="sm" className="shrink-0">
+                      <a href={park.documents.cac.fileUrl} target="_blank" rel="noreferrer">
+                        <Download className="w-4 h-4 mr-2" /> View
+                      </a>
+                    </Button>
+                  </div>
+                  
+                  {/* Review / Verification Status */}
+                  <div className="pt-3 border-t border-border/50 flex flex-col gap-2">
+                    {park.documents.cac.verifiedAt ? (
+                      <div className="bg-green-500/10 text-green-700 dark:text-green-400 p-2.5 rounded border border-green-500/20 text-xs">
+                        <div className="flex items-center justify-between font-semibold mb-1">
+                          <span>✅ Reviewed & Verified</span>
+                          <span>{fmt(park.documents.cac.verifiedAt)}</span>
+                        </div>
+                        {park.documents.cac.verificationNotes && (
+                          <p className="text-[11px] text-muted-foreground mt-1">
+                            <strong>Comment:</strong> {park.documents.cac.verificationNotes}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-amber-500/5 text-amber-700 dark:text-amber-400 p-2.5 rounded border border-amber-500/10 text-xs flex items-center justify-between">
+                        <span>⏳ Pending HOD Review</span>
+                      </div>
+                    )}
+
+                    {isHodOrPs && (
+                      <form action={async (formData) => {
+                        "use server";
+                        const approved = formData.get("approved") === "true";
+                        const notes = formData.get("notes") as string;
+                        await verifyDocument(park.documents.cac!.id, approved, notes);
+                        redirect(`/motor-parks/${park.id}`);
+                      }} className="flex flex-col gap-2 mt-2 bg-background p-3 rounded border border-border">
+                        <span className="text-[10px] font-bold text-muted-foreground">Verification Panel</span>
+                        <textarea
+                          name="notes"
+                          placeholder="Add comments or issues observed..."
+                          rows={2}
+                          className="w-full text-xs p-2 rounded border bg-secondary/10"
+                          required
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            type="submit"
+                            name="approved"
+                            value="false"
+                            className="text-[10px] bg-destructive hover:bg-destructive/90 text-white font-semibold py-1 px-2.5 rounded transition-colors"
+                          >
+                            Reject Document
+                          </button>
+                          <button
+                            type="submit"
+                            name="approved"
+                            value="true"
+                            className="text-[10px] bg-primary hover:bg-primary/95 text-white font-semibold py-1 px-2.5 rounded transition-colors"
+                          >
+                            Approve & Verify
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              )}
+              {park.documents.land && (
+                <div className="flex flex-col p-4 border border-border/50 rounded-lg bg-secondary/20 justify-between gap-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <FileText className="w-5 h-5 text-primary shrink-0" />
+                      <div className="flex flex-col overflow-hidden">
+                        <span className="text-sm font-medium">Land Ownership/Lease</span>
+                        <span className="text-xs text-muted-foreground truncate">{park.documents.land.fileName}</span>
+                      </div>
+                    </div>
+                    <Button asChild variant="ghost" size="sm" className="shrink-0">
+                      <a href={park.documents.land.fileUrl} target="_blank" rel="noreferrer">
+                        <Download className="w-4 h-4 mr-2" /> View
+                      </a>
+                    </Button>
+                  </div>
+                  
+                  {/* Review / Verification Status */}
+                  <div className="pt-3 border-t border-border/50 flex flex-col gap-2">
+                    {park.documents.land.verifiedAt ? (
+                      <div className="bg-green-500/10 text-green-700 dark:text-green-400 p-2.5 rounded border border-green-500/20 text-xs">
+                        <div className="flex items-center justify-between font-semibold mb-1">
+                          <span>✅ Reviewed & Verified</span>
+                          <span>{fmt(park.documents.land.verifiedAt)}</span>
+                        </div>
+                        {park.documents.land.verificationNotes && (
+                          <p className="text-[11px] text-muted-foreground mt-1">
+                            <strong>Comment:</strong> {park.documents.land.verificationNotes}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-amber-500/5 text-amber-700 dark:text-amber-400 p-2.5 rounded border border-amber-500/10 text-xs flex items-center justify-between">
+                        <span>⏳ Pending HOD Review</span>
+                      </div>
+                    )}
+
+                    {isHodOrPs && (
+                      <form action={async (formData) => {
+                        "use server";
+                        const approved = formData.get("approved") === "true";
+                        const notes = formData.get("notes") as string;
+                        await verifyDocument(park.documents.land!.id, approved, notes);
+                        redirect(`/motor-parks/${park.id}`);
+                      }} className="flex flex-col gap-2 mt-2 bg-background p-3 rounded border border-border">
+                        <span className="text-[10px] font-bold text-muted-foreground">Verification Panel</span>
+                        <textarea
+                          name="notes"
+                          placeholder="Add comments or issues observed..."
+                          rows={2}
+                          className="w-full text-xs p-2 rounded border bg-secondary/10"
+                          required
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            type="submit"
+                            name="approved"
+                            value="false"
+                            className="text-[10px] bg-destructive hover:bg-destructive/90 text-white font-semibold py-1 px-2.5 rounded transition-colors"
+                          >
+                            Reject Document
+                          </button>
+                          <button
+                            type="submit"
+                            name="approved"
+                            value="true"
+                            className="text-[10px] bg-primary hover:bg-primary/95 text-white font-semibold py-1 px-2.5 rounded transition-colors"
+                          >
+                            Approve & Verify
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              )}
+              {park.documents.asin && (
+                <div className="flex flex-col p-4 border border-border/50 rounded-lg bg-secondary/20 justify-between gap-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <FileText className="w-5 h-5 text-primary shrink-0" />
+                      <div className="flex flex-col overflow-hidden">
+                        <span className="text-sm font-medium">Corporate ASIN</span>
+                        <span className="text-xs text-muted-foreground truncate">{park.documents.asin.fileName}</span>
+                      </div>
+                    </div>
+                    <Button asChild variant="ghost" size="sm" className="shrink-0">
+                      <a href={park.documents.asin.fileUrl} target="_blank" rel="noreferrer">
+                        <Download className="w-4 h-4 mr-2" /> View
+                      </a>
+                    </Button>
+                  </div>
+                  
+                  {/* Review / Verification Status */}
+                  <div className="pt-3 border-t border-border/50 flex flex-col gap-2">
+                    {park.documents.asin.verifiedAt ? (
+                      <div className="bg-green-500/10 text-green-700 dark:text-green-400 p-2.5 rounded border border-green-500/20 text-xs">
+                        <div className="flex items-center justify-between font-semibold mb-1">
+                          <span>✅ Reviewed & Verified</span>
+                          <span>{fmt(park.documents.asin.verifiedAt)}</span>
+                        </div>
+                        {park.documents.asin.verificationNotes && (
+                          <p className="text-[11px] text-muted-foreground mt-1">
+                            <strong>Comment:</strong> {park.documents.asin.verificationNotes}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-amber-500/5 text-amber-700 dark:text-amber-400 p-2.5 rounded border border-amber-500/10 text-xs flex items-center justify-between">
+                        <span>⏳ Pending HOD Review</span>
+                      </div>
+                    )}
+
+                    {isHodOrPs && (
+                      <form action={async (formData) => {
+                        "use server";
+                        const approved = formData.get("approved") === "true";
+                        const notes = formData.get("notes") as string;
+                        await verifyDocument(park.documents.asin!.id, approved, notes);
+                        redirect(`/motor-parks/${park.id}`);
+                      }} className="flex flex-col gap-2 mt-2 bg-background p-3 rounded border border-border">
+                        <span className="text-[10px] font-bold text-muted-foreground">Verification Panel</span>
+                        <textarea
+                          name="notes"
+                          placeholder="Add comments or issues observed..."
+                          rows={2}
+                          className="w-full text-xs p-2 rounded border bg-secondary/10"
+                          required
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            type="submit"
+                            name="approved"
+                            value="false"
+                            className="text-[10px] bg-destructive hover:bg-destructive/90 text-white font-semibold py-1 px-2.5 rounded transition-colors"
+                          >
+                            Reject Document
+                          </button>
+                          <button
+                            type="submit"
+                            name="approved"
+                            value="true"
+                            className="text-[10px] bg-primary hover:bg-primary/95 text-white font-semibold py-1 px-2.5 rounded transition-colors"
+                          >
+                            Approve & Verify
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Facility Photos Grid */}
+      {park.documents && (park.documents.toilet || park.documents.waitingArea || park.documents.signage || park.documents.waterFacility) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">Facility Infrastructure Photos</CardTitle>
+            <CardDescription>
+              Evidence of compliance with Ministry site standards
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              {park.documents.toilet && (
+                <div className="relative group border border-border/50 rounded-lg overflow-hidden bg-background">
+                  <div className="aspect-[4/3] w-full bg-muted relative">
+                    <img
+                      src={park.documents.toilet.fileUrl}
+                      alt="Toilet/Convenience"
+                      className="object-cover w-full h-full"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <a
+                        href={park.documents.toilet.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1.5 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
+                        title="Open in new tab"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </a>
+                    </div>
+                  </div>
+                  <div className="p-2 border-t border-border/50 flex justify-between items-center bg-secondary/10">
+                    <span className="text-xs font-semibold truncate">Toilet / Urinal</span>
+                    <a
+                      href={park.documents.toilet.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-primary font-medium hover:underline flex items-center gap-0.5"
+                    >
+                      View <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {park.documents.waitingArea && (
+                <div className="relative group border border-border/50 rounded-lg overflow-hidden bg-background">
+                  <div className="aspect-[4/3] w-full bg-muted relative">
+                    <img
+                      src={park.documents.waitingArea.fileUrl}
+                      alt="Waiting Lounge"
+                      className="object-cover w-full h-full"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <a
+                        href={park.documents.waitingArea.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1.5 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
+                        title="Open in new tab"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </a>
+                    </div>
+                  </div>
+                  <div className="p-2 border-t border-border/50 flex justify-between items-center bg-secondary/10">
+                    <span className="text-xs font-semibold truncate">Waiting Area</span>
+                    <a
+                      href={park.documents.waitingArea.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-primary font-medium hover:underline flex items-center gap-0.5"
+                    >
+                      View <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {park.documents.signage && (
+                <div className="relative group border border-border/50 rounded-lg overflow-hidden bg-background">
+                  <div className="aspect-[4/3] w-full bg-muted relative">
+                    <img
+                      src={park.documents.signage.fileUrl}
+                      alt="Signage"
+                      className="object-cover w-full h-full"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <a
+                        href={park.documents.signage.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1.5 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
+                        title="Open in new tab"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </a>
+                    </div>
+                  </div>
+                  <div className="p-2 border-t border-border/50 flex justify-between items-center bg-secondary/10">
+                    <span className="text-xs font-semibold truncate">Signage</span>
+                    <a
+                      href={park.documents.signage.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-primary font-medium hover:underline flex items-center gap-0.5"
+                    >
+                      View <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {park.documents.waterFacility && (
+                <div className="relative group border border-border/50 rounded-lg overflow-hidden bg-background">
+                  <div className="aspect-[4/3] w-full bg-muted relative">
+                    <img
+                      src={park.documents.waterFacility.fileUrl}
+                      alt="Water Facility"
+                      className="object-cover w-full h-full"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <a
+                        href={park.documents.waterFacility.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1.5 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
+                        title="Open in new tab"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </a>
+                    </div>
+                  </div>
+                  <div className="p-2 border-t border-border/50 flex justify-between items-center bg-secondary/10">
+                    <span className="text-xs font-semibold truncate">Water Supply</span>
+                    <a
+                      href={park.documents.waterFacility.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-primary font-medium hover:underline flex items-center gap-0.5"
+                    >
+                      View <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Inspection history */}
       <Card>

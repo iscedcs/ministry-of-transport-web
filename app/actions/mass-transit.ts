@@ -33,7 +33,14 @@ import type { ActionResult } from "@/lib/server-actions-pattern";
 
 // ==================== SHARED SCHEMAS ====================
 
-const vehicleInputSchema = z.object({
+// Simplified vehicle type declaration (only type + count during initial registration)
+const vehicleTypeCountSchema = z.object({
+  type: z.enum(["BUS", "MINIBUS", "TRUCK", "LIGHT_COMMERCIAL", "TANKER"]),
+  count: z.number().int().min(1, "At least 1 vehicle required per type"),
+});
+
+// Full vehicle details (submitted after application is approved)
+const vehicleDetailSchema = z.object({
   registrationNumber: z.string().min(1, "Registration number required"),
   vehicleType: z.enum([
     "BUS",
@@ -46,10 +53,21 @@ const vehicleInputSchema = z.object({
   model: z.string().min(1, "Vehicle model required"),
   engineNumber: z.string().min(1, "Engine number required"),
   chassisNumber: z.string().min(1, "Chassis number required"),
-  assignedDriverName: z.string().optional(),
-  assignedDriverPhone: z.string().optional(),
   routesServed: z.string().optional(),
   roadworthinessExpiry: z.string().optional(),
+});
+
+// Terminal/Depot manager details
+const terminalSchema = z.object({
+  locationAddress: z.string().min(10, "Terminal address required").max(500),
+  gpsCoordinates: z.string().optional(),
+  managerName: z.string().min(3, "Manager name required"),
+  managerPhone: z.string().min(10, "Manager phone required"),
+  managerEmail: z.string().email("Invalid manager email"),
+  managerResidentialAddress: z
+    .string()
+    .min(10, "Manager address required")
+    .max(500),
 });
 
 const fleetCompanySchema = z.object({
@@ -61,19 +79,19 @@ const fleetCompanySchema = z.object({
   asinNumber: z.string().min(5, "ASIN number required"),
   businessPremisesCert: z.string().optional(),
   ansaaRegistration: z.string().optional(),
-  terminalLocationAddress: z
+  cacDocumentId: z.string().min(1, "CAC Document is required"),
+  landOwnershipDocId: z.string().min(1, "Land ownership document is required"),
+  corporateAsinDocumentId: z
     .string()
-    .min(10, "Terminal address required")
-    .max(500),
-  gpsCoordinates: z.string().optional(),
+    .min(1, "Corporate ASIN certificate is required"),
 });
 
 // ==================== APPLICATION (FR-020 / FR-021 / FR-022, STORY-041) ====================
 
 /**
  * FR-020/FR-021: External applicant submits fleet registration application.
- * Minimum 5 vehicles enforced (FR-021).
- * Vehicles passed as JSON string in `vehiclesJson` hidden field.
+ * Now simplified: only asks for company details, terminal location/manager, and vehicle types + counts.
+ * Full vehicle details are collected AFTER approval via VehicleSubmissionRequest.
  */
 export async function submitFleetApplication(
   prevState: ActionResult<{ companyId: string }> | undefined,
@@ -81,35 +99,71 @@ export async function submitFleetApplication(
 ): Promise<ActionResult<{ companyId: string }>> {
   const session = await requireRole(["EXTERNAL_APPLICANT"]);
 
-  // Parse and validate vehicles JSON (min 5 per FR-021)
-  const vehiclesRaw = formData.get("vehiclesJson") as string;
-  let vehicles: unknown[];
+  // Parse vehicle counts (simplified: just type + count)
+  const vehicleCountsRaw = formData.get("vehicleTypesJson") as string;
+  let vehicleCounts: unknown[];
   try {
-    vehicles = JSON.parse(vehiclesRaw);
-    if (!Array.isArray(vehicles) || vehicles.length < 5) {
+    vehicleCounts = JSON.parse(vehicleCountsRaw);
+    if (!Array.isArray(vehicleCounts) || vehicleCounts.length === 0) {
       return {
         success: false,
-        error:
-          "Minimum 5 vehicles required (FR-021). Please add at least 5 vehicles.",
+        error: "Please specify at least one vehicle type.",
+      };
+    }
+
+    // Validate each entry and calculate total
+    let totalVehicles = 0;
+    for (const vc of vehicleCounts) {
+      const parsed = vehicleTypeCountSchema.safeParse(vc);
+      if (!parsed.success) {
+        return {
+          success: false,
+          error: `Vehicle entry invalid: ${parsed.error.issues[0].message}`,
+        };
+      }
+      totalVehicles += parsed.data.count;
+    }
+
+    if (totalVehicles < 5) {
+      return {
+        success: false,
+        error: "Minimum 5 vehicles required in total (FR-021).",
       };
     }
   } catch {
     return {
       success: false,
-      error: "Invalid vehicle data. Please review vehicle entries.",
+      error: "Invalid vehicle count data.",
     };
   }
 
-  const parsedVehicles: z.infer<typeof vehicleInputSchema>[] = [];
-  for (let i = 0; i < vehicles.length; i++) {
-    const v = vehicleInputSchema.safeParse(vehicles[i]);
-    if (!v.success) {
+  // Parse terminals (multiple terminals, each with manager)
+  const terminalsRaw = formData.get("terminalsJson") as string;
+  let terminals: unknown[];
+  try {
+    terminals = JSON.parse(terminalsRaw);
+    if (!Array.isArray(terminals) || terminals.length === 0) {
       return {
         success: false,
-        error: `Vehicle ${i + 1}: ${v.error.issues[0].message}`,
+        error: "At least one terminal is required.",
       };
     }
-    parsedVehicles.push(v.data);
+
+    // Validate each terminal
+    for (const terminal of terminals) {
+      const parsed = terminalSchema.safeParse(terminal);
+      if (!parsed.success) {
+        return {
+          success: false,
+          error: `Terminal validation failed: ${parsed.error.issues[0].message}`,
+        };
+      }
+    }
+  } catch {
+    return {
+      success: false,
+      error: "Invalid terminals data.",
+    };
   }
 
   // Validate company details
@@ -122,24 +176,25 @@ export async function submitFleetApplication(
     asinNumber: formData.get("asinNumber"),
     businessPremisesCert: formData.get("businessPremisesCert") || undefined,
     ansaaRegistration: formData.get("ansaaRegistration") || undefined,
-    terminalLocationAddress: formData.get("terminalLocationAddress"),
-    gpsCoordinates: formData.get("gpsCoordinates") || undefined,
+    cacDocumentId: formData.get("cacDocumentId"),
+    landOwnershipDocId: formData.get("landOwnershipDocId"),
+    corporateAsinDocumentId: formData.get("corporateAsinDocumentId"),
   });
 
   if (!companyParsed.success) {
     return { success: false, error: companyParsed.error.issues[0].message };
   }
 
-  const data = companyParsed.data;
+  const companyData = companyParsed.data;
 
   // Check for duplicate CAC or ASIN
   const [existingCac, existingAsin] = await Promise.all([
     db.massTransitCompany.findUnique({
-      where: { cacNumber: data.cacNumber },
+      where: { cacNumber: companyData.cacNumber },
       select: { id: true },
     }),
     db.massTransitCompany.findUnique({
-      where: { asinNumber: data.asinNumber },
+      where: { asinNumber: companyData.asinNumber },
       select: { id: true },
     }),
   ]);
@@ -158,50 +213,67 @@ export async function submitFleetApplication(
   }
 
   const company = await db.$transaction(async (tx) => {
+    // Create company
     const co = await tx.massTransitCompany.create({
       data: {
-        companyName: data.companyName,
-        contactPerson: data.contactPerson,
-        contactEmail: data.contactEmail,
-        contactPhone: data.contactPhone,
+        companyName: companyData.companyName,
+        contactPerson: companyData.contactPerson,
+        contactEmail: companyData.contactEmail,
+        contactPhone: companyData.contactPhone,
         contactUserId: session.userId,
-        cacNumber: data.cacNumber,
-        asinNumber: data.asinNumber,
-        businessPremisesCert: data.businessPremisesCert,
-        ansaaRegistration: data.ansaaRegistration,
-        terminalLocationAddress: data.terminalLocationAddress,
+        cacNumber: companyData.cacNumber,
+        asinNumber: companyData.asinNumber,
+        businessPremisesCert: companyData.businessPremisesCert,
+        ansaaRegistration: companyData.ansaaRegistration,
+        cacDocumentId: companyData.cacDocumentId,
+        landOwnershipDocId: companyData.landOwnershipDocId,
+        corporateAsinDocumentId: companyData.corporateAsinDocumentId,
         applicationStatus: "SUBMITTED",
-        currentFleetSize: parsedVehicles.length,
+        currentFleetSize: vehicleCounts.reduce((sum: number, vc: unknown) => {
+          const parsed = vehicleTypeCountSchema.safeParse(vc);
+          return sum + (parsed.success ? parsed.data.count : 0);
+        }, 0),
       },
       select: { id: true },
     });
 
-    for (const v of parsedVehicles) {
-      await tx.vehicle.create({
+    // Create terminals with manager details (one per terminal)
+    for (const terminalData of terminals) {
+      const td = terminalData as any;
+      await tx.terminal.create({
         data: {
           companyId: co.id,
-          registrationNumber: v.registrationNumber,
-          vehicleType: v.vehicleType,
-          make: v.make,
-          model: v.model,
-          engineNumber: v.engineNumber,
-          chassisNumber: v.chassisNumber,
-          routesServed: v.routesServed ?? null,
-          roadworthinessExpiry: v.roadworthinessExpiry
-            ? new Date(v.roadworthinessExpiry)
-            : null,
-          addedByUserId: session.userId,
+          locationAddress: td.locationAddress,
+          gpsCoordinates: td.gpsCoordinates || null,
+          managerName: td.managerName,
+          managerPhone: td.managerPhone,
+          managerEmail: td.managerEmail,
+          managerResidentialAddress: td.managerResidentialAddress,
         },
       });
     }
 
+    // Create vehicle submission request for later detailed submission
+    await tx.vehicleSubmissionRequest.create({
+      data: {
+        companyId: co.id,
+        vehicleCount: vehicleCounts.reduce((sum: number, vc: unknown) => {
+          const parsed = vehicleTypeCountSchema.safeParse(vc);
+          return sum + (parsed.success ? parsed.data.count : 0);
+        }, 0),
+        status: "PENDING",
+        requestedByUser: session.userId, // Initially the applicant themselves
+      },
+    });
+
+    // Audit log
     await tx.auditLog.create({
       data: {
         performedByUserId: session.userId,
         action: "FLEET_APPLICATION_SUBMITTED",
         entityType: "MASS_TRANSIT",
         entityId: co.id,
-        changeDescription: `Fleet application submitted for ${data.companyName} with ${parsedVehicles.length} vehicles`,
+        changeDescription: `Fleet application submitted for ${companyData.companyName} with ${vehicleCounts.reduce((sum: number, vc: any) => sum + (vc.count || 0), 0)} vehicles`,
       },
     });
 
@@ -245,7 +317,6 @@ export async function listFleetApplications(filters?: {
   const limit = filters?.limit ?? 20;
   const skip = (page - 1) * limit;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: Record<string, any> = {};
 
   if (session.role === "EXTERNAL_APPLICANT") {
@@ -297,8 +368,24 @@ export type FleetApplicationDetail = {
   asinNumber: string;
   businessPremisesCert: string | null;
   ansaaRegistration: string | null;
-  terminalLocationAddress: string | null;
   approvedColour: string | null;
+  cacDocumentId: string | null;
+  landOwnershipDocId: string | null;
+  corporateAsinDocumentId: string | null;
+  documents?: {
+    cac?: { id: string; fileName: string; fileUrl: string };
+    land?: { id: string; fileName: string; fileUrl: string };
+    asin?: { id: string; fileName: string; fileUrl: string };
+  };
+  terminals: {
+    id: string;
+    locationAddress: string;
+    gpsCoordinates: string | null;
+    managerName: string;
+    managerPhone: string;
+    managerEmail: string;
+    managerResidentialAddress: string;
+  }[];
   currentFleetSize: number;
   applicationStatus: string;
   permitStatus: string | null;
@@ -373,8 +460,10 @@ export async function getFleetApplication(
       asinNumber: true,
       businessPremisesCert: true,
       ansaaRegistration: true,
-      terminalLocationAddress: true,
       approvedColour: true,
+      cacDocumentId: true,
+      landOwnershipDocId: true,
+      corporateAsinDocumentId: true,
       currentFleetSize: true,
       applicationStatus: true,
       permitStatus: true,
@@ -388,6 +477,17 @@ export async function getFleetApplication(
       appliedAt: true,
       approvedAt: true,
       approvedByUserId: true,
+      terminals: {
+        select: {
+          id: true,
+          locationAddress: true,
+          gpsCoordinates: true,
+          managerName: true,
+          managerPhone: true,
+          managerEmail: true,
+          managerResidentialAddress: true,
+        },
+      },
       applicant: {
         select: { id: true, firstName: true, lastName: true, email: true },
       },
@@ -461,10 +561,29 @@ export async function getFleetApplication(
     select: { id: true },
   });
 
+  // Fetch documents
+  const docIds = [
+    company.cacDocumentId,
+    company.landOwnershipDocId,
+    company.corporateAsinDocumentId,
+  ].filter(Boolean) as string[];
+
+  const docs = await db.document.findMany({
+    where: { id: { in: docIds } },
+    select: { id: true, fileName: true, fileUrl: true },
+  });
+
+  const documents = {
+    cac: docs.find((d) => d.id === company.cacDocumentId),
+    land: docs.find((d) => d.id === company.landOwnershipDocId),
+    asin: docs.find((d) => d.id === company.corporateAsinDocumentId),
+  };
+
   return {
     success: true,
     data: {
       ...company,
+      documents,
       inspections,
       registrationFeePaid: !!registrationPayment,
     },
@@ -501,15 +620,13 @@ export async function addVehicle(
     return { success: false, error: "Access denied" };
   }
 
-  const parsed = vehicleInputSchema.safeParse({
+  const parsed = vehicleDetailSchema.safeParse({
     registrationNumber: formData.get("registrationNumber"),
     vehicleType: formData.get("vehicleType"),
     make: formData.get("make"),
     model: formData.get("model"),
     engineNumber: formData.get("engineNumber"),
     chassisNumber: formData.get("chassisNumber"),
-    assignedDriverName: formData.get("assignedDriverName") || undefined,
-    assignedDriverPhone: formData.get("assignedDriverPhone") || undefined,
     routesServed: formData.get("routesServed") || undefined,
     roadworthinessExpiry: formData.get("roadworthinessExpiry") || undefined,
   });
@@ -1238,4 +1355,294 @@ export async function getFleetInspectors(): Promise<
   });
 
   return { success: true, data: inspectors };
+}
+
+/**
+ * Get fleet application status summary for dashboard.
+ * For applicants: their own applications and pending vehicle submissions.
+ * For staff: all applications.
+ */
+export type FleetStatusSummary = {
+  total: number;
+  submitted: number;
+  underReview: number;
+  pendingApproval: number;
+  approved: number;
+  rejected: number;
+  pendingVehicleSubmission: number; // Awaiting vehicle detail submission
+};
+
+export async function getFleetStatusSummary(): Promise<
+  ActionResult<FleetStatusSummary>
+> {
+  const session = await requireAuth();
+
+  const userId =
+    session.role === "EXTERNAL_APPLICANT" ? session.userId : undefined;
+
+  const [statusCounts, pendingVehicleSubmissions] = await Promise.all([
+    db.massTransitCompany.groupBy({
+      by: ["applicationStatus"],
+      where: userId ? { contactUserId: userId } : {},
+      _count: { _all: true },
+    }),
+    db.vehicleSubmissionRequest.count({
+      where: {
+        company: userId ? { contactUserId: userId } : undefined,
+        status: "PENDING",
+      },
+    }),
+  ]);
+
+  const counts = Object.fromEntries(
+    statusCounts.map((s) => [s.applicationStatus, s._count._all]),
+  );
+
+  const total = statusCounts.reduce((sum, s) => sum + s._count._all, 0);
+
+  return {
+    success: true,
+    data: {
+      total,
+      submitted: counts.SUBMITTED ?? 0,
+      underReview: counts.UNDER_REVIEW ?? 0,
+      pendingApproval: counts.PENDING_APPROVAL ?? 0,
+      approved: counts.APPROVED ?? 0,
+      rejected: counts.REJECTED ?? 0,
+      pendingVehicleSubmission: pendingVehicleSubmissions,
+    },
+  };
+}
+
+// ==================== VEHICLE SUBMISSION (NEW WORKFLOW) ====================
+
+/**
+ * Get pending vehicle submission requests for an applicant.
+ * Shows on their dashboard so they know they need to submit vehicle details.
+ */
+export async function getPendingVehicleSubmissionRequests(): Promise<
+  ActionResult<
+    Array<{
+      id: string;
+      companyId: string;
+      companyName: string;
+      vehicleCount: number;
+      requestedAt: Date;
+    }>
+  >
+> {
+  const session = await requireRole(["EXTERNAL_APPLICANT"]);
+
+  const requests = await db.vehicleSubmissionRequest.findMany({
+    where: {
+      company: { contactUserId: session.userId },
+      status: "PENDING",
+    },
+    select: {
+      id: true,
+      companyId: true,
+      vehicleCount: true,
+      requestedAt: true,
+      company: { select: { companyName: true } },
+    },
+    orderBy: { requestedAt: "desc" },
+  });
+
+  return {
+    success: true,
+    data: requests.map((r) => ({
+      id: r.id,
+      companyId: r.companyId,
+      companyName: r.company.companyName,
+      vehicleCount: r.vehicleCount,
+      requestedAt: r.requestedAt,
+    })),
+  };
+}
+
+/**
+ * Applicant submits vehicle details in response to a VehicleSubmissionRequest.
+ * Receives an array of vehicles to submit for the requested count.
+ */
+export async function submitVehicleDetails(
+  prevState: ActionResult<void> | undefined,
+  formData: FormData,
+): Promise<ActionResult<void>> {
+  const session = await requireRole(["EXTERNAL_APPLICANT"]);
+
+  const submissionRequestId = formData.get("submissionRequestId") as string;
+  const vehiclesJson = formData.get("vehicles") as string;
+
+  // Verify the request belongs to this user's company
+  const request = await db.vehicleSubmissionRequest.findUnique({
+    where: { id: submissionRequestId },
+    select: {
+      id: true,
+      companyId: true,
+      vehicleCount: true,
+      status: true,
+      company: { select: { contactUserId: true } },
+    },
+  });
+
+  if (!request) {
+    return { success: false, error: "Vehicle submission request not found." };
+  }
+
+  if (request.company.contactUserId !== session.userId) {
+    return { success: false, error: "Unauthorized." };
+  }
+
+  if (request.status !== "PENDING") {
+    return {
+      success: false,
+      error: "This request is no longer pending.",
+    };
+  }
+
+  // Parse and validate vehicles
+  let vehicles: unknown[];
+  try {
+    vehicles = JSON.parse(vehiclesJson);
+    if (!Array.isArray(vehicles) || vehicles.length !== request.vehicleCount) {
+      return {
+        success: false,
+        error: `Please submit exactly ${request.vehicleCount} vehicles.`,
+      };
+    }
+  } catch {
+    return { success: false, error: "Invalid vehicle data." };
+  }
+
+  const parsedVehicles: z.infer<typeof vehicleDetailSchema>[] = [];
+  for (let i = 0; i < vehicles.length; i++) {
+    const v = vehicleDetailSchema.safeParse(vehicles[i]);
+    if (!v.success) {
+      return {
+        success: false,
+        error: `Vehicle ${i + 1}: ${v.error.issues[0].message}`,
+      };
+    }
+    parsedVehicles.push(v.data);
+  }
+
+  // Create vehicle submissions and create Vehicle records
+  await db.$transaction(async (tx) => {
+    for (const v of parsedVehicles) {
+      // Create VehicleSubmission record
+      await tx.vehicleSubmission.create({
+        data: {
+          submissionRequestId,
+          registrationNumber: v.registrationNumber,
+          vehicleType: v.vehicleType,
+          make: v.make,
+          model: v.model,
+          engineNumber: v.engineNumber,
+          chassisNumber: v.chassisNumber,
+          routesServed: v.routesServed || null,
+          roadworthinessExpiry: v.roadworthinessExpiry
+            ? new Date(v.roadworthinessExpiry)
+            : null,
+        },
+      });
+
+      // Also create actual Vehicle record linked to company
+      await tx.vehicle.create({
+        data: {
+          companyId: request.companyId,
+          registrationNumber: v.registrationNumber,
+          vehicleType: v.vehicleType,
+          make: v.make,
+          model: v.model,
+          engineNumber: v.engineNumber,
+          chassisNumber: v.chassisNumber,
+          routesServed: v.routesServed || null,
+          roadworthinessExpiry: v.roadworthinessExpiry
+            ? new Date(v.roadworthinessExpiry)
+            : null,
+          addedByUserId: session.userId,
+        },
+      });
+    }
+
+    // Mark request as submitted
+    await tx.vehicleSubmissionRequest.update({
+      where: { id: submissionRequestId },
+      data: {
+        status: "SUBMITTED",
+        submittedAt: new Date(),
+      },
+    });
+
+    // Audit log
+    await tx.auditLog.create({
+      data: {
+        performedByUserId: session.userId,
+        action: "VEHICLE_DETAILS_SUBMITTED",
+        entityType: "MASS_TRANSIT",
+        entityId: submissionRequestId,
+        changeDescription: `${parsedVehicles.length} vehicle details submitted for request ${submissionRequestId}`,
+      },
+    });
+  });
+
+  revalidatePath("/fleet-operators");
+  return { success: true };
+}
+
+/**
+ * Staff/Commissioner requests an applicant to submit vehicle details.
+ * Called after application approval, to request the detailed vehicle information.
+ */
+export async function requestVehicleSubmission(
+  companyId: string,
+  vehicleCount: number,
+): Promise<ActionResult<void>> {
+  const session = await requireAuth();
+
+  // Verify requester has permission
+  const canRequest = canIssuePermits(session.role);
+  if (!canRequest) {
+    return { success: false, error: "Unauthorized." };
+  }
+
+  // Check if company exists
+  const company = await db.massTransitCompany.findUnique({
+    where: { id: companyId },
+    select: { id: true },
+  });
+
+  if (!company) {
+    return { success: false, error: "Company not found." };
+  }
+
+  // Check if a request already exists for this company
+  const existingRequest = await db.vehicleSubmissionRequest.findFirst({
+    where: { companyId },
+    select: { id: true },
+  });
+
+  // Create or update vehicle submission request
+  if (existingRequest) {
+    await db.vehicleSubmissionRequest.update({
+      where: { id: existingRequest.id },
+      data: {
+        vehicleCount,
+        status: "PENDING",
+        requestedByUser: session.userId,
+      },
+    });
+  } else {
+    await db.vehicleSubmissionRequest.create({
+      data: {
+        companyId,
+        vehicleCount,
+        status: "PENDING",
+        requestedByUser: session.userId,
+      },
+    });
+  }
+
+  revalidatePath(`/fleet-operators/${companyId}`);
+  return { success: true };
 }

@@ -58,9 +58,11 @@ const externalRegisterSchema = z.object({
     .regex(
       /^(\+234|0)[0-9]{10}$/,
       "Enter a valid Nigerian phone number (e.g. 08012345678)",
-    )
-    .optional()
-    .or(z.literal("")),
+    ),
+  residentialAddress: z
+    .string()
+    .min(5, "Residential address is required")
+    .trim(),
   asinNumber: z
     .string()
     .regex(/^\d{6,16}$/, "ASIN must be 6–16 digits (numbers only)"),
@@ -108,6 +110,7 @@ type RegisterFields = {
   lastName?: string;
   email?: string;
   phone?: string;
+  residentialAddress?: string;
   asinNumber?: string;
 };
 
@@ -220,6 +223,7 @@ export async function registerApplicant(
     lastName: formData.get("lastName") as string,
     email: formData.get("email") as string,
     phone: formData.get("phone") as string,
+    residentialAddress: formData.get("residentialAddress") as string,
     asinNumber: formData.get("asinNumber") as string,
   };
 
@@ -236,13 +240,13 @@ export async function registerApplicant(
     };
   }
 
-  const { firstName, lastName, email, phone, asinNumber, service } =
+  const { firstName, lastName, email, phone, residentialAddress, asinNumber, service } =
     validated.data;
 
-  // 2. Check for duplicate email or ASIN
+  // 2. Check for duplicate email, ASIN, or phone
   const existing = await db.user.findFirst({
-    where: { OR: [{ email }, { asinNumber }] },
-    select: { email: true, asinNumber: true },
+    where: { OR: [{ email }, { asinNumber }, { phone }] },
+    select: { email: true, asinNumber: true, phone: true },
   });
 
   if (existing) {
@@ -259,6 +263,13 @@ export async function registerApplicant(
         fields,
       };
     }
+
+    if (existing.phone === phone) {
+      return {
+        errors: { phone: ["A phone number with this number already exists"] },
+        fields,
+      };
+    }
   }
 
   // 3. Create user (passwordless — applicants authenticate via email + ASIN)
@@ -267,7 +278,8 @@ export async function registerApplicant(
       firstName,
       lastName,
       email,
-      phone: phone || null,
+      phone,
+      residentialAddress,
       asinNumber,
       passwordHash: null,
       role: "EXTERNAL_APPLICANT",
@@ -385,6 +397,68 @@ export async function loginApplicant(
     .catch(() => {});
 
   redirect("/dashboard");
+}
+
+// ==================== GET MY PROFILE ====================
+
+export type UserProfile = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  asinNumber: string | null;
+  residentialAddress: string | null;
+};
+
+/**
+ * Fetch profile details for the currently logged in user.
+ */
+export async function getMyProfile(): Promise<ActionResult<UserProfile>> {
+  const session = await requireAuth();
+
+  try {
+    // Primary query — includes residentialAddress (requires schema migration)
+    const user = await db.user.findUnique({
+      where: { id: session.userId },
+      select: {
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        asinNumber: true,
+        residentialAddress: true,
+      },
+    });
+
+    if (!user) {
+      return { success: false, error: "User not found" };
+    }
+
+    return { success: true, data: user };
+  } catch {
+    // Fallback: residentialAddress column may not yet exist in DB
+    // (run `npx prisma db push` with a direct Neon connection URL to fix this)
+    try {
+      const user = await db.user.findUnique({
+        where: { id: session.userId },
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          asinNumber: true,
+        },
+      });
+
+      if (!user) {
+        return { success: false, error: "User not found" };
+      }
+
+      return { success: true, data: { ...user, residentialAddress: null } };
+    } catch {
+      return { success: false, error: "Failed to load profile" };
+    }
+  }
 }
 
 // ==================== LOGOUT ====================

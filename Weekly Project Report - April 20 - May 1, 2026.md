@@ -1,11 +1,11 @@
 # Weekly Project Report
 
-**Reporting Periods:** April 20–24, 2026 & April 27 – May 1, 2026 & May 4 – 8, 2026
+**Reporting Periods:** April 20–24, 2026 & April 27 – May 1, 2026
 **Prepared by:** Fusco
-**Date:** May 9, 2026
+**Date:** May 4, 2026
 
 ## Overview
-This report covers the active project work recorded across the reporting periods. The April 20–24 week was a planned low-activity period with no commits recorded on either project. The bulk of development activity was concentrated in the April 27 – May 1 week, which saw significant feature work across both projects — totalling **4 commits / 35 files / 1,993 additions** on PalmTechnIQ and **11 commits / 90 files / 9,377 additions** on ISCE Mail. The May 4–8 week added a focused stabilization pass on the Ministry of Transport platform — **5 commits / 27 files / 1,166 additions / 365 deletions** — centered on landing page completion, layout cleanup, runtime error fixes, and mobile responsiveness.
+This report covers two reporting weeks across two active projects: **PalmTechnIQ v2** (EdTech platform) and **ISCE Mail** (internal bulk email system). The April 20–24 week was a planned low-activity period with no commits recorded on either project. The bulk of development activity was concentrated in the April 27 – May 1 week, which saw significant feature work across both projects — totalling **4 commits / 35 files / 1,993 additions** on PalmTechnIQ and **11 commits / 90 files / 9,377 additions** on ISCE Mail.
 
 ---
 
@@ -248,53 +248,6 @@ This report covers the active project work recorded across the reporting periods
     * PalmTechnIQ mailing sync API — delivered this week by the PalmTechnIQ team, fully unblocked.
 
 9. **Expected Timeline to Next Milestone:** May 8, 2026 — persistent job storage, additional template types, and campaign analytics reporting.
-
-**Relevant Links:**
-* Live URL: *(internal)*
-* Repository: *(internal)*
-
----
-
-# Week 3: May 4 – 8, 2026
-
-## Project: Ministry of Transport Platform
-
-1. **Project Name:** Ministry of Transport Platform — Next.js transport services portal
-2. **Objective / Scope:** A public-facing transport platform with a landing page, dashboard shell, and supporting admin/service workflows for transport operations.
-3. **Current Phase:** Stabilization and UI polish
-4. **Project Features (Features worked on this week):**
-
-    ### Feature 1: Landing Page Completion *(May 4)*
-    Finished the main landing page work and applied a final content/structure pass to the public homepage.
-
-    ### Feature 2: Layout Handling Fixes *(May 4)*
-    Refined application layout handling across the root shell and key pages to improve consistency and reduce rendering issues.
-
-    ### Feature 3: Runtime Error Fixes *(May 4)*
-    Resolved an internal error path by tightening shared server action patterns and adjusting seed data used by dependent flows.
-
-    ### Feature 4: Mobile Responsiveness Improvements *(May 4)*
-    Reworked the dashboard shell for smaller screens by adding a dedicated mobile menu context, responsive sheet behavior, and updated sidebar/topbar interactions.
-
-5. **What Has Been Completed So Far:**
-    * Public landing page implementation completed
-    * Core layout handling stabilized across the main app shell
-    * Shared error path corrected for admin and transport workflow screens
-    * Mobile navigation and dashboard responsiveness improved for smaller devices
-
-6. **What Is Currently in Progress:**
-    * Final responsive polish across remaining pages
-    * Additional QA on dashboard navigation and layout edge cases
-
-7. **What Is Left to Be Done:**
-    * End-to-end QA pass on the main user flows
-    * Accessibility review for mobile navigation and page structure
-    * Deployment verification after layout and responsiveness changes
-
-8. **Any Blockers or Dependencies:**
-    * None identified.
-
-9. **Expected Timeline to Next Milestone:** TBD — pending final QA and any follow-up polish items.
 
 **Relevant Links:**
 * Live URL: *(internal)*

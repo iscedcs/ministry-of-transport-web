@@ -65,7 +65,9 @@ export const motorParkApplicationSchema = z.object({
     .min(3, "Business name required")
     .max(100, "Business name too long"),
   transportCompanyName: z.string().max(100).optional(),
-  locationAddress: z.string().min(10, "Detailed address required").max(500),
+  streetAddress: z.string().min(5, "Street address required").max(200),
+  lga: z.string().min(2, "LGA required").max(100),
+  townCity: z.string().min(2, "Town/city required").max(100),
   gpsCoordinates: z
     .string()
     .regex(GPS_REGEX, "GPS coordinates must be in lat,lon format")
@@ -75,8 +77,16 @@ export const motorParkApplicationSchema = z.object({
   contactPerson: z.string().min(3).max(100),
   contactPhone: z.string().regex(PHONE_REGEX),
   contactEmail: z.string().email(),
-  landOwnershipDocId: z.string().optional(),
-  cacDocumentId: z.string().optional(),
+  managerResidentialAddress: z.string().min(5, "Manager's residential address is required").max(500),
+  nextOfKinName: z.string().max(100).optional(),
+  nextOfKinPhone: z.string().regex(PHONE_REGEX, "Invalid Nigerian phone number").optional().or(z.literal("")),
+  landOwnershipDocId: z.string().min(1, "Land ownership/lease agreement is required"),
+  cacDocumentId: z.string().min(1, "CAC Registration Certificate is required"),
+  corporateAsinDocumentId: z.string().optional().or(z.literal("")),
+  toiletPhotoId: z.string().min(1, "Toilet/convenience photo is required"),
+  waitingAreaPhotoId: z.string().min(1, "Waiting lounge photo is required"),
+  signagePhotoId: z.string().min(1, "Signage photo is required"),
+  waterFacilityPhotoId: z.string().min(1, "Water facility/borehole photo is required"),
 });
 
 export type MotorParkApplicationInput = z.infer<
@@ -107,7 +117,7 @@ export type MotorParkStatusUpdateInput = z.infer<
 >;
 
 export const motorParkFeeRecordSchema = z.object({
-  feeType: z.enum(["APPLICATION", "MONTHLY_LEVY", "ANNUAL", "REVALIDATION"]),
+  feeType: z.enum(["APPLICATION", "INSPECTION", "MONTHLY_LEVY", "ANNUAL", "REVALIDATION"]),
   amount: z.number().int().positive("Amount must be positive (in kobo)"),
   dueDate: z.coerce.date(),
   paidAmount: z.number().int().positive().optional(),
@@ -141,6 +151,7 @@ export const inspectionChecklistResultSchema = z.object({
       isCompliant: z.boolean(),
       notes: z.string().optional(),
       photoUrls: z.array(z.string().url()).optional(),
+      score: z.number().int().nonnegative().optional(),
     }),
   ),
   overallAssessment: z.string().optional(),
@@ -162,6 +173,9 @@ export const massTransitApplicationSchema = z.object({
   asinNumber: z.string().regex(ASIN_REGEX),
   businessPremisesCert: z.string().optional(),
   ansaaRegistration: z.string().optional(),
+  cacDocumentId: z.string().min(1, "CAC Registration Certificate is required"),
+  landOwnershipDocId: z.string().min(1, "Land ownership/lease agreement is required"),
+  corporateAsinDocumentId: z.string().min(1, "Corporate ASIN certificate is required"),
   terminalLocationAddress: z.string().min(10).max(500),
   gpsCoordinates: z.string().regex(GPS_REGEX).optional(),
   vehicles: z

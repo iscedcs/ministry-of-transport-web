@@ -658,7 +658,9 @@ export async function getExportData(
         select: {
           businessName: true,
           transportCompanyName: true,
-          locationAddress: true,
+          streetAddress: true,
+          lga: true,
+          townCity: true,
           applicationStatus: true,
           permitStatus: true,
           anssidNumber: true,
@@ -683,7 +685,7 @@ export async function getExportData(
           rows: parks.map((p) => [
             p.businessName,
             p.transportCompanyName ?? "",
-            p.locationAddress,
+            `${p.streetAddress}, ${p.lga} LGA, ${p.townCity}`,
             p.applicationStatus,
             p.permitStatus ?? "",
             p.anssidNumber ?? "",
@@ -702,8 +704,12 @@ export async function getExportData(
           contactEmail: true,
           applicationStatus: true,
           permitStatus: true,
-          terminalLocationAddress: true,
           createdAt: true,
+          terminals: {
+            select: {
+              locationAddress: true,
+            },
+          },
         },
         orderBy: { createdAt: "asc" },
       });
@@ -725,7 +731,7 @@ export async function getExportData(
             c.contactEmail ?? "",
             c.applicationStatus,
             c.permitStatus ?? "",
-            c.terminalLocationAddress ?? "",
+            c.terminals.map((t) => t.locationAddress).join("; "),
             c.createdAt.toISOString(),
           ]),
         },

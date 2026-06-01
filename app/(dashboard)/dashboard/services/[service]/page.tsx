@@ -1,15 +1,9 @@
-"use client";
-
-import { useActionState, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { addApplicantService } from "@/app/actions/auth";
-import { APPLICANT_SERVICE_CARDS, SERVICE_LABELS } from "@/lib/service-config";
-import type { ActionResult } from "@/lib/server-actions-pattern";
+import { AddServiceForm } from "./add-service-form";
+import { SERVICE_LABELS } from "@/lib/service-config";
 
 const serviceSlugToKey: Record<string, keyof typeof SERVICE_LABELS> = {
   "motor-park": "MOTOR_PARK",
@@ -91,42 +85,19 @@ const serviceRequirements: Record<
   },
 };
 
-export default function AddServiceRequirementsPage({
+export default async function AddServiceRequirementsPage({
   params,
 }: {
-  params: { service: string };
+  params: Promise<{ service: string }>;
 }) {
-  const router = useRouter();
-  const [agreed, setAgreed] = useState(false);
-
-  const serviceKey = serviceSlugToKey[params.service];
+  const { service } = await params;
+  const serviceKey = serviceSlugToKey[service];
   const serviceLabel = serviceKey ? SERVICE_LABELS[serviceKey] : null;
   const requirements = serviceKey ? serviceRequirements[serviceKey] : null;
 
-  const [state, action, isPending] = useActionState<
-    ActionResult | undefined,
-    FormData
-  >(
-    addApplicantService as (
-      s: ActionResult | undefined,
-      f: FormData,
-    ) => Promise<ActionResult>,
-    undefined,
-  );
-
-  useEffect(() => {
-    if (!serviceKey) {
-      router.push("/dashboard/services");
-    }
-  }, [router, serviceKey]);
-
-  useEffect(() => {
-    if (state?.success) {
-      router.push("/dashboard");
-    }
-  }, [state, router]);
-
-  if (!serviceKey || !requirements) return null;
+  if (!serviceKey || !requirements) {
+    redirect("/dashboard/services");
+  }
 
   return (
     <div className="min-h-dvh bg-background">
@@ -203,41 +174,7 @@ export default function AddServiceRequirementsPage({
             </p>
           </section>
 
-          <div className="flex items-start gap-3 rounded-lg border border-border p-4 bg-background">
-            <Checkbox
-              id="agree"
-              checked={agreed}
-              onCheckedChange={(value) => setAgreed(!!value)}
-              className="mt-0.5"
-            />
-            <Label
-              htmlFor="agree"
-              className="text-sm leading-relaxed cursor-pointer">
-              I have read and understand all the requirements and terms above. I
-              confirm my eligibility to add this service to my account.
-            </Label>
-          </div>
-
-          <form action={action} noValidate>
-            <input type="hidden" name="service" value={serviceKey} />
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <Button
-                type="submit"
-                disabled={!agreed || isPending}
-                className="flex-1 sm:flex-none sm:min-w-[200px]">
-                {isPending ? "Adding…" : "Add Service"}
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/dashboard/services">Cancel</Link>
-              </Button>
-            </div>
-          </form>
-
-          {state && !state.success && (
-            <div className="rounded-lg border border-destructive/70 bg-destructive/10 p-4 text-sm text-destructive">
-              {state.error ?? "Unable to add this service."}
-            </div>
-          )}
+          <AddServiceForm serviceKey={serviceKey} />
         </div>
       </div>
     </div>
