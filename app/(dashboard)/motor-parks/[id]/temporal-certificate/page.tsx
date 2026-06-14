@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { getSession } from "@/lib/auth";
 import { getMotorPark } from "@/app/actions/motor-park";
 import { db } from "@/lib/db";
@@ -199,11 +200,15 @@ export default async function TemporalCertificatePage({ params }: PageProps) {
             </h2>
             
             {/* Logo */}
-            <div className="my-2 h-20 w-auto flex items-center justify-center">
-              <img 
-                src="/anambra_mot_logo.png" 
-                alt="Ministry of Transport Logo" 
-                className="max-h-full object-contain"
+            <div className="my-2 h-16 w-auto flex items-center justify-center">
+              <Image
+                src="/anambra_mot_logo.png"
+                alt="Ministry of Transport Logo"
+                width={64}
+                height={64}
+                quality={100}
+                className="h-16 w-auto object-contain"
+                priority
               />
             </div>
           </div>
@@ -252,16 +257,16 @@ export default async function TemporalCertificatePage({ params }: PageProps) {
               Your application for a Private Motor Park Permit refers please.
             </p>
             <p>
-              2. Further to the recommendations of the Ministry's Parks Inspection and Revalidation Team, you are hereby granted temporary approval to operate your private loading bay at the above named location with effect from {approvalDateFormatted}.
+              2. Further to the recommendations of the Ministry&apos;s Parks Inspection and Revalidation Team, you are hereby granted temporary approval to operate your private loading bay at the above named location with effect from {approvalDateFormatted}.
             </p>
             <p>
-              3. Kindly note that you are to improve on the facilities seen by the Team during the inspection within the next three (3) months in line with the attached Ministry's standards/guidelines on motor parks.
+              3. Kindly note that you are to improve on the facilities seen by the Team during the inspection within the next three (3) months in line with the attached Ministry&apos;s standards/guidelines on motor parks.
             </p>
             <p>
               4. You are to ensure that all loading/offloading activities of the vehicles in your fleet are done within the approved private loading bay and not on adjoining roads or any other place. In addition, ONLY vehicles branded in your approved mass transit colour are to use the loading bay.
             </p>
             <p>
-              5. You are to pay a monthly motor park fee of <strong>₦ {levyNaira.toLocaleString()} ({levyWords})</strong> to State Government's IGR paydirect platform using your private park's ASIN.
+              5. You are to pay a monthly motor park fee of <strong>₦ {levyNaira.toLocaleString()} ({levyWords})</strong> to State Government&apos;s IGR paydirect platform using your private park&apos;s ASIN.
             </p>
             <p>
               6. Kindly note that the violation of any of the above terms will lead to revocation of this temporary approval without notice.
