@@ -197,13 +197,37 @@ model Document {
   linkedToId   String // ID of the linked entity
 
   uploadedAt        DateTime  @default(now())
+  // These fields track the LATEST verification state for quick status checks
   verifiedAt        DateTime?
   verifiedByUserId  String?
   verificationNotes String?   @db.Text
 
+  // All accumulated review comments (one per reviewer, upserted)
+  reviews DocumentReview[]
+
   @@index([linkedToType, linkedToId])
   @@index([uploadedByUserId])
 }
+
+/// Stores one review entry per reviewer per document.
+/// Upserted on (documentId, reviewedByUserId) — so each reviewer
+/// can update their own comment but never overwrites another reviewer's.
+model DocumentReview {
+  id           String @id @default(cuid())
+  documentId   String
+  reviewedByUserId String
+  reviewerRole String @db.VarChar(50) // snapshot of role at time of review
+  reviewerName String @db.VarChar(200) // snapshot of "First Last"
+  isApproved   Boolean
+  notes        String? @db.Text
+  reviewedAt   DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, reviewedByUserId]) // one review slot per reviewer per doc
+  @@index([documentId])
+}
+
 
 // ==================== MOTOR PARKS MODULE ====================
 // Reference: docs/EPICS.md EPIC-002 (STORY-020 to STORY-033)

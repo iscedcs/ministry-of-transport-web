@@ -96,6 +96,8 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
     ["HOD_PARKS", "COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
     (status === "INSPECTION_COMPLETED" || status === "PENDING_APPROVAL");
 
+  const canDownloadTemporal = status === "TEMPORAL_APPROVAL";
+
   const canRevoke =
     ["COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
     park.permitStatus === "ACTIVE";
@@ -116,7 +118,8 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
     !canAssessFees &&
     !canPayFee &&
     !canRevoke &&
-    !canIssueTemporal
+    !canIssueTemporal &&
+    !canDownloadTemporal
   ) {
     return null;
   }
@@ -155,6 +158,13 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
           <Button asChild size="sm">
             <Link href={`/motor-parks/${park.id}/issue-temporal-approval`}>
               Issue Temporal Approval
+            </Link>
+          </Button>
+        )}
+        {canDownloadTemporal && (
+          <Button asChild size="sm" variant="outline" className="border-primary text-primary hover:bg-primary/10">
+            <Link href={`/motor-parks/${park.id}/temporal-certificate`} target="_blank">
+              <Download className="w-4 h-4 mr-2" /> Download Temporal Certificate
             </Link>
           </Button>
         )}
@@ -268,6 +278,90 @@ function InspectionHistory({
               <p className="text-xs text-muted-foreground col-span-2 mt-1 italic">
                 &ldquo;{ins.overallAssessment}&rdquo;
               </p>
+            )}
+
+            {ins.status === "COMPLETED" && ins.checklist && ins.checklist.length > 0 && (
+              <div className="col-span-2 mt-3 pt-3 border-t border-border/30">
+                <details className="group">
+                  <summary className="flex items-center justify-between text-xs font-semibold text-primary cursor-pointer hover:underline list-none select-none">
+                    <span>📋 View Checklist & Evidence Photos ({ins.checklist.length} items)</span>
+                    <span className="transition-transform duration-200 group-open:rotate-180">▼</span>
+                  </summary>
+                  <div className="mt-3 flex flex-col gap-3 pl-2 border-l-2 border-primary/20">
+                    {ins.checklist.map((item) => {
+                      let pUrl = "";
+                      if (item.photoUrls) {
+                        try {
+                          const parsed = JSON.parse(item.photoUrls);
+                          pUrl = Array.isArray(parsed) ? parsed[0] : parsed;
+                        } catch {
+                          pUrl = item.photoUrls;
+                        }
+                      }
+                      return (
+                        <div key={item.id} className="flex flex-col gap-1.5 p-2.5 rounded bg-background border border-border/40 text-xs">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-semibold text-foreground">
+                                {item.checklistItem.itemName}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                                {item.checklistItem.itemCategory.replace(/_/g, " ")}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                item.isCompliant 
+                                  ? "bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/20" 
+                                  : "bg-destructive/10 text-destructive border border-destructive/20"
+                              }`}>
+                                {item.isCompliant ? "Yes" : "No"}
+                              </span>
+                              {item.score !== null && (
+                                <span className="px-2 py-0.5 rounded-full bg-secondary text-foreground text-[10px] font-semibold">
+                                  {item.score} / {item.checklistItem.maxPoints} pts
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {item.checklistItem.description && (
+                            <p className="text-[11px] text-muted-foreground">
+                              {item.checklistItem.description}
+                            </p>
+                          )}
+
+                          {item.notes && (
+                            <div className="bg-secondary/20 p-2 rounded text-[11px] border-l-2 border-border italic text-muted-foreground">
+                              <strong>Inspector Remarks:</strong> "{item.notes}"
+                            </div>
+                          )}
+
+                          {pUrl && (
+                            <div className="mt-1 flex flex-col gap-1">
+                              <span className="text-[10px] text-muted-foreground font-medium">Evidence Photo:</span>
+                              <div className="relative aspect-[4/3] w-32 rounded border border-border overflow-hidden bg-muted group/img">
+                                <img src={pUrl} alt="Inspection Evidence" className="object-cover w-full h-full" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <a
+                                    href={pUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-1 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
+                                    title="Open photo in new tab"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </a>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              </div>
             )}
           </div>
         </div>
@@ -393,6 +487,30 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
 
       {/* Action bar — role-gated */}
       <ActionBar park={park} role={session.role} />
+
+      {/* Temporal approval banner */}
+      {park.applicationStatus === "TEMPORAL_APPROVAL" && (
+        <Card className="border-green-500/30 bg-green-500/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base text-green-700 dark:text-green-400 flex items-center gap-2">
+              <span>Temporal Approval Issued</span>
+            </CardTitle>
+            <CardDescription>
+              Your loading bay has been granted temporal approval to commence operations.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between gap-4 flex-wrap pt-1">
+            <p className="text-xs text-muted-foreground max-w-xl">
+              Please download the official certificate as sign-off proof. Note that you must improve facilities within three (3) months as specified in the certificate guidelines.
+            </p>
+            <Button asChild size="sm" className="bg-green-600 hover:bg-green-700 text-white">
+              <Link href={`/motor-parks/${park.id}/temporal-certificate`} target="_blank">
+                <Download className="w-4 h-4 mr-2" /> Download Certificate (PDF)
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Permit info — shown when permit exists */}
       {park.permitNumber && (
@@ -521,6 +639,32 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
                       </div>
                     )}
 
+                    {park.documents.cac.reviews && park.documents.cac.reviews.length > 0 && (
+                      <div className="mt-2 flex flex-col gap-1.5 border-t border-border/30 pt-2">
+                        <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Review Comments History</span>
+                        <div className="flex flex-col gap-1.5">
+                          {park.documents.cac.reviews.map((rev) => (
+                            <div key={rev.id} className="p-2 rounded bg-secondary/30 border border-border/20 text-[11px]">
+                              <div className="flex items-center justify-between font-semibold mb-0.5 text-[10px] text-muted-foreground">
+                                <span>{rev.reviewerName} ({rev.reviewerRole.replace(/_/g, " ")})</span>
+                                <span className={rev.isApproved ? "text-green-600 dark:text-green-400" : "text-destructive"}>
+                                  {rev.isApproved ? "Verified" : "Rejected"}
+                                </span>
+                              </div>
+                              {rev.notes && (
+                                <p className="text-foreground leading-relaxed">
+                                  {rev.notes}
+                                </p>
+                              )}
+                              <span className="text-[9px] text-muted-foreground/85 block mt-0.5">
+                                {fmt(rev.reviewedAt)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {isHodOrPs && (
                       <form action={async (formData) => {
                         "use server";
@@ -597,6 +741,32 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
                       </div>
                     )}
 
+                    {park.documents.land.reviews && park.documents.land.reviews.length > 0 && (
+                      <div className="mt-2 flex flex-col gap-1.5 border-t border-border/30 pt-2">
+                        <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Review Comments History</span>
+                        <div className="flex flex-col gap-1.5">
+                          {park.documents.land.reviews.map((rev) => (
+                            <div key={rev.id} className="p-2 rounded bg-secondary/30 border border-border/20 text-[11px]">
+                              <div className="flex items-center justify-between font-semibold mb-0.5 text-[10px] text-muted-foreground">
+                                <span>{rev.reviewerName} ({rev.reviewerRole.replace(/_/g, " ")})</span>
+                                <span className={rev.isApproved ? "text-green-600 dark:text-green-400" : "text-destructive"}>
+                                  {rev.isApproved ? "Verified" : "Rejected"}
+                                </span>
+                              </div>
+                              {rev.notes && (
+                                <p className="text-foreground leading-relaxed">
+                                  {rev.notes}
+                                </p>
+                              )}
+                              <span className="text-[9px] text-muted-foreground/85 block mt-0.5">
+                                {fmt(rev.reviewedAt)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {isHodOrPs && (
                       <form action={async (formData) => {
                         "use server";
@@ -670,6 +840,32 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
                     ) : (
                       <div className="bg-amber-500/5 text-amber-700 dark:text-amber-400 p-2.5 rounded border border-amber-500/10 text-xs flex items-center justify-between">
                         <span>⏳ Pending HOD Review</span>
+                      </div>
+                    )}
+
+                    {park.documents.asin.reviews && park.documents.asin.reviews.length > 0 && (
+                      <div className="mt-2 flex flex-col gap-1.5 border-t border-border/30 pt-2">
+                        <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Review Comments History</span>
+                        <div className="flex flex-col gap-1.5">
+                          {park.documents.asin.reviews.map((rev) => (
+                            <div key={rev.id} className="p-2 rounded bg-secondary/30 border border-border/20 text-[11px]">
+                              <div className="flex items-center justify-between font-semibold mb-0.5 text-[10px] text-muted-foreground">
+                                <span>{rev.reviewerName} ({rev.reviewerRole.replace(/_/g, " ")})</span>
+                                <span className={rev.isApproved ? "text-green-600 dark:text-green-400" : "text-destructive"}>
+                                  {rev.isApproved ? "Verified" : "Rejected"}
+                                </span>
+                              </div>
+                              {rev.notes && (
+                                <p className="text-foreground leading-relaxed">
+                                  {rev.notes}
+                                </p>
+                              )}
+                              <span className="text-[9px] text-muted-foreground/85 block mt-0.5">
+                                {fmt(rev.reviewedAt)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
 

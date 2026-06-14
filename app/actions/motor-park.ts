@@ -51,8 +51,17 @@ export async function submitParkApplication(
 ): Promise<ActionResult<{ parkId: string }>> {
   const session = await requireRole(["EXTERNAL_APPLICANT"]);
 
-  const getCleanString = (val: unknown, isRequired = false): string | undefined => {
-    if (val === null || val === undefined || val === "undefined" || val === "null" || val === "") {
+  const getCleanString = (
+    val: unknown,
+    isRequired = false,
+  ): string | undefined => {
+    if (
+      val === null ||
+      val === undefined ||
+      val === "undefined" ||
+      val === "null" ||
+      val === ""
+    ) {
       return isRequired ? "" : undefined;
     }
     return String(val).trim();
@@ -65,21 +74,36 @@ export async function submitParkApplication(
     lga: getCleanString(formData.get("lga"), true),
     townCity: getCleanString(formData.get("townCity"), true),
     gpsCoordinates: getCleanString(formData.get("gpsCoordinates")),
-    cacRegistrationNumber: getCleanString(formData.get("cacRegistrationNumber")),
+    cacRegistrationNumber: getCleanString(
+      formData.get("cacRegistrationNumber"),
+    ),
     anssidNumber: getCleanString(formData.get("anssidNumber"), true),
     contactPerson: getCleanString(formData.get("contactPerson"), true),
     contactPhone: getCleanString(formData.get("contactPhone"), true),
     contactEmail: getCleanString(formData.get("contactEmail"), true),
-    managerResidentialAddress: getCleanString(formData.get("managerResidentialAddress")),
+    managerResidentialAddress: getCleanString(
+      formData.get("managerResidentialAddress"),
+    ),
     nextOfKinName: getCleanString(formData.get("nextOfKinName")),
     nextOfKinPhone: getCleanString(formData.get("nextOfKinPhone")),
-    landOwnershipDocId: getCleanString(formData.get("landOwnershipDocId"), true),
+    landOwnershipDocId: getCleanString(
+      formData.get("landOwnershipDocId"),
+      true,
+    ),
     cacDocumentId: getCleanString(formData.get("cacDocumentId"), true),
-    corporateAsinDocumentId: getCleanString(formData.get("corporateAsinDocumentId")),
+    corporateAsinDocumentId: getCleanString(
+      formData.get("corporateAsinDocumentId"),
+    ),
     toiletPhotoId: getCleanString(formData.get("toiletPhotoId"), true),
-    waitingAreaPhotoId: getCleanString(formData.get("waitingAreaPhotoId"), true),
+    waitingAreaPhotoId: getCleanString(
+      formData.get("waitingAreaPhotoId"),
+      true,
+    ),
     signagePhotoId: getCleanString(formData.get("signagePhotoId"), true),
-    waterFacilityPhotoId: getCleanString(formData.get("waterFacilityPhotoId"), true),
+    waterFacilityPhotoId: getCleanString(
+      formData.get("waterFacilityPhotoId"),
+      true,
+    ),
   };
 
   const parsed = motorParkApplicationSchema.safeParse(raw);
@@ -268,18 +292,18 @@ export async function listMotorParks(filters?: {
     db.motorPark.count({ where }),
   ]);
 
-  return { 
-    success: true, 
-    data: { 
-      parks: parks.map(p => ({
+  return {
+    success: true,
+    data: {
+      parks: parks.map((p) => ({
         ...p,
         locationAddress: `${p.streetAddress}, ${p.lga} LGA, ${p.townCity}`,
         streetAddress: undefined,
         lga: undefined,
         townCity: undefined,
-      })) as MotorParkListItem[], 
-      total 
-    } 
+      })) as MotorParkListItem[],
+      total,
+    },
   };
 }
 
@@ -323,13 +347,70 @@ export type MotorParkDetail = {
   signagePhotoId: string | null;
   waterFacilityPhotoId: string | null;
   documents: {
-    cac?: { id: string; fileName: string; fileUrl: string; verifiedAt?: Date | null; verifiedByUserId?: string | null; verificationNotes?: string | null; };
-    land?: { id: string; fileName: string; fileUrl: string; verifiedAt?: Date | null; verifiedByUserId?: string | null; verificationNotes?: string | null; };
-    asin?: { id: string; fileName: string; fileUrl: string; verifiedAt?: Date | null; verifiedByUserId?: string | null; verificationNotes?: string | null; };
-    toilet?: { id: string; fileName: string; fileUrl: string; verifiedAt?: Date | null; verifiedByUserId?: string | null; verificationNotes?: string | null; };
-    waitingArea?: { id: string; fileName: string; fileUrl: string; verifiedAt?: Date | null; verifiedByUserId?: string | null; verificationNotes?: string | null; };
-    signage?: { id: string; fileName: string; fileUrl: string; verifiedAt?: Date | null; verifiedByUserId?: string | null; verificationNotes?: string | null; };
-    waterFacility?: { id: string; fileName: string; fileUrl: string; verifiedAt?: Date | null; verifiedByUserId?: string | null; verificationNotes?: string | null; };
+    cac?: ParkDocument;
+    land?: ParkDocument;
+    asin?: ParkDocument;
+    toilet?: ParkDocument;
+    waitingArea?: ParkDocument;
+    signage?: ParkDocument;
+    waterFacility?: ParkDocument;
+
+    // cac?: {
+    //   id: string;
+    //   fileName: string;
+    //   fileUrl: string;
+    //   verifiedAt?: Date | null;
+    //   verifiedByUserId?: string | null;
+    //   verificationNotes?: string | null;
+    // };
+    // land?: {
+    //   id: string;
+    //   fileName: string;
+    //   fileUrl: string;
+    //   verifiedAt?: Date | null;
+    //   verifiedByUserId?: string | null;
+    //   verificationNotes?: string | null;
+    // };
+    // asin?: {
+    //   id: string;
+    //   fileName: string;
+    //   fileUrl: string;
+    //   verifiedAt?: Date | null;
+    //   verifiedByUserId?: string | null;
+    //   verificationNotes?: string | null;
+    // };
+    // toilet?: {
+    //   id: string;
+    //   fileName: string;
+    //   fileUrl: string;
+    //   verifiedAt?: Date | null;
+    //   verifiedByUserId?: string | null;
+    //   verificationNotes?: string | null;
+    // };
+    // waitingArea?: {
+    //   id: string;
+    //   fileName: string;
+    //   fileUrl: string;
+    //   verifiedAt?: Date | null;
+    //   verifiedByUserId?: string | null;
+    //   verificationNotes?: string | null;
+    // };
+    // signage?: {
+    //   id: string;
+    //   fileName: string;
+    //   fileUrl: string;
+    //   verifiedAt?: Date | null;
+    //   verifiedByUserId?: string | null;
+    //   verificationNotes?: string | null;
+    // };
+    // waterFacility?: {
+    //   id: string;
+    //   fileName: string;
+    //   fileUrl: string;
+    //   verifiedAt?: Date | null;
+    //   verifiedByUserId?: string | null;
+    //   verificationNotes?: string | null;
+    // };
   };
   applicant: { id: string; firstName: string; lastName: string; email: string };
   inspections: {
@@ -341,6 +422,19 @@ export type MotorParkDetail = {
     completedAt: Date | null;
     overallAssessment: string | null;
     recommendedAction: string | null;
+    checklist: {
+      id: string;
+      isCompliant: boolean;
+      notes: string | null;
+      photoUrls: string | null;
+      score: number | null;
+      checklistItem: {
+        itemName: string;
+        itemCategory: string;
+        description: string | null;
+        maxPoints: number;
+      };
+    }[];
   }[];
   fees: {
     id: string;
@@ -414,6 +508,23 @@ export async function getMotorPark(
           overallAssessment: true,
           recommendedAction: true,
           assignedTo: { select: { firstName: true, lastName: true } },
+          checklist: {
+            select: {
+              id: true,
+              isCompliant: true,
+              notes: true,
+              photoUrls: true,
+              score: true,
+              checklistItem: {
+                select: {
+                  itemName: true,
+                  itemCategory: true,
+                  description: true,
+                  maxPoints: true,
+                },
+              },
+            },
+          },
         },
         orderBy: { scheduledDate: "desc" },
       },
@@ -461,6 +572,21 @@ export async function getMotorPark(
       verifiedAt: true,
       verifiedByUserId: true,
       verificationNotes: true,
+
+      reviews: {
+        select: {
+          id: true,
+          reviewedByUserId: true,
+          reviewerName: true,
+          reviewerRole: true,
+          notes: true,
+          isApproved: true,
+          reviewedAt: true,
+        },
+        orderBy: {
+          reviewedAt: "asc",
+        },
+      },
     },
   });
 
@@ -474,13 +600,13 @@ export async function getMotorPark(
     waterFacility: docs.find((d) => d.id === park.waterFacilityPhotoId),
   };
 
-  return { 
-    success: true, 
+  return {
+    success: true,
     data: {
       ...park,
       documents,
       locationAddress: `${park.streetAddress}, ${park.lga} LGA, ${park.townCity}`,
-    } as unknown as MotorParkDetail
+    } as unknown as MotorParkDetail,
   };
 }
 
@@ -868,7 +994,12 @@ export async function recordFeeAssessment(
   prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult<{ feeId: string }>> {
-  await requireRole(["FINANCE_OFFICER", "COMMISSIONER", "PERMANENT_SECRETARY", "HOD_PARKS"]);
+  await requireRole([
+    "FINANCE_OFFICER",
+    "COMMISSIONER",
+    "PERMANENT_SECRETARY",
+    "HOD_PARKS",
+  ]);
   const session = await requireAuth();
 
   const raw = {
@@ -951,7 +1082,10 @@ export async function issueTemporalApproval(
 
   if (!park) return { success: false, error: "Motor park not found" };
 
-  if (park.applicationStatus !== "INSPECTION_COMPLETED" && park.applicationStatus !== "PENDING_APPROVAL") {
+  if (
+    park.applicationStatus !== "INSPECTION_COMPLETED" &&
+    park.applicationStatus !== "PENDING_APPROVAL"
+  ) {
     return {
       success: false,
       error: "Temporal approval requires a completed inspection",
@@ -1016,7 +1150,8 @@ export async function issueFinalApproval(
   ) {
     return {
       success: false,
-      error: "Final approval requires a completed inspection or temporal approval",
+      error:
+        "Final approval requires a completed inspection or temporal approval",
     };
   }
 
@@ -1458,24 +1593,65 @@ export async function verifyDocument(
 
   if (!documentId) return { success: false, error: "Document ID is required." };
 
+  // Fetch reviewer's name for the snapshot
+  const reviewer = await db.user.findUnique({
+    where: { id: session.userId },
+    select: { firstName: true, lastName: true, role: true },
+  });
+
+  const reviewerName = reviewer
+    ? `${reviewer.firstName} ${reviewer.lastName}`
+    : session.userId;
+  const reviewerRole = reviewer?.role ?? session.role;
+
   try {
-    await db.document.update({
-      where: { id: documentId },
-      data: {
-        verifiedAt: isApproved ? new Date() : null,
-        verifiedByUserId: session.userId,
-        verificationNotes: notes || null,
-      },
+    await db.$transaction(async (tx) => {
+      // Upsert the per-reviewer record — never overwrites a different reviewer's comment
+      await tx.documentReview.upsert({
+        where: {
+          documentId_reviewedByUserId: {
+            documentId,
+            reviewedByUserId: session.userId,
+          },
+        },
+        create: {
+          documentId,
+          reviewedByUserId: session.userId,
+          reviewerRole,
+          reviewerName,
+          isApproved,
+          notes: notes || null,
+          reviewedAt: new Date(),
+        },
+        update: {
+          isApproved,
+          notes: notes || null,
+          reviewerRole,
+          reviewerName,
+          reviewedAt: new Date(),
+        },
+      });
+
+      // Keep the Document-level fields updated to reflect the latest reviewer's decision
+      // (used for quick status checks / the green "Reviewed & Verified" banner)
+      await tx.document.update({
+        where: { id: documentId },
+        data: {
+          verifiedAt: isApproved ? new Date() : null,
+          verifiedByUserId: session.userId,
+          verificationNotes: notes || null,
+        },
+      });
     });
 
     // Audit log
     await db.auditLog.create({
       data: {
         performedByUserId: session.userId,
-        action: "DOCUMENT_VERIFIED",
+        action: "DOCUMENT_REVIEWED",
         entityType: "Document",
         entityId: documentId,
-        changeDescription: `Document ${documentId} verified. Status: ${isApproved ? "APPROVED" : "REJECTED"}. Notes: ${notes || "None"}`,
+        changeDescription: `Document ${documentId} reviewed by ${reviewerName} (${reviewerRole}). Status: ${isApproved ? "APPROVED" : "REJECTED"}. Notes: ${notes || "None"}`,
       },
     });
 
@@ -1538,10 +1714,7 @@ export async function updateParkDocuments(
     uploadDetails.push({ file: cacDocumentFile, targetField: "cacDocumentId" });
   }
 
-  if (
-    landOwnershipDocFile instanceof File &&
-    landOwnershipDocFile.size > 0
-  ) {
+  if (landOwnershipDocFile instanceof File && landOwnershipDocFile.size > 0) {
     uploadDetails.push({
       file: landOwnershipDocFile,
       targetField: "landOwnershipDocId",
@@ -1551,7 +1724,10 @@ export async function updateParkDocuments(
   for (const item of uploadDetails) {
     let uploaded;
     try {
-      uploaded = await uploadDocument(item.file, item.targetField === "cacDocumentId" ? "cac" : "land");
+      uploaded = await uploadDocument(
+        item.file,
+        item.targetField === "cacDocumentId" ? "cac" : "land",
+      );
     } catch (err) {
       return {
         success: false,
