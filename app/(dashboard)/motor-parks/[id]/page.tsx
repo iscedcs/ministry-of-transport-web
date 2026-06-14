@@ -284,7 +284,7 @@ function InspectionHistory({
               <div className="col-span-2 mt-3 pt-3 border-t border-border/30">
                 <details className="group">
                   <summary className="flex items-center justify-between text-xs font-semibold text-primary cursor-pointer hover:underline list-none select-none">
-                    <span>📋 View Checklist & Evidence Photos ({ins.checklist.length} items)</span>
+                    <span>View Checklist & Evidence Photos ({ins.checklist.length} items)</span>
                     <span className="transition-transform duration-200 group-open:rotate-180">▼</span>
                   </summary>
                   <div className="mt-3 flex flex-col gap-3 pl-2 border-l-2 border-primary/20">
@@ -333,7 +333,7 @@ function InspectionHistory({
 
                           {item.notes && (
                             <div className="bg-secondary/20 p-2 rounded text-[11px] border-l-2 border-border italic text-muted-foreground">
-                              <strong>Inspector Remarks:</strong> "{item.notes}"
+                              <strong>Inspector Remarks:</strong> {`"${item.notes}"`}
                             </div>
                           )}
 
