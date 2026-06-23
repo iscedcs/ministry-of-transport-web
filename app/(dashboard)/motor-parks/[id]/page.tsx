@@ -93,7 +93,7 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
   const canPayFee = role === "EXTERNAL_APPLICANT" && !!pendingFee;
 
   const canIssueTemporal =
-    ["HOD_PARKS", "COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
+    ["COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
     (status === "INSPECTION_COMPLETED" || status === "PENDING_APPROVAL");
 
   const canDownloadTemporal = status === "TEMPORAL_APPROVAL";
@@ -101,6 +101,10 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
   const canRevoke =
     ["COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
     park.permitStatus === "ACTIVE";
+
+  const canManageStaff =
+    status === "APPROVED" &&
+    ["EXTERNAL_APPLICANT", "HOD_PARKS", "COMMISSIONER", "PERMANENT_SECRETARY"].includes(role);
 
   const pendingInspection = park.inspections.find(
     (i) => i.status === "SCHEDULED",
@@ -119,7 +123,8 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
     !canPayFee &&
     !canRevoke &&
     !canIssueTemporal &&
-    !canDownloadTemporal
+    !canDownloadTemporal &&
+    !canManageStaff
   ) {
     return null;
   }
@@ -179,6 +184,13 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
           <Button asChild size="sm" variant="outline">
             <Link href={`/motor-parks/${park.id}/upload-documents`}>
               Upload Documents
+            </Link>
+          </Button>
+        )}
+        {canManageStaff && (
+          <Button asChild size="sm" variant="outline" className="border-primary text-primary hover:bg-primary/10">
+            <Link href={`/motor-parks/${park.id}/staff`}>
+              Manage Park Staff
             </Link>
           </Button>
         )}
@@ -333,7 +345,7 @@ function InspectionHistory({
 
                           {item.notes && (
                             <div className="bg-secondary/20 p-2 rounded text-[11px] border-l-2 border-border italic text-muted-foreground">
-                              <strong>Inspector Remarks:</strong> {`"${item.notes}"`}
+                              <strong>Inspector Remarks:</strong> &quot;{item.notes}&quot;
                             </div>
                           )}
 
@@ -341,6 +353,7 @@ function InspectionHistory({
                             <div className="mt-1 flex flex-col gap-1">
                               <span className="text-[10px] text-muted-foreground font-medium">Evidence Photo:</span>
                               <div className="relative aspect-[4/3] w-32 rounded border border-border overflow-hidden bg-muted group/img">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img src={pUrl} alt="Inspection Evidence" className="object-cover w-full h-full" />
                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                   <a
@@ -426,11 +439,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
 
   const park = result.data!;
 
-  const isHodOrPs = [
-    "HOD_PARKS",
-    "HOD_VIS",
-    "HOD_TRANSPORT_OPS",
-    "HOD_PARKS_REVALIDATION",
+  const canApproveDocs = [
     "PERMANENT_SECRETARY",
     "COMMISSIONER",
     "SYSTEM_ADMIN",
@@ -665,7 +674,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
                       </div>
                     )}
 
-                    {isHodOrPs && (
+                    {canApproveDocs && (
                       <form action={async (formData) => {
                         "use server";
                         const approved = formData.get("approved") === "true";
@@ -767,7 +776,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
                       </div>
                     )}
 
-                    {isHodOrPs && (
+                    {canApproveDocs && (
                       <form action={async (formData) => {
                         "use server";
                         const approved = formData.get("approved") === "true";
@@ -869,7 +878,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
                       </div>
                     )}
 
-                    {isHodOrPs && (
+                    {canApproveDocs && (
                       <form action={async (formData) => {
                         "use server";
                         const approved = formData.get("approved") === "true";
@@ -927,6 +936,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
               {park.documents.toilet && (
                 <div className="relative group border border-border/50 rounded-lg overflow-hidden bg-background">
                   <div className="aspect-[4/3] w-full bg-muted relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={park.documents.toilet.fileUrl}
                       alt="Toilet/Convenience"
@@ -961,6 +971,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
               {park.documents.waitingArea && (
                 <div className="relative group border border-border/50 rounded-lg overflow-hidden bg-background">
                   <div className="aspect-[4/3] w-full bg-muted relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={park.documents.waitingArea.fileUrl}
                       alt="Waiting Lounge"
@@ -995,6 +1006,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
               {park.documents.signage && (
                 <div className="relative group border border-border/50 rounded-lg overflow-hidden bg-background">
                   <div className="aspect-[4/3] w-full bg-muted relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={park.documents.signage.fileUrl}
                       alt="Signage"
@@ -1029,6 +1041,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
               {park.documents.waterFacility && (
                 <div className="relative group border border-border/50 rounded-lg overflow-hidden bg-background">
                   <div className="aspect-[4/3] w-full bg-muted relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={park.documents.waterFacility.fileUrl}
                       alt="Water Facility"

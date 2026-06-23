@@ -50,6 +50,7 @@ export interface UploadResult {
 export async function uploadDocument(
   file: File,
   folder: string,
+  customPrefix?: string,
 ): Promise<UploadResult> {
   if (!ALLOWED_MIME.has(file.type)) {
     throw new Error("Only PDF, JPEG, PNG and WEBP files are accepted.");
@@ -59,7 +60,8 @@ export async function uploadDocument(
   }
 
   const ext = path.extname(file.name) || `.${file.type.split("/")[1]}`;
-  const key = `${PREFIX}/${folder}/${randomUUID()}${ext}`;
+  const prefixToUse = customPrefix ?? PREFIX;
+  const key = `${prefixToUse}/${folder}/${randomUUID()}${ext}`;
 
   const arrayBuffer = await file.arrayBuffer();
   const body = Buffer.from(arrayBuffer);
@@ -82,4 +84,13 @@ export async function uploadDocument(
     fileSize: file.size,
     fileMimeType: file.type,
   };
+}
+
+/**
+ * Upload a Photo specifically to the Park Monitor bucket prefix.
+ */
+export async function uploadParkMonitorPhoto(
+  file: File,
+): Promise<UploadResult> {
+  return uploadDocument(file, "passports", process.env.DO_SPACES_STORAGE_PREFIX || "mot-anambra-park-monitor-images");
 }

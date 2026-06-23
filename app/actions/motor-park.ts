@@ -1067,7 +1067,7 @@ export async function issueTemporalApproval(
   prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult<{ parkId: string }>> {
-  await requireRole(["HOD_PARKS", "COMMISSIONER", "PERMANENT_SECRETARY"]);
+  await requireRole(["COMMISSIONER", "PERMANENT_SECRETARY"]);
   const session = await requireAuth();
 
   const parkId = formData.get("parkId") as string;
@@ -1575,10 +1575,6 @@ export async function verifyDocument(
   const session = await requireAuth();
 
   const allowedRoles = [
-    "HOD_PARKS",
-    "HOD_VIS",
-    "HOD_TRANSPORT_OPS",
-    "HOD_PARKS_REVALIDATION",
     "PERMANENT_SECRETARY",
     "COMMISSIONER",
     "SYSTEM_ADMIN",
@@ -1587,7 +1583,7 @@ export async function verifyDocument(
   if (!allowedRoles.includes(session.role)) {
     return {
       success: false,
-      error: "Only HODs, PS, or Commissioner can review documents.",
+      error: "Only PS, Commissioner, or Admin can review documents.",
     };
   }
 

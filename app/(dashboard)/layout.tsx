@@ -37,17 +37,21 @@ export default async function DashboardLayout({
     <MobileMenuProvider>
       <div className="flex h-dvh overflow-hidden bg-background">
         {/* Sidebar — flex sibling so it occupies its own column */}
-        <DashboardSidebar
-          role={session.role}
-          userId={session.userId}
-          registeredService={registeredService}
-        />
+        <div className="print:hidden">
+          <DashboardSidebar
+            role={session.role}
+            userId={session.userId}
+            registeredService={registeredService}
+          />
+        </div>
 
         <div className="flex flex-col flex-1 overflow-hidden">
-          <DashboardTopbar role={session.role} userId={session.userId} />
+          <div className="print:hidden">
+            <DashboardTopbar role={session.role} userId={session.userId} />
+          </div>
 
           {/* Main content - responsive padding */}
-          <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-6">
+          <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-6 print:p-0 print:overflow-visible print:bg-white print:h-auto">
             {children}
           </main>
         </div>
