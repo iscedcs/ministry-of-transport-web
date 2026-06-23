@@ -254,7 +254,96 @@ export async function initiateMotorParkFeePayment(
   redirect(txn.authorization_url);
 }
 
+// ── Initiate payment: Park Monitor ID Card ──────────────────────────────────────
+
+/**
+ * Initiates the payment for the Park Monitor ID card.
+ * Fee is 20,000 NGN = 2,000,000 kobo.
+ */
+export async function initiateParkMonitorIdPayment(): Promise<never> {
+  const session = await requireAuth();
+
+  const app = await db.parkMonitorApplication.findUnique({
+    where: { userId: session.userId },
+    select: {
+      id: true,
+      status: true,
+      emailAddress: true,
+      nin: true,
+      idCardIssued: true,
+      user: {
+        select: {
+          firstName: true,
+          lastName: true,
+        }
+      }
+    },
+  });
+
+  if (!app || app.status !== "APPROVED" || app.idCardIssued) {
+    redirect("/dashboard");
+  }
+
+  const existing = await db.payment.findFirst({
+    where: {
+      linkedEntityType: "PARK_MONITOR_APP",
+      linkedEntityId: app.id,
+      status: "PENDING",
+      paymentType: "PARK_MONITOR_ID",
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const reference = generateReference("PMID");
+  const callbackUrl = `${getAppUrl()}/api/payment/callback?reference=${reference}&returnTo=/dashboard`;
+
+  const amountKobo = 20000 * 100; // 20,000 NGN
+
+  const txn = await initializeTransaction({
+    email: app.emailAddress,
+    amountKobo,
+    reference,
+    callbackUrl,
+    metadata: {
+      entityType: "PARK_MONITOR_APP",
+      entityId: app.id,
+      applicantName: `${app.user?.firstName!} ${app.user?.lastName!}`,
+    },
+  });
+
+  if (existing) {
+    await db.payment.update({
+      where: { id: existing.id },
+      data: {
+        paystackTransactionId: reference,
+        paystackAccessCode: txn.access_code,
+        paystackAuthorizationUrl: txn.authorization_url,
+      },
+    });
+  } else {
+    await db.payment.create({
+      data: {
+        paystackTransactionId: reference,
+        paystackAccessCode: txn.access_code,
+        paystackAuthorizationUrl: txn.authorization_url,
+        payerUserId: session.userId,
+        payerAsinNumber: app.nin, // using NIN as ASIN fallback since they don't have ASIN yet
+        payerEmail: app.emailAddress,
+        amount: amountKobo,
+        currency: "NGN",
+        paymentType: "PARK_MONITOR_ID",
+        linkedEntityType: "PARK_MONITOR_APP",
+        linkedEntityId: app.id,
+        status: "PENDING",
+      },
+    });
+  }
+
+  redirect(txn.authorization_url);
+}
+
 // ── Initiate payment: Mass Transit Registration ────────────────────────────────
+
 
 /**
  * STORY-061 | FR-040
@@ -474,6 +563,16 @@ export async function verifyAndCompletePayment(reference: string): Promise<
             status: "COMPLETED",
             paidAt: new Date(),
             paidAmount: payment.amount,
+          },
+        });
+      }
+
+      // Mark ParkMonitorApplication ID card payment
+      if (payment.linkedEntityType === "PARK_MONITOR_APP") {
+        await tx.parkMonitorApplication.update({
+          where: { id: payment.linkedEntityId },
+          data: {
+            idCardPaymentId: payment.id,
           },
         });
       }

@@ -8,6 +8,7 @@ import { SERVICE_LABELS } from "@/lib/service-config";
 const serviceSlugToKey: Record<string, keyof typeof SERVICE_LABELS> = {
   "motor-park": "MOTOR_PARK",
   "mass-transit": "MASS_TRANSIT",
+  "revalidation": "REVALIDATION",
 };
 
 const serviceRequirements: Record<
@@ -82,6 +83,31 @@ const serviceRequirements: Record<
     ],
     terms:
       "The Ministry will revoke registration if safety standards are breached or if operational terms are not met. All mass transit operators are subject to ongoing inspection and annual renewal requirements.",
+  },
+  REVALIDATION: {
+    requiredDocuments: [
+      "Create account as owner and proceed to the revalidation form",
+      "Business / Transport Company Name",
+      "Anambra State Identification Number (ASIN)",
+      "Location and operational status of the motor park or facility",
+      "Staffing and Security Information",
+      "Recent Passport Photograph of Owner/Representative",
+    ],
+    siteStandards: [
+      "Adequate facilities (toilets, waiting areas, loading bays)",
+      "Security arrangement in place",
+      "Payment of existing approval fees",
+      "Compliance with regulatory signages",
+    ],
+    processSteps: [
+      "Submit revalidation form online.",
+      "Ministry team conducts a revalidation inspection.",
+      "Review of operational status, facilities, and compliance.",
+      "HOD Revalidation confirms compliance with safety and operational standards.",
+      "Revalidation Approval Number is generated.",
+    ],
+    terms:
+      "Approved parks are subject to periodic revalidation and compliance checks. The Ministry reserves the right to revoke or withdraw its approval if the terms and conditions are not met.",
   },
 };
 

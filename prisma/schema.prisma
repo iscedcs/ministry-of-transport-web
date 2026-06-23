@@ -34,6 +34,7 @@ enum UserRole {
   FINANCE_OFFICER // Revenue tracking; payment reconciliation
   VEHICLE_INSPECTION_OFFICER // Mechanical assessment; AVIR completion
   EXTERNAL_APPLICANT // Public user: park owners, transit companies, driving schools
+  PARK_MONITOR // Field staff who monitor parks and transit operations
   SYSTEM_ADMIN // Platform administration (internal)
 }
 
@@ -43,10 +44,14 @@ enum ApplicationStatus {
   INSPECTION_SCHEDULED // Inspection assigned to field team
   INSPECTION_IN_PROGRESS
   INSPECTION_COMPLETED // Inspection report submitted
+  PENDING_HOD_APPROVAL
+  PENDING_COMMISSIONER_APPROVAL
+  PENDING_PS_APPROVAL
   PENDING_APPROVAL // Awaiting Commissioner/PS decision
   TEMPORAL_APPROVAL // Temporary permit to operate
   APPROVED // Approval issued
   REJECTED // Application rejected
+  WAITLISTED // Application placed on waitlist
   REVOKED // Permit revoked post-approval
 }
 
@@ -150,18 +155,22 @@ model User {
   updatedAt             DateTime  @updatedAt
 
   // Relations
-  sessions             Session[]
-  createdApplications  Application[]            @relation("CreatedByUser")
-  assignedInspections  Inspection[]             @relation("AssignedToInspector")
-  scheduledInspections Inspection[]             @relation("ScheduledByHod")
-  motorParks           MotorPark[]              @relation("ApplicationContact")
-  massTransitCompanies MassTransitCompany[]     @relation("ApplicationContact")
-  notifications        NotificationPreference[]
-  payments             Payment[]                @relation("ProcessedByUser")
-  avirs                AVIRReport[]             @relation("CompletedByVIO")
-  auditLogs            AuditLog[]               @relation("PerformedByUser")
-  notificationsSent    Notification[]           @relation("SentToUser")
-  motorParkDraft       MotorParkDraft?
+  sessions               Session[]
+  createdApplications    Application[]             @relation("CreatedByUser")
+  assignedInspections    Inspection[]              @relation("AssignedToInspector")
+  scheduledInspections   Inspection[]              @relation("ScheduledByHod")
+  motorParks             MotorPark[]               @relation("ApplicationContact")
+  massTransitCompanies   MassTransitCompany[]      @relation("ApplicationContact")
+  notifications          NotificationPreference[]
+  payments               Payment[]                 @relation("ProcessedByUser")
+  avirs                  AVIRReport[]              @relation("CompletedByVIO")
+  auditLogs              AuditLog[]                @relation("PerformedByUser")
+  notificationsSent      Notification[]            @relation("SentToUser")
+  motorParkDraft         MotorParkDraft?
+  parkMonitorApp         ParkMonitorApplication?
+  revalidationApps       RevalidationApplication[] @relation("RevalidationApplicant")
+  inspectedRevalidations RevalidationApplication[] @relation("RevalidationInspector")
+  revalidationDraft      RevalidationDraft?
 
   @@index([email])
   @@index([role])
@@ -213,21 +222,20 @@ model Document {
 /// Upserted on (documentId, reviewedByUserId) — so each reviewer
 /// can update their own comment but never overwrites another reviewer's.
 model DocumentReview {
-  id           String @id @default(cuid())
-  documentId   String
+  id               String   @id @default(cuid())
+  documentId       String
   reviewedByUserId String
-  reviewerRole String @db.VarChar(50) // snapshot of role at time of review
-  reviewerName String @db.VarChar(200) // snapshot of "First Last"
-  isApproved   Boolean
-  notes        String? @db.Text
-  reviewedAt   DateTime @default(now())
+  reviewerRole     String   @db.VarChar(50) // snapshot of role at time of review
+  reviewerName     String   @db.VarChar(200) // snapshot of "First Last"
+  isApproved       Boolean
+  notes            String?  @db.Text
+  reviewedAt       DateTime @default(now())
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@unique([documentId, reviewedByUserId]) // one review slot per reviewer per doc
   @@index([documentId])
 }
-
 
 // ==================== MOTOR PARKS MODULE ====================
 // Reference: docs/EPICS.md EPIC-002 (STORY-020 to STORY-033)
@@ -306,12 +314,41 @@ model MotorPark {
   fees          MotorParkFee[]
   payments      Payment[]      @relation("MotorParkPayment")
   notifications Notification[] @relation("MotorParkNotification")
+  parkStaff     ParkStaff[]
 
   @@index([applicationStatus])
   @@index([permitStatus])
   @@index([contactUserId])
   @@index([nextRevalidationDue])
   @@index([lga]) // Enables Commissioner "search by LGA" (report item 8)
+}
+
+enum ParkStaffStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+model ParkStaff {
+  id               String          @id @default(cuid())
+  motorParkId      String
+  parkSerialNumber Int             // Sequential number scoped to park e.g. 1, 2, 3
+  securityCode     String          @unique // e.g. MOT-[PARKNAME]-[NUMBER]
+  profileUrl       String
+  qrCodeUrl        String?         @db.VarChar(500)
+  name             String
+  role             String
+  photoUrl         String?         @db.VarChar(500)
+  status           ParkStaffStatus @default(ACTIVE)
+  
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  motorPark        MotorPark       @relation(fields: [motorParkId], references: [id], onDelete: Cascade)
+
+  @@unique([motorParkId, parkSerialNumber])
+  @@index([securityCode])
+  @@index([motorParkId])
 }
 
 model Inspection {
@@ -1115,3 +1152,184 @@ model Application {
 // All indexes defined above within model blocks for clarity
 // Row-Level Security (RLS) will be enforced at the application layer via server actions
 // Example pattern in docs/.copilot-instructions.md under "Server Actions & RLS Pattern"
+
+// ==================== PARK MONITOR MODULE ====================
+// Reference: docs/PARK MONITOR.md
+
+model ParkMonitorApplication {
+  id     String  @id @default(cuid())
+  userId String? @unique // Link to User once approved
+
+  // SECTION A: Biodata
+  surname            String
+  firstName          String
+  otherNames         String?
+  gender             String  @db.VarChar(10) // MALE/FEMALE
+  age                Int
+  stateOfOrigin      String
+  lga                String
+  communityTown      String
+  nin                String  @unique
+  residentialAddress String  @db.Text
+  phoneNumber        String
+  emailAddress       String
+  maritalStatus      String  @db.VarChar(20) // SINGLE/MARRIED/DIVORCED/WIDOWED
+
+  // SECTION B: Educational Qualifications
+  // Handled via Document relation (linkedEntityType = "PARK_MONITOR_APP")
+
+  // SECTION C: Employment History
+  currentOccupation String?
+  employer          String?
+  positionHeld      String?
+
+  // SECTION D: Health and Physical Fitness
+  height         String? // e.g., "1.8m" or "180cm"
+  weight         String? // e.g., "75kg"
+  isMedicallyFit Boolean
+
+  // SECTION E: Character and Security Screening
+  hasCriminalConviction Boolean
+  agreesToSecurityCheck Boolean
+
+  // SECTION F: Enforcement Suitability
+  reasonForJoining String @db.Text
+
+  // SECTION G: References (JSON array of {name, phone, relation, email, address})
+  referees Json
+
+  // SECTION H: Next of Kin
+  nextOfKinName         String
+  nextOfKinPhone        String
+  nextOfKinRelationship String
+  nextOfKinAddress      String @db.Text
+
+  // Application Tracking
+  status ApplicationStatus @default(SUBMITTED)
+
+  // Review details
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  rejectionReason  String?   @db.Text
+  waitlistReason   String?   @db.Text
+
+  // ID Card Issuance Process
+  idCardPhotoUrl       String?   @db.VarChar(500) // DigitalOcean Space URL
+  idCardPaymentId      String? // Link to Payment
+  idCardIssued         Boolean   @default(false)
+  idCardIssuedAt       DateTime?
+  idCardIssuedByUserId String? // HOD who issued it
+  idCardUrl            String?   @db.VarChar(500)
+  qrCodeUrl            String?   @db.VarChar(500)
+
+  // System
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([status])
+  @@index([idCardIssued])
+}
+
+// ==================== REVALIDATION MODULE ====================
+// Reference: docs/anambra_mot_revalidation_form_2026.md
+
+model RevalidationDraft {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stepReached Int      @default(1)
+  data        Json
+  updatedAt   DateTime @updatedAt
+}
+
+model RevalidationApplication {
+  id String @id @default(cuid())
+
+  // SECTION A: APPLICANT DETAILS
+  ownerName             String
+  ownershipType         String  @db.VarChar(50)
+  cacRegistrationNumber String?
+  representativeName    String
+  designation           String
+  phoneNumber           String
+  alternatePhoneNumber  String?
+  emailAddress          String
+  residentialAddress    String  @db.Text
+
+  // SECTION B: ASIN DETAILS
+  asinNumber         String  @unique
+  nin                String
+  tin                String?
+  revalidationNumber String? @unique
+
+  // SECTION C: MOTOR PARK INFORMATION
+  parkName              String
+  facilityType          String   @db.VarChar(50)
+  facilitySubTypes      Json?
+  physicalLocation      String   @db.Text
+  townCommunity         String
+  lga                   String
+
+  // SECTION D: OPERATIONAL INFORMATION
+  yearEstablished    String
+  operationalStatus  String @db.VarChar(50)
+  dailyVehiclesCount String @db.VarChar(50)
+  vehicleTypes       String @db.Text
+
+  // SECTION E: FACILITIES AVAILABLE (JSON)
+  facilitiesAvailable Json
+
+  // SECTION F: REGULATORY COMPLIANCE
+  existingApprovalNum String?
+  maintainsManifest   Boolean
+  operatorsRegistered Boolean
+  paymentsUpToDate    Boolean
+  safetySignages      Boolean
+  pendingSanctions    Boolean
+  sanctionDetails     String? @db.Text
+
+  // SECTION G: EMPLOYMENT & SECURITY DATA
+  managementStaffCount  Int      @default(0)
+  adminStaffCount       Int      @default(0)
+  securityStaffCount    Int      @default(0)
+  otherStaffCount       Int      @default(0)
+  otherStaffDetails     String?  @db.VarChar(100)
+  securityArrangement   String   @db.VarChar(50)
+
+  // SECTION H: REVENUE INFORMATION
+  estimatedDailyRevenue   Int
+  estimatedMonthlyRev     Int
+  revenueCollectionMethod String @db.VarChar(50)
+
+  // DOCUMENT
+  passportPhotoUrl String? @db.VarChar(500)
+  passportPhotoId  String?
+
+  // SYSTEM & TRACKING
+  applicantUserId String
+  status          ApplicationStatus @default(SUBMITTED)
+
+  // INSPECTION & APPROVAL (Official Use)
+  inspectionDate         DateTime?
+  inspectionOfficerId    String?
+  findings               String?   @db.Text
+  recommendation         String?   @db.VarChar(50)
+  
+  hodApprovedAt          DateTime?
+  commissionerApprovedAt DateTime?
+  psApprovedAt           DateTime?
+
+  validUntil             DateTime?
+  approvedAt             DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  applicant         User  @relation("RevalidationApplicant", fields: [applicantUserId], references: [id])
+  inspectionOfficer User? @relation("RevalidationInspector", fields: [inspectionOfficerId], references: [id])
+
+  @@index([applicantUserId])
+  @@index([status])
+}

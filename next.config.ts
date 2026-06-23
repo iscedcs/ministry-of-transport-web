@@ -7,6 +7,14 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "6mb",
     },
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "isce-image.fra1.digitaloceanspaces.com",
+      },
+    ],
+  },
 };
 
 export default nextConfig;

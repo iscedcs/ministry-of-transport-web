@@ -85,11 +85,18 @@ function TestCredentialsSection({
       </p>
       <div className="space-y-2">
         {TEST_STAFF_CREDENTIALS.map((cred) => (
-          <button
+          <div
             key={cred.email}
-            type="button"
             onClick={() => handleClickCredential(cred.email)}
-            className="w-full text-left p-3 rounded-lg border border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-colors group">
+            className="w-full text-left p-3 rounded-lg border border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-colors group cursor-pointer"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleClickCredential(cred.email);
+              }
+            }}>
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
@@ -115,7 +122,7 @@ function TestCredentialsSection({
                 )}
               </button>
             </div>
-          </button>
+          </div>
         ))}
       </div>
       <p className="text-xs text-muted-foreground mt-3 p-2 bg-muted/30 rounded">
@@ -166,13 +173,13 @@ export default function StaffLoginPage() {
 
         <form action={action} noValidate className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">Email address</Label>
+            <Label htmlFor="email">Email or Phone number</Label>
             <Input
               ref={emailInputRef}
               id="email"
               name="email"
-              type="email"
-              autoComplete="email"
+              type="text"
+              autoComplete="username"
               required
               aria-invalid={!!state?.errors?.email}
               aria-describedby={state?.errors?.email ? "email-error" : undefined}

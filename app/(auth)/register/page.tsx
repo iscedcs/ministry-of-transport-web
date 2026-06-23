@@ -31,6 +31,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 const SERVICE_LABELS: Record<string, string> = {
   MOTOR_PARK: "Motor Park Registration",
   MASS_TRANSIT: "Mass Transit Registration",
+  REVALIDATION: "Revalidation Services",
 };
 
 function FieldError({ id, errors }: { id: string; errors?: string[] }) {

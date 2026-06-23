@@ -29,7 +29,7 @@ import type { ActionResult } from "@/lib/server-actions-pattern";
 // ==================== VALIDATION SCHEMAS ====================
 
 const loginSchema = z.object({
-  email: z.string().email("Enter a valid email address").trim().toLowerCase(),
+  email: z.string().min(1, "Email or Phone is required").trim().toLowerCase(),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -66,7 +66,7 @@ const externalRegisterSchema = z.object({
   asinNumber: z
     .string()
     .regex(/^\d{6,16}$/, "ASIN must be 6–16 digits (numbers only)"),
-  service: z.enum(["MOTOR_PARK", "MASS_TRANSIT"], {
+  service: z.enum(["MOTOR_PARK", "MASS_TRANSIT", "REVALIDATION"], {
     error: "Please select a service to register for",
   }),
 });
@@ -148,8 +148,13 @@ export async function login(
   const { email, password } = validated.data;
 
   // 2. Look up user
-  const user = await db.user.findUnique({
-    where: { email },
+  const user = await db.user.findFirst({
+    where: { 
+      OR: [
+        { email },
+        { phone: email }
+      ]
+    },
     select: {
       id: true,
       passwordHash: true,
@@ -293,7 +298,7 @@ export async function registerApplicant(
 }
 
 const addServiceSchema = z.object({
-  service: z.enum(["MOTOR_PARK", "MASS_TRANSIT"]),
+  service: z.enum(["MOTOR_PARK", "MASS_TRANSIT", "REVALIDATION"]),
 });
 
 export async function addApplicantService(

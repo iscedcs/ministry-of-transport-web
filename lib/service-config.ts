@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
-import { Building2, Bus } from "lucide-react";
+import { Building2, Bus, FileBadge } from "lucide-react";
 
-export type ServiceKey = "MOTOR_PARK" | "MASS_TRANSIT";
+export type ServiceKey = "MOTOR_PARK" | "MASS_TRANSIT" | "REVALIDATION";
 
 export interface ServiceCardConfig {
   id: ServiceKey;
@@ -28,14 +28,23 @@ export const APPLICANT_SERVICE_CARDS: ServiceCardConfig[] = [
     icon: Bus,
     route: "/dashboard/services/mass-transit",
   },
+  {
+    id: "REVALIDATION",
+    title: "Revalidation Services",
+    description: "Revalidation for public & private motor parks, terminals, loading bays, and transport facilities.",
+    icon: FileBadge,
+    route: "/dashboard/services/revalidation",
+  },
 ];
 
 export const SERVICE_LABELS: Record<ServiceKey, string> = {
   MOTOR_PARK: "Motor Park",
   MASS_TRANSIT: "Mass Transit",
+  REVALIDATION: "Revalidation",
 };
 
 export const SERVICE_ROOT_ROUTES: Record<ServiceKey, string> = {
   MOTOR_PARK: "/motor-parks",
   MASS_TRANSIT: "/fleet-operators",
+  REVALIDATION: "/revalidation",
 };

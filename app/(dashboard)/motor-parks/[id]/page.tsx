@@ -93,7 +93,7 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
   const canPayFee = role === "EXTERNAL_APPLICANT" && !!pendingFee;
 
   const canIssueTemporal =
-    ["HOD_PARKS", "COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
+    ["COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
     (status === "INSPECTION_COMPLETED" || status === "PENDING_APPROVAL");
 
   const canDownloadTemporal = status === "TEMPORAL_APPROVAL";
@@ -101,6 +101,10 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
   const canRevoke =
     ["COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
     park.permitStatus === "ACTIVE";
+
+  const canManageStaff =
+    status === "APPROVED" &&
+    ["EXTERNAL_APPLICANT", "HOD_PARKS", "COMMISSIONER", "PERMANENT_SECRETARY"].includes(role);
 
   const pendingInspection = park.inspections.find(
     (i) => i.status === "SCHEDULED",
@@ -119,7 +123,8 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
     !canPayFee &&
     !canRevoke &&
     !canIssueTemporal &&
-    !canDownloadTemporal
+    !canDownloadTemporal &&
+    !canManageStaff
   ) {
     return null;
   }
@@ -179,6 +184,13 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
           <Button asChild size="sm" variant="outline">
             <Link href={`/motor-parks/${park.id}/upload-documents`}>
               Upload Documents
+            </Link>
+          </Button>
+        )}
+        {canManageStaff && (
+          <Button asChild size="sm" variant="outline" className="border-primary text-primary hover:bg-primary/10">
+            <Link href={`/motor-parks/${park.id}/staff`}>
+              Manage Park Staff
             </Link>
           </Button>
         )}
@@ -333,7 +345,7 @@ function InspectionHistory({
 
                           {item.notes && (
                             <div className="bg-secondary/20 p-2 rounded text-[11px] border-l-2 border-border italic text-muted-foreground">
-                              <strong>Inspector Remarks:</strong> {`"${item.notes}"`}
+                              <strong>Inspector Remarks:</strong> &quot;{item.notes}&quot;
                             </div>
                           )}
 
@@ -426,11 +438,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
 
   const park = result.data!;
 
-  const isHodOrPs = [
-    "HOD_PARKS",
-    "HOD_VIS",
-    "HOD_TRANSPORT_OPS",
-    "HOD_PARKS_REVALIDATION",
+  const canApproveDocs = [
     "PERMANENT_SECRETARY",
     "COMMISSIONER",
     "SYSTEM_ADMIN",
@@ -665,7 +673,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
                       </div>
                     )}
 
-                    {isHodOrPs && (
+                    {canApproveDocs && (
                       <form action={async (formData) => {
                         "use server";
                         const approved = formData.get("approved") === "true";
@@ -767,7 +775,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
                       </div>
                     )}
 
-                    {isHodOrPs && (
+                    {canApproveDocs && (
                       <form action={async (formData) => {
                         "use server";
                         const approved = formData.get("approved") === "true";
@@ -869,7 +877,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
                       </div>
                     )}
 
-                    {isHodOrPs && (
+                    {canApproveDocs && (
                       <form action={async (formData) => {
                         "use server";
                         const approved = formData.get("approved") === "true";

@@ -71,6 +71,27 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
 
+  // ── Revalidation Module ──
+  {
+    label: "Revalidation",
+    href: "/revalidation",
+    icon: "📄",
+    allowedRoles: ["EXTERNAL_APPLICANT"],
+  },
+  {
+    label: "Revalidation Queue",
+    href: "/admin/revalidation-queue",
+    icon: "📄",
+    allowedRoles: [
+      "COMMISSIONER",
+      "PERMANENT_SECRETARY",
+      "HOD_PARKS",
+      "HOD_PARKS_REVALIDATION",
+      "FIELD_INSPECTOR",
+      "SYSTEM_ADMIN",
+    ],
+  },
+
   // ── Revenue (EPIC-004, future) ──
   {
     label: "Payments",
@@ -114,12 +135,25 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
 
+  // ── Park Monitors ──
+  {
+    label: "Park Monitors",
+    href: "/admin/park-monitors",
+    icon: "👮",
+    allowedRoles: [
+      "COMMISSIONER",
+      "PERMANENT_SECRETARY",
+      "HOD_PARKS",
+      "SYSTEM_ADMIN",
+    ],
+  },
+
   // ── Admin ──
   {
     label: "Staff & Users",
     href: "/admin/users",
     icon: "👥",
-    allowedRoles: ["PERMANENT_SECRETARY", "SYSTEM_ADMIN"],
+    allowedRoles: ["PERMANENT_SECRETARY","COMMISSIONER", "SYSTEM_ADMIN"],
   },
   {
     label: "Audit Trail",
@@ -165,6 +199,7 @@ const NAV_ITEMS: NavItem[] = [
 const APPLICANT_SERVICE_ROUTES: Record<string, string[]> = {
   MOTOR_PARK: ["/dashboard", "/motor-parks"],
   MASS_TRANSIT: ["/dashboard", "/fleet-operators"],
+  REVALIDATION: ["/dashboard", "/revalidation"],
 };
 
 export function DashboardSidebar({

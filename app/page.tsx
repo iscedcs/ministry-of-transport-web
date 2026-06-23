@@ -11,6 +11,7 @@ import {
   Landmark,
   School,
   Wallet,
+  FileBadge,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,13 @@ const launchModules = [
       "Company onboarding, fleet declarations, branding approval, and annual permit renewal workflows.",
     icon: Bus,
     href: "/register/mass-transit",
+  },
+  {
+    title: "Revalidation Services",
+    description:
+      "Revalidation for public & private motor parks, terminals, loading bays, and transport facilities.",
+    icon: FileBadge,
+    href: "/register/revalidation",
   },
   {
     title: "Revenue and Payments",

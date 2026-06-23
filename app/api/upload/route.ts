@@ -12,12 +12,21 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get("file");
+    const folder = (formData.get("folder") as string) || "cac";
+    const linkedToType = (formData.get("linkedToType") as string) || "MOTOR_PARK";
+
     if (!(file instanceof File) || file.size === 0) {
       return NextResponse.json({ error: "No file provided." }, { status: 400 });
     }
 
     // Call S3/Spaces helper to upload
-    const uploaded = await uploadDocument(file, "cac");
+    let uploaded;
+    if (folder === "passports" && linkedToType === "PARK_MONITOR_APP") {
+      const { uploadParkMonitorPhoto } = await import("@/lib/spaces");
+      uploaded = await uploadParkMonitorPhoto(file);
+    } else {
+      uploaded = await uploadDocument(file, folder);
+    }
 
     // Save document details in database
     const doc = await db.document.create({
@@ -28,7 +37,7 @@ export async function POST(req: Request) {
         fileSize: uploaded.fileSize,
         fileUrl: uploaded.url,
         fileMimeType: uploaded.fileMimeType,
-        linkedToType: "MOTOR_PARK",
+        linkedToType: linkedToType,
         linkedToId: "pending", // updated after parent record is created
       },
       select: { id: true },
