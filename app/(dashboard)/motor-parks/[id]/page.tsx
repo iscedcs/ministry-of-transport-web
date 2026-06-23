@@ -353,6 +353,7 @@ function InspectionHistory({
                             <div className="mt-1 flex flex-col gap-1">
                               <span className="text-[10px] text-muted-foreground font-medium">Evidence Photo:</span>
                               <div className="relative aspect-[4/3] w-32 rounded border border-border overflow-hidden bg-muted group/img">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img src={pUrl} alt="Inspection Evidence" className="object-cover w-full h-full" />
                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                   <a
@@ -935,6 +936,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
               {park.documents.toilet && (
                 <div className="relative group border border-border/50 rounded-lg overflow-hidden bg-background">
                   <div className="aspect-[4/3] w-full bg-muted relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={park.documents.toilet.fileUrl}
                       alt="Toilet/Convenience"
@@ -969,6 +971,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
               {park.documents.waitingArea && (
                 <div className="relative group border border-border/50 rounded-lg overflow-hidden bg-background">
                   <div className="aspect-[4/3] w-full bg-muted relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={park.documents.waitingArea.fileUrl}
                       alt="Waiting Lounge"
@@ -1003,6 +1006,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
               {park.documents.signage && (
                 <div className="relative group border border-border/50 rounded-lg overflow-hidden bg-background">
                   <div className="aspect-[4/3] w-full bg-muted relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={park.documents.signage.fileUrl}
                       alt="Signage"
@@ -1037,6 +1041,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
               {park.documents.waterFacility && (
                 <div className="relative group border border-border/50 rounded-lg overflow-hidden bg-background">
                   <div className="aspect-[4/3] w-full bg-muted relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={park.documents.waterFacility.fileUrl}
                       alt="Water Facility"

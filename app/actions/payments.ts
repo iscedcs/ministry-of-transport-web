@@ -307,7 +307,7 @@ export async function initiateParkMonitorIdPayment(): Promise<never> {
     metadata: {
       entityType: "PARK_MONITOR_APP",
       entityId: app.id,
-      applicantName: `${app.user?.firstName!} ${app.user?.lastName!}`,
+      applicantName: app.user ? `${app.user.firstName} ${app.user.lastName}` : "Applicant",
     },
   });
 

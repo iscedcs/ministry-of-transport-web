@@ -36,7 +36,7 @@ export default async function RevalidationDashboardPage() {
         <Card className="flex flex-col items-center justify-center p-12 text-center border-dashed">
           <CardTitle className="text-lg mb-2">No Applications Found</CardTitle>
           <CardDescription className="mb-6 max-w-sm">
-            You haven't submitted any revalidation applications yet. Click the button below to start.
+            You haven&apos;t submitted any revalidation applications yet. Click the button below to start.
           </CardDescription>
           <Button asChild>
             <Link href="/revalidation/apply">Start Application</Link>

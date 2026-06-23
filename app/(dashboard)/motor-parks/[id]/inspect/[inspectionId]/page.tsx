@@ -230,6 +230,7 @@ function EvidencePhoto({
     return (
       <div className="flex items-center gap-2">
         <div className="relative aspect-[4/3] w-16 rounded border border-border overflow-hidden bg-muted shrink-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={photoUrl} alt="Evidence" className="object-cover w-full h-full" />
         </div>
         <div className="flex flex-col gap-1">
@@ -697,6 +698,7 @@ export default function InspectionChecklistPage() {
                 return (
                   <div key={key} className="relative group border border-border/60 rounded-lg overflow-hidden bg-background">
                     <div className="aspect-[4/3] w-full bg-muted relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={doc.fileUrl} alt={label} className="object-cover w-full h-full" />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <a

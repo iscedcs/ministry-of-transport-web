@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/ui/print-button";
+import Image from "next/image";
 
 export default async function StaffIdCardPage({ params }: { params: Promise<{ id: string, staffId: string }> }) {
   const { id, staffId } = await params;
@@ -30,7 +31,7 @@ export default async function StaffIdCardPage({ params }: { params: Promise<{ id
         
         <div className="flex-1 flex flex-col items-center pt-6 px-4">
           <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-200 border-2 border-primary mb-4">
-            {staff.photoUrl && <img src={staff.photoUrl} className="w-full h-full object-cover" alt="Profile" />}
+            {staff.photoUrl && <Image width={96} height={96} quality={100} priority src={staff.photoUrl} className="w-full h-full object-cover" alt="Profile" />}
           </div>
           
           <h3 className="font-bold text-xl uppercase text-center">{staff.name}</h3>
@@ -47,6 +48,7 @@ export default async function StaffIdCardPage({ params }: { params: Promise<{ id
               <p className="font-mono text-sm font-bold">{staff.securityCode}</p>
             </div>
             {staff.qrCodeUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
               <img src={staff.qrCodeUrl} className="w-16 h-16" alt="Verification QR" />
             )}
           </div>

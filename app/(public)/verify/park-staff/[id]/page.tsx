@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import Image from "next/image";
 
 export default async function VerifyParkStaffPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -25,7 +26,7 @@ export default async function VerifyParkStaffPage({ params }: { params: Promise<
 
         <div className="p-6 flex flex-col items-center">
           {staff.photoUrl ? (
-            <img src={staff.photoUrl} alt={staff.name} className="w-32 h-32 rounded-full border-4 border-background -mt-20 shadow-lg object-cover" />
+            <Image width={128} height={128} src={staff.photoUrl} alt={staff.name} className="w-32 h-32 rounded-full border-4 border-background -mt-20 shadow-lg object-cover" />
           ) : (
              <div className="w-32 h-32 rounded-full border-4 border-background -mt-20 shadow-lg bg-muted flex items-center justify-center text-3xl font-bold">
                {staff.name[0]}

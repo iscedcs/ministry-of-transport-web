@@ -55,7 +55,7 @@ export async function reviewParkMonitorApplication(
       return { success: false, error: "Application not found." };
     }
 
-    let updateData: any = {
+    const updateData: any = {
       status,
       reviewedByUserId: session.userId,
       reviewedAt: new Date(),

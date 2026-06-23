@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { DeleteStaffButton } from "@/components/park-staff/delete-staff-button";
+import Image from "next/image";
 
 export default async function ParkStaffListPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -33,7 +34,7 @@ export default async function ParkStaffListPage({ params }: { params: Promise<{ 
               <div className="flex gap-4 items-center overflow-hidden">
                 <div className="shrink-0 relative">
                   {staff.photoUrl ? (
-                    <img src={staff.photoUrl} alt={staff.name} className="w-14 h-14 rounded-full object-cover shadow-sm ring-1 ring-border" />
+                    <Image width={56} height={56} src={staff.photoUrl} alt={staff.name} className="w-14 h-14 rounded-full object-cover shadow-sm ring-1 ring-border" />
                   ) : (
                     <div className="w-14 h-14 rounded-full bg-muted shadow-sm ring-1 ring-border" />
                   )}
