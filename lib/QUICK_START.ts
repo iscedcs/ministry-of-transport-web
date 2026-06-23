@@ -312,7 +312,7 @@
  *
  * NEXT.JS / AUTH:
  *   NEXTAUTH_SECRET="$(openssl rand -base64 32)"
- *   NEXTAUTH_URL="http://localhost:3000"
+ *   NEXT_PUBLIC_APP_URL="http://localhost:3000"
  *
  * PAYSTACK:
  *   PAYSTACK_SECRET_KEY="sk_test_..."         ← Never expose
