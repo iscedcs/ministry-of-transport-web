@@ -9,13 +9,25 @@ export default async function RevalidationQueuePage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  // Only allow HOD_PARKS_REVALIDATION, HOD_PARKS, COMMISSIONER, PERMANENT_SECRETARY
-  const allowedRoles = ["HOD_PARKS_REVALIDATION", "HOD_PARKS", "COMMISSIONER", "PERMANENT_SECRETARY", "SYSTEM_ADMIN"];
+  // Only allow relevant roles to view the queue
+  const allowedRoles = [
+    "HOD_PARKS_REVALIDATION", 
+    "HOD_PARKS", 
+    "COMMISSIONER", 
+    "PERMANENT_SECRETARY", 
+    "SYSTEM_ADMIN",
+    "FIELD_INSPECTOR",
+    "VEHICLE_INSPECTION_OFFICER"
+  ];
   if (!allowedRoles.includes(session.role)) {
     redirect("/dashboard");
   }
 
+  // If user is an inspector, only show applications assigned to them
+  const isInspector = session.role === "FIELD_INSPECTOR" || session.role === "VEHICLE_INSPECTION_OFFICER";
+  
   const applications = await db.revalidationApplication.findMany({
+    where: isInspector ? { inspectionOfficerId: session.userId } : undefined,
     orderBy: { createdAt: "desc" },
     include: { applicant: true },
   });
