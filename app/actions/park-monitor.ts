@@ -189,7 +189,7 @@ export async function issueParkMonitorId(applicationId: string) {
     }
 
     // Generate unique URL
-    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:8150";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
     const idUrl = `${baseUrl}/verify/park-monitor/${app.id}`;
     
     // In a real implementation, we would generate a QR code image and upload it to Spaces.

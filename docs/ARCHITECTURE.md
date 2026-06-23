@@ -485,7 +485,7 @@
 - DATABASE_URL="postgresql://user:password@host:port/dbname"
 -
 - NEXTAUTH_SECRET="random_secret_key"
-- NEXTAUTH_URL="http://localhost:3000"
+- NEXT_PUBLIC_APP_URL="http://localhost:3000"
 -
 - PAYSTACK*SECRET_KEY="sk_test*..."
 - NEXT*PUBLIC_PAYSTACK_PUBLIC_KEY="pk_test*..."

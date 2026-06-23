@@ -31,9 +31,9 @@ import type { ActionResult } from "@/lib/server-actions-pattern";
 import type { PaymentStatus } from "@prisma/client";
 import { TRANSIT_REGISTRATION_FEE_KOBO } from "@/lib/consts";
 
-/** Base URL for Paystack callback — uses NEXTAUTH_URL (same host) */
+/** Base URL for Paystack callback — uses NEXT_PUBLIC_APP_URL (same host) */
 function getAppUrl(): string {
-  return process.env.NEXTAUTH_URL ?? "http://localhost:8150";
+  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:8150";
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────────
