@@ -114,8 +114,55 @@ export async function psApproveRevalidation(applicationId: string) {
     },
   });
 
+  // Check if MotorPark already exists by ASIN
+  const existingPark = await db.motorPark.findUnique({
+    where: { anssidNumber: app.asinNumber },
+  });
+
+  if (existingPark) {
+    await db.motorPark.update({
+      where: { id: existingPark.id },
+      data: {
+        lastRevalidatedAt: new Date(),
+        nextRevalidationDue: validUntil,
+        applicationStatus: "APPROVED",
+        permitStatus: "ACTIVE",
+        permitExpiresAt: validUntil,
+        permitNumber: revalidationNumber,
+        permitIssuedAt: new Date(),
+      },
+    });
+  } else {
+    // Create new MotorPark from the Revalidation application
+    await db.motorPark.create({
+      data: {
+        businessName: app.parkName,
+        transportCompanyName: app.ownerName,
+        streetAddress: app.physicalLocation,
+        lga: app.lga,
+        townCity: app.townCommunity,
+        anssidNumber: app.asinNumber,
+        cacRegistrationNumber: app.cacRegistrationNumber,
+        contactUserId: app.applicantUserId,
+        contactPerson: app.representativeName,
+        contactPhone: app.phoneNumber,
+        contactEmail: app.emailAddress,
+        managerResidentialAddress: app.residentialAddress,
+        applicationStatus: "APPROVED",
+        permitStatus: "ACTIVE",
+        permitExpiresAt: validUntil,
+        permitNumber: revalidationNumber,
+        permitIssuedAt: new Date(),
+        lastRevalidatedAt: new Date(),
+        nextRevalidationDue: validUntil,
+        approvedAt: new Date(),
+      },
+    });
+  }
+
   revalidatePath(`/admin/revalidation-queue/${applicationId}`);
   revalidatePath(`/admin/revalidation-queue`);
+  revalidatePath(`/motor-parks`);
   return { success: true, data: app };
 }
 
