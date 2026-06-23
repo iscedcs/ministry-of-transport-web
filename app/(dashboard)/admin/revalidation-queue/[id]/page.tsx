@@ -5,12 +5,14 @@ import { StatusPill } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { WorkflowActions } from "./workflow-actions";
 
-export default async function RevalidationDetailsPage({ params }: { params: { id: string } }) {
+export default async function RevalidationDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getSession();
   if (!session) redirect("/login");
 
   const allowedRoles = [
     "HOD_PARKS_REVALIDATION",
+    "HOD_PARKS",
     "COMMISSIONER",
     "PERMANENT_SECRETARY",
     "SYSTEM_ADMIN",
@@ -22,7 +24,7 @@ export default async function RevalidationDetailsPage({ params }: { params: { id
   }
 
   const app = await db.revalidationApplication.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       applicant: true,
       inspectionOfficer: true,
