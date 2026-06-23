@@ -3,13 +3,14 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/badge";
+import Link from "next/link";
 
 export default async function RevalidationQueuePage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  // Only allow HOD_PARKS_REVALIDATION, COMMISSIONER, PERMANENT_SECRETARY
-  const allowedRoles = ["HOD_PARKS_REVALIDATION", "COMMISSIONER", "PERMANENT_SECRETARY", "SYSTEM_ADMIN"];
+  // Only allow HOD_PARKS_REVALIDATION, HOD_PARKS, COMMISSIONER, PERMANENT_SECRETARY
+  const allowedRoles = ["HOD_PARKS_REVALIDATION", "HOD_PARKS", "COMMISSIONER", "PERMANENT_SECRETARY", "SYSTEM_ADMIN"];
   if (!allowedRoles.includes(session.role)) {
     redirect("/dashboard");
   }
@@ -54,8 +55,9 @@ export default async function RevalidationQueuePage() {
                     <td className="p-4">{app.lga}</td>
                     <td className="p-4"><StatusPill status={app.status as any} /></td>
                     <td className="p-4 text-right">
-                      {/* Placeholder for view details page */}
-                      <button className="text-primary hover:underline text-sm font-medium">Review</button>
+                      <Link href={`/admin/revalidation-queue/${app.id}`} className="text-primary hover:underline text-sm font-medium">
+                        Review
+                      </Link>
                     </td>
                   </tr>
                 ))}
