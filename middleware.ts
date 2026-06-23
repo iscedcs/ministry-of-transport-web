@@ -42,6 +42,7 @@ const PUBLIC_PREFIXES = [
   "/_next/",
   "/favicon.ico",
   "/public/",
+  "/verify/",
 ];
 
 /** Routes restricted to Ministry staff only (not External Applicants) */
