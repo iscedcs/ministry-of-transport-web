@@ -15,8 +15,13 @@ export default async function VerifyParkStaffPage({ params }: { params: Promise<
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white text-slate-900 border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
-        <div className="bg-green-600 pt-8 pb-16 px-6 text-center text-white">
+      <div className="max-w-md w-full bg-white text-slate-900 border border-slate-200 rounded-2xl shadow-xl overflow-hidden relative">
+        {/* Watermark */}
+        <div className="absolute inset-0 top-32 flex items-center justify-center pointer-events-none z-0">
+          <Image src="/anambra_mot_logo.png" alt="" width={300} height={300} className="opacity-[0.03] object-contain" />
+        </div>
+
+        <div className="bg-green-600 pt-8 pb-20 px-6 text-center text-white relative z-10">
           <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
             <span className="text-3xl">✓</span>
           </div>
