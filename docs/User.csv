@@ -1,2 +1,0 @@
-"id","email","phone","passwordHash","asinNumber","firstName","lastName","role","departmentId","designation","stationLocation","registeredService","residentialAddress","isActive","emailVerified","phoneVerified","lastLoginAt","createdAt","updatedAt","hasEntranceExitAccess","hasGatehouseAccess"
-"cmpb8hyra000ok4fdxgj13nk2","emekaignatius5@gmail.com","09079568910",,"1234356748526738","Ignatius","Joshua","PARK_MONITOR",,,,"MOTOR_PARK,MASS_TRANSIT","1st Avenue u close Plot 636","true",,,"2026-06-22 21:46:03.56","2026-05-18 13:22:51.574","2026-06-23 02:52:30.489","true","true"

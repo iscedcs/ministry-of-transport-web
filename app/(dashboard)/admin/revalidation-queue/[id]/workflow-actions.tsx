@@ -88,7 +88,7 @@ export function WorkflowActions({
   }
 
   const isHod = role === "HOD_PARKS_REVALIDATION" || role === "SYSTEM_ADMIN";
-  const isInspector = role === "FIELD_INSPECTOR" || role === "VEHICLE_INSPECTION_OFFICER" || isHod;
+  const isInspector = role === "FIELD_INSPECTOR" || role === "VEHICLE_INSPECTION_OFFICER" || role === "SYSTEM_ADMIN";
   const isComm = role === "COMMISSIONER" || role === "SYSTEM_ADMIN";
   const isPs = role === "PERMANENT_SECRETARY" || role === "SYSTEM_ADMIN";
 
@@ -157,10 +157,26 @@ export function WorkflowActions({
         <Card>
           <CardHeader>
             <CardTitle>HOD Approval</CardTitle>
-            <CardDescription>Review inspector findings and sign to forward to Commissioner.</CardDescription>
+            <CardDescription>Review inspector findings and sign to forward to Permanent Secretary.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
-            <Button onClick={() => handleApprove(hodApproveRevalidation, "Forwarded to Commissioner")} disabled={isPending}>
+            <Button onClick={() => handleApprove(hodApproveRevalidation, "Forwarded to Permanent Secretary")} disabled={isPending}>
+              {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Sign & Forward
+            </Button>
+            <Button variant="destructive" onClick={handleReject} disabled={isPending}>Reject</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {status === "PENDING_PS_APPROVAL" && isPs && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Permanent Secretary Signature</CardTitle>
+            <CardDescription>Review findings and sign to forward to Commissioner.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <Button onClick={() => handleApprove(psApproveRevalidation, "Signed and forwarded to Commissioner")} disabled={isPending}>
               {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Sign & Forward
             </Button>
@@ -173,26 +189,10 @@ export function WorkflowActions({
         <Card>
           <CardHeader>
             <CardTitle>Commissioner Signature</CardTitle>
-            <CardDescription>Sign to authorize this revalidation and forward to Permanent Secretary.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            <Button onClick={() => handleApprove(commissionerApproveRevalidation, "Signed and forwarded to PS")} disabled={isPending}>
-              {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              Sign
-            </Button>
-            <Button variant="destructive" onClick={handleReject} disabled={isPending}>Reject</Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {status === "PENDING_PS_APPROVAL" && isPs && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Permanent Secretary Signature</CardTitle>
             <CardDescription>Final signature to approve and generate Revalidation Number.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
-            <Button onClick={() => handleApprove(psApproveRevalidation, "Approved successfully!")} disabled={isPending} className="bg-green-600 hover:bg-green-700">
+            <Button onClick={() => handleApprove(commissionerApproveRevalidation, "Approved successfully!")} disabled={isPending} className="bg-green-600 hover:bg-green-700">
               {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Sign & Approve
             </Button>
