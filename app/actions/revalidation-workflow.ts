@@ -30,11 +30,10 @@ export async function submitRevalidationFindings(
   findings: string,
   recommendation: string
 ) {
-  // Can be inspector or HOD if they do it themselves
+  // Only field inspectors can submit findings
   await requireRole([
     "FIELD_INSPECTOR",
     "VEHICLE_INSPECTION_OFFICER",
-    "HOD_PARKS_REVALIDATION",
     "SYSTEM_ADMIN",
   ]);
 
@@ -59,22 +58,6 @@ export async function hodApproveRevalidation(applicationId: string) {
     where: { id: applicationId },
     data: {
       hodApprovedAt: new Date(),
-      status: "PENDING_COMMISSIONER_APPROVAL",
-    },
-  });
-
-  revalidatePath(`/admin/revalidation-queue/${applicationId}`);
-  revalidatePath(`/admin/revalidation-queue`);
-  return { success: true, data: app };
-}
-
-export async function commissionerApproveRevalidation(applicationId: string) {
-  await requireRole(["COMMISSIONER", "SYSTEM_ADMIN"]);
-
-  const app = await db.revalidationApplication.update({
-    where: { id: applicationId },
-    data: {
-      commissionerApprovedAt: new Date(),
       status: "PENDING_PS_APPROVAL",
     },
   });
@@ -86,6 +69,22 @@ export async function commissionerApproveRevalidation(applicationId: string) {
 
 export async function psApproveRevalidation(applicationId: string) {
   await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+
+  const app = await db.revalidationApplication.update({
+    where: { id: applicationId },
+    data: {
+      psApprovedAt: new Date(),
+      status: "PENDING_COMMISSIONER_APPROVAL",
+    },
+  });
+
+  revalidatePath(`/admin/revalidation-queue/${applicationId}`);
+  revalidatePath(`/admin/revalidation-queue`);
+  return { success: true, data: app };
+}
+
+export async function commissionerApproveRevalidation(applicationId: string) {
+  await requireRole(["COMMISSIONER", "SYSTEM_ADMIN"]);
 
   // Generate Revalidation Number
   const currentYear = new Date().getFullYear();
@@ -106,7 +105,7 @@ export async function psApproveRevalidation(applicationId: string) {
   const app = await db.revalidationApplication.update({
     where: { id: applicationId },
     data: {
-      psApprovedAt: new Date(),
+      commissionerApprovedAt: new Date(),
       approvedAt: new Date(),
       revalidationNumber,
       validUntil,

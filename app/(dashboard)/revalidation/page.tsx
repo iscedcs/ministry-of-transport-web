@@ -53,7 +53,13 @@ export default async function RevalidationDashboardPage() {
                   <p className="text-xs text-muted-foreground">Applied: {app.createdAt.toLocaleDateString()}</p>
                 </div>
                 <div className="flex flex-col items-end gap-3">
-                  <StatusPill status={app.status as any} />
+                  <StatusPill 
+                    status={
+                      ["APPROVED", "REJECTED", "SUBMITTED"].includes(app.status) 
+                        ? (app.status as any) 
+                        : "UNDER_REVIEW"
+                    } 
+                  />
                   {app.revalidationNumber && (
                     <span className="text-xs font-mono bg-secondary px-2 py-1 rounded">
                       {app.revalidationNumber}
