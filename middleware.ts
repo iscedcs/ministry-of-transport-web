@@ -32,6 +32,7 @@ const PUBLIC_ROUTES = [
   "/register",
   "/unauthorized",
   "/apply-park-monitor",
+  "/services",
   "/",
 ];
 

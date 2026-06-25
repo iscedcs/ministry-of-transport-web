@@ -23,11 +23,11 @@ export function Navbar() {
         </div>
 
         <nav className="hidden items-center gap-10 text-sm text-muted-foreground md:flex">
-          <a
-            href="#modules"
+          <Link
+            href="/services"
             className="transition-colors hover:text-foreground">
             Services
-          </a>
+          </Link>
           <a
             href="#workflow"
             className="transition-colors hover:text-foreground">
