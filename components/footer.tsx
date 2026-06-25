@@ -63,7 +63,7 @@ export function Footer() {
                 Accident Reporting
               </a>
               <a
-                href="/apply-park-monitoring"
+                href="/apply-park-monitor"
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
                 Apply For Park Monitoring
               </a>
