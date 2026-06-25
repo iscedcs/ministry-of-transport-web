@@ -53,7 +53,7 @@ const launchModules = [
     description:
       "Role-based operations for Commissioner, Permanent Secretary, HODs, field teams, and finance staff.",
     icon: Landmark,
-    href: null,
+    href: "/staff/login",
   },
   {
     title: "VIS Inspection",
