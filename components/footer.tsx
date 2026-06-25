@@ -62,6 +62,11 @@ export function Footer() {
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
                 Accident Reporting
               </a>
+              <a
+                href="/apply-park-monitoring"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
+                Apply For Park Monitoring
+              </a>
             </nav>
           </div>
 
