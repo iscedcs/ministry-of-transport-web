@@ -34,16 +34,16 @@ export const coreServices = [
     href: "/register/revalidation",
   },
   {
-    title: "Park Monitoring",
+    title: "VIS Inspection",
     description:
-      "Apply to become a verified park monitor and help enforce compliance across Anambra state.",
-    icon: ShieldCheck,
-    href: "/apply-park-monitor",
+    "Private and commercial vehicle inspection intake with insurance and roadworthiness checkpoints.",
+    icon: Car,
+    href: null,
   },
   {
     title: "Revenue and Payments",
     description:
-      "ASIN-linked fee tracking, digital receipts, arrears visibility, and disaggregated revenue reporting.",
+    "ASIN-linked fee tracking, digital receipts, arrears visibility, and disaggregated revenue reporting.",
     icon: Wallet,
     href: null,
   },
@@ -55,11 +55,11 @@ export const coreServices = [
     href: "/staff/login",
   },
   {
-    title: "VIS Inspection",
+    title: "Park Monitoring",
     description:
-      "Private and commercial vehicle inspection intake with insurance and roadworthiness checkpoints.",
-    icon: Car,
-    href: null,
+      "Apply to become a verified park monitor and help enforce compliance across Anambra state.",
+    icon: ShieldCheck,
+    href: "/apply-park-monitor",
   },
   {
     title: "Accident Reporting (AVIR)",
