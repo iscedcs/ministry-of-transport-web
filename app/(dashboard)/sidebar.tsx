@@ -14,6 +14,8 @@ import type { UserRole } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { ROLE_LABELS } from "@/lib/utils/labels";
+import { X } from "lucide-react";
+import { useMobileMenu } from "./mobile-menu-context";
 
 // ─── Nav item definition ─────────────────────────────────────────────────────
 
@@ -211,6 +213,7 @@ export function DashboardSidebar({
   registeredService?: string | null;
 }) {
   const pathname = usePathname();
+  const { isOpen, close } = useMobileMenu();
 
   const visibleItems = NAV_ITEMS.filter((item) => {
     if (item.allowedRoles !== "ALL" && !item.allowedRoles.includes(role)) {
@@ -235,30 +238,55 @@ export function DashboardSidebar({
   });
 
   return (
-    <aside className="w-(--sidebar-width,260px) h-full bg-card border-r border-border/50 flex flex-col overflow-y-auto overflow-x-hidden flex-shrink-0">
-      {/* Brand */}
-      <div className="px-5 pt-5 pb-4 border-b border-border/50">
-        <div className="flex items-censter gap-3">
-          <Image
-            width={100}
-            height={100}
-            src="/anambra_mot_logo.png"
-            alt=""
-            quality={100}
-            priority
-            className="w-10 h-10"
-          />
+    <>
+      {/* Dark Backdrop Overlay for Mobile Drawer */}
+      {isOpen && (
+        <div
+          onClick={close}
+          className="fixed inset-0 bg-black/60 z-40 backdrop-blur-xs md:hidden animate-in fade-in duration-300"
+          aria-hidden="true"
+        />
+      )}
 
-          <div>
-            <p
-              className="font-bold text-sm text-foreground leading-tight"
-              style={{ fontFamily: "var(--font-display)" }}>
-              MOT Platform
-            </p>
-            <p className="text-xs text-muted-foreground">{ROLE_LABELS[role]}</p>
+      <aside
+        className={cn(
+          "w-(--sidebar-width,260px) h-full bg-card border-r border-border/50 flex flex-col overflow-y-auto overflow-x-hidden flex-shrink-0 transition-transform duration-300 ease-in-out z-50",
+          "fixed inset-y-0 left-0 md:static md:translate-x-0",
+          isOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full md:shadow-none"
+        )}
+      >
+        {/* Brand */}
+        <div className="px-5 pt-5 pb-4 border-b border-border/50 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Image
+              width={100}
+              height={100}
+              src="/anambra_mot_logo.png"
+              alt=""
+              quality={100}
+              priority
+              className="w-10 h-10"
+            />
+
+            <div>
+              <p
+                className="font-bold text-sm text-foreground leading-tight"
+                style={{ fontFamily: "var(--font-display)" }}>
+                MOT Platform
+              </p>
+              <p className="text-xs text-muted-foreground">{ROLE_LABELS[role]}</p>
+            </div>
           </div>
+
+          {/* Mobile Close Button */}
+          <button
+            onClick={close}
+            className="md:hidden p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+            aria-label="Close navigation menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-      </div>
 
       {/* Nav */}
       <nav aria-label="Main navigation" className="p-3 flex-1">
@@ -273,6 +301,7 @@ export function DashboardSidebar({
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={close}
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
                     "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
@@ -298,5 +327,6 @@ export function DashboardSidebar({
         </p>
       </div>
     </aside>
+    </>
   );
 }
