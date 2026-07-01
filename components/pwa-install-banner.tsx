@@ -22,28 +22,26 @@ export function PwaInstallBanner() {
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
 
   useEffect(() => {
-    // Check if already running as an installed PWA
-    const standalone = window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-    setIsStandalone(standalone);
+    // Run checks asynchronously inside a timer to prevent synchronous setState within effect body
+    const initTimer = setTimeout(() => {
+      const standalone = window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+      setIsStandalone(standalone);
 
-    if (standalone) return;
+      if (standalone) return;
 
-    // Check if user dismissed the banner previously (in the last 7 days)
-    const dismissedTime = localStorage.getItem("mot-pwa-banner-dismissed");
-    if (dismissedTime && Date.now() - parseInt(dismissedTime, 10) < 7 * 24 * 60 * 60 * 1000) {
-      return;
-    }
+      const dismissedTime = localStorage.getItem("mot-pwa-banner-dismissed");
+      if (dismissedTime && Date.now() - parseInt(dismissedTime, 10) < 7 * 24 * 60 * 60 * 1000) {
+        return;
+      }
 
-    // Detect iOS
-    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream?: unknown }).MSStream;
-    setIsIOS(ios);
+      const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream?: unknown }).MSStream;
+      setIsIOS(ios);
 
-    if (ios) {
-      // Show iOS prompt after a slight delay for better user experience
-      const timer = setTimeout(() => setIsVisible(true), 2500);
-      return () => clearTimeout(timer);
-    }
+      if (ios) {
+        setIsVisible(true);
+      }
+    }, 100);
 
     // Handle standard beforeinstallprompt (Chrome, Edge, Android)
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -55,6 +53,7 @@ export function PwaInstallBanner() {
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
 
     return () => {
+      clearTimeout(initTimer);
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     };
   }, []);
