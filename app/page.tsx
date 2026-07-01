@@ -49,7 +49,7 @@ export default function Home() {
       <Navbar />
       <main className="relative bg-background text-foreground">
         {/* HERO SECTION */}
-        <section className="relative min-h-150 overflow-hidden md:min-h-175 flex items-center justify-center">
+        <section className="relative min-h-screen overflow-hidden flex items-center justify-center">
           {/* Background Image Carousel */}
           <div className="absolute inset-0">
             {/* Image 1 - Road */}
@@ -94,6 +94,19 @@ export default function Home() {
               priority
             />
           </div>
+
+           <div className="absolute inset-0">
+            {/* Image 4 - Street Scene */}
+            <Image
+              src="/hero-image.jpeg"
+              alt="Transport hub"
+              fill
+              className="object-cover animate-hero-fade-5"
+              priority
+            />
+          </div>
+
+         
 
           {/* Dark Overlay - Main */}
           <div className="absolute inset-0 bg-linear-to-b from-[rgb(0,0,0,0.5)] via-[rgb(0,0,0,0.6)] to-[rgb(0,0,0,0.65)]" />
@@ -169,6 +182,10 @@ export default function Home() {
 
             :global(.animate-hero-fade-4) {
               animation: fadeIn 12s infinite 9s;
+            }
+
+             :global(.animate-hero-fade-5) {
+              animation: fadeIn 12s infinite 12s;
             }
           `}</style>
         </section>

@@ -8,6 +8,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import { Toaster } from "sonner";
+import { PwaRegister } from "@/components/pwa-register";
+import { PwaInstallBanner } from "@/components/pwa-install-banner";
+import { SmoothScroll } from "@/components/smooth-scroll";
 
 import "./globals.css";
 
@@ -37,7 +40,7 @@ export const metadata: Metadata = {
   },
   description:
     "Integrated Transport Services Automation Platform — Motor Park approvals, Mass Transit registration, AVIR reporting, and compliance management for Anambra State.",
-  robots: { index: false, follow: false }, // Internal platform — not for public indexing
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({
@@ -50,9 +53,10 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}>
       <body className="min-h-dvh bg-background text-foreground">
-        {children}
-                          <Toaster richColors position="bottom-right"/>
-
+        <SmoothScroll>{children}</SmoothScroll>
+        <PwaRegister />
+        <PwaInstallBanner />
+       <Toaster richColors position="bottom-right"/>
       </body>
     </html>
   );

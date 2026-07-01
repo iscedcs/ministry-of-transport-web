@@ -34,6 +34,9 @@ const PUBLIC_ROUTES = [
   "/apply-park-monitor",
   "/services",
   "/",
+  "/sw.js",
+  "/manifest.json",
+  "/manifest.webmanifest",
 ];
 
 /** Route prefixes that are entirely public (e.g. webhooks) */
@@ -44,6 +47,7 @@ const PUBLIC_PREFIXES = [
   "/favicon.ico",
   "/public/",
   "/verify/",
+  "/icons/",
 ];
 
 /** Routes restricted to Ministry staff only (not External Applicants) */
@@ -134,9 +138,9 @@ export const config = {
      * Match all request paths except:
      * - _next/static (static files)
      * - _next/image (image optimization)
-     * - favicon.ico
+     * - favicon.ico, sw.js, manifest
      * - public folder files (images, fonts, etc.)
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.(?:json|webmanifest)|icons/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2)$).*)",
   ],
 };
