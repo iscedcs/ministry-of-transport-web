@@ -13,7 +13,7 @@ export default async function ParkStaffListPage({ params }: { params: Promise<{ 
     include: { parkStaff: { orderBy: { parkSerialNumber: 'asc' } } }
   });
 
-  if (!park || park.applicationStatus !== "APPROVED") notFound();
+  if (!park || (park.applicationStatus !== "APPROVED" && park.applicationStatus !== "TEMPORAL_APPROVAL")) notFound();
 
   return (
     <div className="max-w-5xl space-y-6">

@@ -103,7 +103,7 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
     park.permitStatus === "ACTIVE";
 
   const canManageStaff =
-    status === "APPROVED" &&
+    (status === "APPROVED" || status === "TEMPORAL_APPROVAL") &&
     ["EXTERNAL_APPLICANT", "HOD_PARKS", "COMMISSIONER", "PERMANENT_SECRETARY"].includes(role);
 
   const pendingInspection = park.inspections.find(

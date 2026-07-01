@@ -15,8 +15,8 @@ export async function onboardParkStaff(data: {
       select: { id: true, businessName: true, applicationStatus: true },
     });
 
-    if (!park || park.applicationStatus !== "APPROVED") {
-      return { success: false, error: "Only approved motor parks can onboard staff." };
+    if (!park || (park.applicationStatus !== "APPROVED" && park.applicationStatus !== "TEMPORAL_APPROVAL")) {
+      return { success: false, error: "Only approved or temporally approved motor parks can onboard staff." };
     }
 
     // Determine next serial number

@@ -17,16 +17,27 @@ export function Navbar() {
             priority
             className="w-10 h-10"
           />
-          <p className="font-display text-sm font-semibold uppercase tracking-[0.12em] text-foreground">
-            Ministry of Transport
-          </p>
+          <div>
+              <p className="font-bold text-sm text-foreground leading-tight">
+                Anambra State Government
+              </p>
+              <p className="text-xs font-semibold text-primary uppercase tracking-wider">
+                Ministry of Transport
+              </p>
+            </div>
         </div>
 
-        <nav className="hidden items-center gap-10 text-sm text-muted-foreground md:flex">
+        <nav className="hidden items-center gap-10 text-sm text-foreground md:flex">
           <Link
             href="/services"
             className="transition-colors hover:text-foreground">
             Services
+          </Link>
+          <Link
+            href="/verify/motor-parks"
+            className="transition-colors text-primary font-medium hover:text-foreground flex items-center gap-1">
+            <ShieldCheck className="w-4 h-4" />
+            <span>Verify Park</span>
           </Link>
           <a
             href="#workflow"

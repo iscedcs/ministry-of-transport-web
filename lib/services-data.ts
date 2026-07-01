@@ -29,9 +29,23 @@ export const coreServices = [
   {
     title: "Revalidation Services",
     description:
-      "Revalidation for public & private motor parks, terminals, loading bays, and transport facilities.",
+    "Revalidation for public & private motor parks, terminals, loading bays, and transport facilities.",
     icon: FileBadge,
     href: "/register/revalidation",
+  },
+  {
+    title: "Park Monitoring",
+    description:
+      "Apply to become a verified park monitor and help enforce compliance across Anambra state.",
+    icon: ShieldCheck,
+    href: "/apply-park-monitor",
+  },
+  {
+    title: "Ministry Administration",
+    description:
+    "Role-based operations for Commissioner, Permanent Secretary, HODs, field teams, and finance staff.",
+    icon: Landmark,
+    href: "/staff/login",
   },
   {
     title: "VIS Inspection",
@@ -46,20 +60,6 @@ export const coreServices = [
     "ASIN-linked fee tracking, digital receipts, arrears visibility, and disaggregated revenue reporting.",
     icon: Wallet,
     href: null,
-  },
-  {
-    title: "Ministry Administration",
-    description:
-      "Role-based operations for Commissioner, Permanent Secretary, HODs, field teams, and finance staff.",
-    icon: Landmark,
-    href: "/staff/login",
-  },
-  {
-    title: "Park Monitoring",
-    description:
-      "Apply to become a verified park monitor and help enforce compliance across Anambra state.",
-    icon: ShieldCheck,
-    href: "/apply-park-monitor",
   },
   {
     title: "Accident Reporting (AVIR)",
