@@ -90,6 +90,7 @@ const NAV_ITEMS: NavItem[] = [
       "HOD_PARKS",
       "HOD_PARKS_REVALIDATION",
       "FIELD_INSPECTOR",
+      "VEHICLE_INSPECTION_OFFICER",
       "SYSTEM_ADMIN",
     ],
   },
