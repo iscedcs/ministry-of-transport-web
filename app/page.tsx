@@ -387,9 +387,9 @@ export default function Home() {
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <Button asChild size="lg">
+              {/* <Button asChild size="lg">
                 <Link href="/register">Create Account</Link>
-              </Button>
+              </Button> */}
               <Button asChild size="lg" variant="outline">
                 <Link href="/login">Sign In</Link>
               </Button>

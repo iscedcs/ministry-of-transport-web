@@ -183,7 +183,9 @@ export function Footer() {
             </div>
             <div>
               <p className="text-muted-foreground">Last Updated</p>
-              <p className="text-foreground font-semibold mt-1">4 May 2026</p>
+              <p className="text-foreground font-semibold mt-1">
+                {process.env.NEXT_PUBLIC_LAST_UPDATED || "4 May 2026"}
+              </p>
             </div>
           </div>
         </div>
