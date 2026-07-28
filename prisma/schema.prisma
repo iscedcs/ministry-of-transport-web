@@ -1389,7 +1389,7 @@ model BoatRider {
   id            String       @id @default(cuid())
   fullName      String
   phoneNumber   String
-  licenseNumber String       @unique
+  licenseNumber String?      @unique
   status        PermitStatus @default(ACTIVE)
 
   createdAt DateTime @default(now())

@@ -15,12 +15,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   onboardBoat,
   onboardRider,
   reassignRider,
+  assignStickerToBoat,
   addStickerUrlsToPool,
 } from "@/app/actions/boats";
 import { toast } from "sonner";
@@ -51,7 +58,7 @@ interface BoatItem {
     id: string;
     fullName: string;
     phoneNumber: string;
-    licenseNumber: string;
+    licenseNumber: string | null;
   } | null;
   sticker: {
     id: string;
@@ -65,7 +72,7 @@ interface RiderItem {
   id: string;
   fullName: string;
   phoneNumber: string;
-  licenseNumber: string;
+  licenseNumber: string | null;
   status: string;
   boats?: { id: string; name: string; registrationNumber: string }[];
 }
@@ -76,7 +83,11 @@ interface StickerItem {
   stickerCode: string | null;
   isAssigned: boolean;
   assignedBoatId: string | null;
-  assignedBoat?: { id: string; name: string; registrationNumber: string } | null;
+  assignedBoat?: {
+    id: string;
+    name: string;
+    registrationNumber: string;
+  } | null;
 }
 
 interface BoatsClientProps {
@@ -93,13 +104,16 @@ export default function BoatsClient({
   initialAllStickers,
 }: BoatsClientProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"boats" | "stickers" | "riders">("boats");
+  const [activeTab, setActiveTab] = useState<"boats" | "stickers" | "riders">(
+    "boats",
+  );
   const [searchQuery, setSearchQuery] = useState("");
 
   // Modals state
   const [isOnboardBoatOpen, setIsOnboardBoatOpen] = useState(false);
   const [isOnboardRiderOpen, setIsOnboardRiderOpen] = useState(false);
   const [isReassignRiderOpen, setIsReassignRiderOpen] = useState(false);
+  const [isAssignStickerOpen, setIsAssignStickerOpen] = useState(false);
   const [isAddStickersOpen, setIsAddStickersOpen] = useState(false);
 
   // Form states
@@ -120,8 +134,13 @@ export default function BoatsClient({
     licenseNumber: "",
   });
 
-  const [selectedBoatForReassign, setSelectedBoatForReassign] = useState<BoatItem | null>(null);
+  const [selectedBoatForReassign, setSelectedBoatForReassign] =
+    useState<BoatItem | null>(null);
   const [reassignRiderId, setReassignRiderId] = useState<string>("none");
+
+  const [selectedBoatForSticker, setSelectedBoatForSticker] =
+    useState<BoatItem | null>(null);
+  const [assignStickerId, setAssignStickerId] = useState<string>("none");
 
   const [batchStickerUrls, setBatchStickerUrls] = useState("");
   const [loading, setLoading] = useState(false);
@@ -153,12 +172,18 @@ export default function BoatsClient({
         capacity: Number(boatForm.capacity) || 10,
         engineNumber: boatForm.engineNumber,
         chassisNumber: boatForm.chassisNumber,
-        stickerId: boatForm.stickerId !== "none" ? boatForm.stickerId : undefined,
-        assignedRiderId: boatForm.assignedRiderId !== "none" ? boatForm.assignedRiderId : undefined,
+        stickerId:
+          boatForm.stickerId !== "none" ? boatForm.stickerId : undefined,
+        assignedRiderId:
+          boatForm.assignedRiderId !== "none"
+            ? boatForm.assignedRiderId
+            : undefined,
       });
 
       if (res.success && res.data) {
-        toast.success(`Boat '${res.data.name}' onboarded successfully! Security Code: ${res.data.securityCode}`);
+        toast.success(
+          `Boat '${res.data.name}' onboarded successfully! Security Code: ${res.data.securityCode}`,
+        );
         setIsOnboardBoatOpen(false);
         setBoatForm({
           name: "",
@@ -183,8 +208,8 @@ export default function BoatsClient({
 
   async function handleOnboardRider(e: React.FormEvent) {
     e.preventDefault();
-    if (!riderForm.fullName || !riderForm.phoneNumber || !riderForm.licenseNumber) {
-      toast.error("All rider fields are required.");
+    if (!riderForm.fullName || !riderForm.phoneNumber) {
+      toast.error("Full name and phone number are required.");
       return;
     }
     setLoading(true);
@@ -192,7 +217,7 @@ export default function BoatsClient({
       const res = await onboardRider({
         fullName: riderForm.fullName,
         phoneNumber: riderForm.phoneNumber,
-        licenseNumber: riderForm.licenseNumber,
+        licenseNumber: riderForm.licenseNumber || undefined,
       });
 
       if (res.success && res.data) {
@@ -210,15 +235,46 @@ export default function BoatsClient({
     }
   }
 
+  async function handleAssignStickerSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedBoatForSticker) return;
+    setLoading(true);
+    try {
+      const res = await assignStickerToBoat(
+        selectedBoatForSticker.id,
+        assignStickerId,
+      );
+      if (res.success) {
+        toast.success(
+          `Sticker assignment updated for '${selectedBoatForSticker.name}'.`,
+        );
+        setIsAssignStickerOpen(false);
+        setSelectedBoatForSticker(null);
+        router.refresh();
+      } else {
+        toast.error(res.error || "Failed to assign sticker.");
+      }
+    } catch (err: any) {
+      toast.error("An error occurred.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleReassignRiderSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedBoatForReassign) return;
     setLoading(true);
     try {
       const targetRiderId = reassignRiderId === "none" ? null : reassignRiderId;
-      const res = await reassignRider(selectedBoatForReassign.id, targetRiderId);
+      const res = await reassignRider(
+        selectedBoatForReassign.id,
+        targetRiderId,
+      );
       if (res.success) {
-        toast.success(`Rider reassigned for boat '${selectedBoatForReassign.name}'.`);
+        toast.success(
+          `Rider reassigned for boat '${selectedBoatForReassign.name}'.`,
+        );
         setIsReassignRiderOpen(false);
         setSelectedBoatForReassign(null);
         router.refresh();
@@ -273,12 +329,12 @@ export default function BoatsClient({
           <div>
             <h1
               className="text-2xl font-bold text-foreground"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
+              style={{ fontFamily: "var(--font-display)" }}>
               Boats & Waterways Fleet
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Maritime transport vessel onboarding, rider management, & security QR verification.
+              Maritime transport vessel onboarding, rider management, & security
+              QR verification.
             </p>
           </div>
         </div>
@@ -287,8 +343,7 @@ export default function BoatsClient({
           <Button
             onClick={() => setIsOnboardRiderOpen(true)}
             variant="outline"
-            size="sm"
-          >
+            size="sm">
             <UserPlus className="w-4 h-4 mr-1.5 text-primary" />
             Add Rider
           </Button>
@@ -296,16 +351,12 @@ export default function BoatsClient({
           <Button
             onClick={() => setIsAddStickersOpen(true)}
             variant="outline"
-            size="sm"
-          >
+            size="sm">
             <Tag className="w-4 h-4 mr-1.5 text-warning" />
             Pre-Load Stickers
           </Button>
 
-          <Button
-            onClick={() => setIsOnboardBoatOpen(true)}
-            size="sm"
-          >
+          <Button onClick={() => setIsOnboardBoatOpen(true)} size="sm">
             <Plus className="w-4 h-4 mr-1.5" />
             Onboard Boat
           </Button>
@@ -320,7 +371,9 @@ export default function BoatsClient({
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Total Onboarded Boats
               </p>
-              <h3 className="text-2xl font-bold mt-1 text-foreground">{initialBoats.length}</h3>
+              <h3 className="text-2xl font-bold mt-1 text-foreground">
+                {initialBoats.length}
+              </h3>
             </div>
             <div className="w-10 h-10 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
               <Anchor className="w-5 h-5" />
@@ -334,7 +387,9 @@ export default function BoatsClient({
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Active Boat Riders
               </p>
-              <h3 className="text-2xl font-bold mt-1 text-foreground">{initialRiders.length}</h3>
+              <h3 className="text-2xl font-bold mt-1 text-foreground">
+                {initialRiders.length}
+              </h3>
             </div>
             <div className="w-10 h-10 bg-emerald-500/10 text-emerald-400 rounded-lg flex items-center justify-center">
               <UserCheck className="w-5 h-5" />
@@ -348,7 +403,9 @@ export default function BoatsClient({
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Available Stickers Pool
               </p>
-              <h3 className="text-2xl font-bold mt-1 text-primary">{initialAvailableStickers.length}</h3>
+              <h3 className="text-2xl font-bold mt-1 text-primary">
+                {initialAvailableStickers.length}
+              </h3>
             </div>
             <div className="w-10 h-10 bg-amber-500/10 text-amber-400 rounded-lg flex items-center justify-center">
               <Tag className="w-5 h-5" />
@@ -382,8 +439,7 @@ export default function BoatsClient({
               activeTab === "boats"
                 ? "px-4 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 shadow-sm"
                 : "px-4 py-1.5 rounded-full text-xs font-medium text-muted-foreground border border-border hover:bg-secondary transition-colors"
-            }
-          >
+            }>
             Boat Fleet ({filteredBoats.length})
           </button>
           <button
@@ -392,8 +448,7 @@ export default function BoatsClient({
               activeTab === "riders"
                 ? "px-4 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 shadow-sm"
                 : "px-4 py-1.5 rounded-full text-xs font-medium text-muted-foreground border border-border hover:bg-secondary transition-colors"
-            }
-          >
+            }>
             Riders / Drivers ({initialRiders.length})
           </button>
           <button
@@ -402,8 +457,7 @@ export default function BoatsClient({
               activeTab === "stickers"
                 ? "px-4 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 shadow-sm"
                 : "px-4 py-1.5 rounded-full text-xs font-medium text-muted-foreground border border-border hover:bg-secondary transition-colors"
-            }
-          >
+            }>
             Sticker Inventory ({initialAllStickers.length})
           </button>
         </div>
@@ -440,20 +494,28 @@ export default function BoatsClient({
               <tbody className="divide-y divide-border text-foreground">
                 {filteredBoats.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                      No boats found. Click <strong className="text-foreground">Onboard Boat</strong> to register a vessel.
+                    <td
+                      colSpan={7}
+                      className="p-8 text-center text-muted-foreground">
+                      No boats found. Click{" "}
+                      <strong className="text-foreground">Onboard Boat</strong>{" "}
+                      to register a vessel.
                     </td>
                   </tr>
                 ) : (
                   filteredBoats.map((boat) => (
-                    <tr key={boat.id} className="hover:bg-secondary/50 transition-colors">
+                    <tr
+                      key={boat.id}
+                      className="hover:bg-secondary/50 transition-colors">
                       <td className="px-4 py-3 font-medium">
                         <div className="flex items-center space-x-3">
                           <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
                             ⛵
                           </div>
                           <div>
-                            <div className="font-semibold text-foreground">{boat.name}</div>
+                            <div className="font-semibold text-foreground">
+                              {boat.name}
+                            </div>
                             <div className="text-xs text-muted-foreground">
                               {boat.boatType} • {boat.capacity || 10} Pax
                             </div>
@@ -472,8 +534,12 @@ export default function BoatsClient({
                       <td className="px-4 py-3">
                         {boat.assignedRider ? (
                           <div>
-                            <div className="font-medium text-foreground">{boat.assignedRider.fullName}</div>
-                            <div className="text-xs text-muted-foreground">{boat.assignedRider.phoneNumber}</div>
+                            <div className="font-medium text-foreground">
+                              {boat.assignedRider.fullName}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {boat.assignedRider.phoneNumber}
+                            </div>
                           </div>
                         ) : (
                           <span className="text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
@@ -488,7 +554,9 @@ export default function BoatsClient({
                             {boat.sticker.stickerCode || "Linked"}
                           </span>
                         ) : (
-                          <span className="text-xs text-muted-foreground">No Sticker</span>
+                          <span className="text-xs text-muted-foreground">
+                            No Sticker
+                          </span>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -501,21 +569,33 @@ export default function BoatsClient({
                           size="sm"
                           variant="outline"
                           onClick={() => {
+                            setSelectedBoatForSticker(boat);
+                            setAssignStickerId(boat.sticker?.id || "none");
+                            setIsAssignStickerOpen(true);
+                          }}
+                          className="h-8 text-xs my-2 border-border">
+                          <Tag className="w-3 h-3 mr-1 text-amber-400" />
+                          {boat.sticker ? "Change Sticker" : "Assign Sticker"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
                             setSelectedBoatForReassign(boat);
                             setReassignRiderId(boat.assignedRiderId || "none");
                             setIsReassignRiderOpen(true);
                           }}
-                          className="h-8 text-xs border-border"
-                        >
+                          className="h-8 text-xs border-border">
                           <RefreshCw className="w-3 h-3 mr-1 text-primary" />
                           Reassign Rider
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => window.open(`/verify/boat/${boat.id}`, "_blank")}
-                          className="h-8 text-xs text-primary hover:bg-primary/10"
-                        >
+                          onClick={() =>
+                            window.open(`/verify/boat/${boat.id}`, "_blank")
+                          }
+                          className="h-8 text-xs text-primary hover:bg-primary/10">
                           <ExternalLink className="w-3 h-3 mr-1" />
                           Public Card
                         </Button>
@@ -545,20 +625,28 @@ export default function BoatsClient({
               <tbody className="divide-y divide-border text-foreground">
                 {initialRiders.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-muted-foreground">
-                      No boat riders registered yet. Click <strong className="text-foreground">Add Rider</strong> to create one.
+                    <td
+                      colSpan={5}
+                      className="p-8 text-center text-muted-foreground">
+                      No boat riders registered yet. Click{" "}
+                      <strong className="text-foreground">Add Rider</strong> to
+                      create one.
                     </td>
                   </tr>
                 ) : (
                   initialRiders.map((rider) => (
-                    <tr key={rider.id} className="hover:bg-secondary/50 transition-colors">
+                    <tr
+                      key={rider.id}
+                      className="hover:bg-secondary/50 transition-colors">
                       <td className="px-4 py-3 font-semibold text-foreground flex items-center space-x-2">
                         <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs border border-primary/20">
                           {rider.fullName[0]}
                         </div>
                         <span>{rider.fullName}</span>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">{rider.phoneNumber}</td>
+                      <td className="px-4 py-3 text-muted-foreground">
+                        {rider.phoneNumber}
+                      </td>
                       <td className="px-4 py-3 font-mono font-medium text-foreground">
                         {rider.licenseNumber}
                       </td>
@@ -566,13 +654,17 @@ export default function BoatsClient({
                         {rider.boats && rider.boats.length > 0 ? (
                           <div className="space-y-1">
                             {rider.boats.map((b) => (
-                              <span key={b.id} className="text-xs bg-secondary text-foreground px-2 py-0.5 rounded border border-border mr-1 inline-block">
+                              <span
+                                key={b.id}
+                                className="text-xs bg-secondary text-foreground px-2 py-0.5 rounded border border-border mr-1 inline-block">
                                 ⛵ {b.name} ({b.registrationNumber})
                               </span>
                             ))}
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground italic">Not assigned to any boat</span>
+                          <span className="text-xs text-muted-foreground italic">
+                            Not assigned to any boat
+                          </span>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -593,8 +685,12 @@ export default function BoatsClient({
         <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
           <div className="p-4 bg-secondary border-b border-border flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-foreground">Pre-Loaded Physical Sticker Inventory</h3>
-              <p className="text-xs text-muted-foreground">QR Sticker URLs provided by vendor waiting to be bound to boats.</p>
+              <h3 className="font-semibold text-foreground">
+                Pre-Loaded Physical Sticker Inventory
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                QR Sticker URLs provided by vendor waiting to be bound to boats.
+              </p>
             </div>
             <Button size="sm" onClick={() => setIsAddStickersOpen(true)}>
               <Plus className="w-3.5 h-3.5 mr-1" />
@@ -614,13 +710,21 @@ export default function BoatsClient({
               <tbody className="divide-y divide-border text-foreground">
                 {initialAllStickers.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-muted-foreground">
-                      No physical stickers pre-loaded. Click <strong className="text-foreground">Pre-Load Stickers</strong> to add QR URLs.
+                    <td
+                      colSpan={4}
+                      className="p-8 text-center text-muted-foreground">
+                      No physical stickers pre-loaded. Click{" "}
+                      <strong className="text-foreground">
+                        Pre-Load Stickers
+                      </strong>{" "}
+                      to add QR URLs.
                     </td>
                   </tr>
                 ) : (
                   initialAllStickers.map((stk) => (
-                    <tr key={stk.id} className="hover:bg-secondary/50 transition-colors">
+                    <tr
+                      key={stk.id}
+                      className="hover:bg-secondary/50 transition-colors">
                       <td className="px-4 py-3 font-mono font-semibold text-foreground">
                         {stk.stickerCode || "N/A"}
                       </td>
@@ -641,10 +745,13 @@ export default function BoatsClient({
                       <td className="px-4 py-3 font-medium">
                         {stk.assignedBoat ? (
                           <span>
-                            {stk.assignedBoat.name} ({stk.assignedBoat.registrationNumber})
+                            {stk.assignedBoat.name} (
+                            {stk.assignedBoat.registrationNumber})
                           </span>
                         ) : (
-                          <span className="text-muted-foreground text-xs italic">—</span>
+                          <span className="text-muted-foreground text-xs italic">
+                            —
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -666,7 +773,8 @@ export default function BoatsClient({
                 <span>Onboard New Boat</span>
               </DialogTitle>
               <DialogDescription className="text-muted-foreground">
-                Register boat details. The system will auto-generate a unique security code.
+                Register boat details. The system will auto-generate a unique
+                security code.
               </DialogDescription>
             </DialogHeader>
 
@@ -677,7 +785,9 @@ export default function BoatsClient({
                   id="boat-name"
                   placeholder="e.g. Water Queen 1"
                   value={boatForm.name}
-                  onChange={(e) => setBoatForm({ ...boatForm, name: e.target.value })}
+                  onChange={(e) =>
+                    setBoatForm({ ...boatForm, name: e.target.value })
+                  }
                   className="bg-secondary border-border"
                   required
                 />
@@ -690,7 +800,12 @@ export default function BoatsClient({
                     id="reg-num"
                     placeholder="e.g. MOT-BOAT-001"
                     value={boatForm.registrationNumber}
-                    onChange={(e) => setBoatForm({ ...boatForm, registrationNumber: e.target.value })}
+                    onChange={(e) =>
+                      setBoatForm({
+                        ...boatForm,
+                        registrationNumber: e.target.value,
+                      })
+                    }
                     className="bg-secondary border-border"
                     required
                   />
@@ -700,9 +815,12 @@ export default function BoatsClient({
                   <Label htmlFor="boat-type">Boat Category</Label>
                   <Select
                     value={boatForm.boatType}
-                    onValueChange={(val) => setBoatForm({ ...boatForm, boatType: val })}
-                  >
-                    <SelectTrigger id="boat-type" className="bg-secondary border-border">
+                    onValueChange={(val) =>
+                      setBoatForm({ ...boatForm, boatType: val })
+                    }>
+                    <SelectTrigger
+                      id="boat-type"
+                      className="bg-secondary border-border">
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                     <SelectContent className="bg-popover border-border">
@@ -723,7 +841,9 @@ export default function BoatsClient({
                     type="number"
                     placeholder="10"
                     value={boatForm.capacity}
-                    onChange={(e) => setBoatForm({ ...boatForm, capacity: e.target.value })}
+                    onChange={(e) =>
+                      setBoatForm({ ...boatForm, capacity: e.target.value })
+                    }
                     className="bg-secondary border-border"
                   />
                 </div>
@@ -733,7 +853,9 @@ export default function BoatsClient({
                     id="engine-no"
                     placeholder="e.g. ENG-9920"
                     value={boatForm.engineNumber}
-                    onChange={(e) => setBoatForm({ ...boatForm, engineNumber: e.target.value })}
+                    onChange={(e) =>
+                      setBoatForm({ ...boatForm, engineNumber: e.target.value })
+                    }
                     className="bg-secondary border-border"
                   />
                 </div>
@@ -741,42 +863,59 @@ export default function BoatsClient({
 
               {/* Sticker Selector from Pool */}
               <div className="space-y-1.5">
-                <Label htmlFor="sticker-select">Assign Pre-Loaded QR Sticker (Optional)</Label>
+                <Label htmlFor="sticker-select">
+                  Assign Pre-Loaded QR Sticker (Optional)
+                </Label>
                 <Select
                   value={boatForm.stickerId}
-                  onValueChange={(val) => setBoatForm({ ...boatForm, stickerId: val })}
-                >
-                  <SelectTrigger id="sticker-select" className="bg-secondary border-border">
+                  onValueChange={(val) =>
+                    setBoatForm({ ...boatForm, stickerId: val })
+                  }>
+                  <SelectTrigger
+                    id="sticker-select"
+                    className="bg-secondary border-border">
                     <SelectValue placeholder="Select sticker from pool" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover border-border">
-                    <SelectItem value="none">No Sticker (Assign Later)</SelectItem>
+                    <SelectItem value="none">
+                      No Sticker (Assign Later)
+                    </SelectItem>
                     {initialAvailableStickers.map((stk) => (
                       <SelectItem key={stk.id} value={stk.id}>
-                        {stk.stickerCode ? `Code: ${stk.stickerCode}` : stk.stickerUrl}
+                        {stk.stickerCode
+                          ? `Code: ${stk.stickerCode}`
+                          : stk.stickerUrl}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {initialAvailableStickers.length === 0 && (
                   <p className="text-xs text-warning italic">
-                    No available stickers in pool. You can pre-load stickers anytime.
+                    No available stickers in pool. You can pre-load stickers
+                    anytime.
                   </p>
                 )}
               </div>
 
               {/* Rider Selector */}
               <div className="space-y-1.5">
-                <Label htmlFor="rider-select">Assign Initial Rider / Operator (Optional)</Label>
+                <Label htmlFor="rider-select">
+                  Assign Initial Rider / Operator (Optional)
+                </Label>
                 <Select
                   value={boatForm.assignedRiderId}
-                  onValueChange={(val) => setBoatForm({ ...boatForm, assignedRiderId: val })}
-                >
-                  <SelectTrigger id="rider-select" className="bg-secondary border-border">
+                  onValueChange={(val) =>
+                    setBoatForm({ ...boatForm, assignedRiderId: val })
+                  }>
+                  <SelectTrigger
+                    id="rider-select"
+                    className="bg-secondary border-border">
                     <SelectValue placeholder="Select active rider" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover border-border">
-                    <SelectItem value="none">Unassigned / Assign Later</SelectItem>
+                    <SelectItem value="none">
+                      Unassigned / Assign Later
+                    </SelectItem>
                     {initialRiders.map((r) => (
                       <SelectItem key={r.id} value={r.id}>
                         {r.fullName} ({r.licenseNumber})
@@ -788,7 +927,10 @@ export default function BoatsClient({
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsOnboardBoatOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsOnboardBoatOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={loading}>
@@ -808,7 +950,9 @@ export default function BoatsClient({
                 <UserPlus className="w-5 h-5 text-primary" />
                 <span>Register Boat Rider / Driver</span>
               </DialogTitle>
-              <DialogDescription className="text-muted-foreground">Add a licensed marine operator into the system.</DialogDescription>
+              <DialogDescription className="text-muted-foreground">
+                Add a licensed marine operator into the system.
+              </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4 text-sm">
@@ -818,7 +962,9 @@ export default function BoatsClient({
                   id="rider-name"
                   placeholder="e.g. Captain John Doe"
                   value={riderForm.fullName}
-                  onChange={(e) => setRiderForm({ ...riderForm, fullName: e.target.value })}
+                  onChange={(e) =>
+                    setRiderForm({ ...riderForm, fullName: e.target.value })
+                  }
                   className="bg-secondary border-border"
                   required
                 />
@@ -830,27 +976,38 @@ export default function BoatsClient({
                   id="rider-phone"
                   placeholder="08012345678"
                   value={riderForm.phoneNumber}
-                  onChange={(e) => setRiderForm({ ...riderForm, phoneNumber: e.target.value })}
+                  onChange={(e) =>
+                    setRiderForm({ ...riderForm, phoneNumber: e.target.value })
+                  }
                   className="bg-secondary border-border"
                   required
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="rider-license">Marine Operator License No. *</Label>
+                <Label htmlFor="rider-license">
+                  Marine Operator License No.
+                </Label>
                 <Input
                   id="rider-license"
                   placeholder="e.g. MAR-99821"
                   value={riderForm.licenseNumber}
-                  onChange={(e) => setRiderForm({ ...riderForm, licenseNumber: e.target.value })}
+                  onChange={(e) =>
+                    setRiderForm({
+                      ...riderForm,
+                      licenseNumber: e.target.value,
+                    })
+                  }
                   className="bg-secondary border-border"
-                  required
                 />
               </div>
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsOnboardRiderOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsOnboardRiderOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={loading}>
@@ -871,7 +1028,8 @@ export default function BoatsClient({
                 <span>Reassign Rider for Boat</span>
               </DialogTitle>
               <DialogDescription className="text-muted-foreground">
-                Reassign driver operating <strong>{selectedBoatForReassign?.name}</strong>.
+                Reassign driver operating{" "}
+                <strong>{selectedBoatForReassign?.name}</strong>.
               </DialogDescription>
             </DialogHeader>
 
@@ -879,14 +1037,19 @@ export default function BoatsClient({
               <div className="space-y-1.5">
                 <Label>Selected Boat</Label>
                 <div className="p-3 bg-secondary rounded-lg font-medium border border-border">
-                  ⛵ {selectedBoatForReassign?.name} ({selectedBoatForReassign?.registrationNumber})
+                  ⛵ {selectedBoatForReassign?.name} (
+                  {selectedBoatForReassign?.registrationNumber})
                 </div>
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="reassign-select">Select New Rider</Label>
-                <Select value={reassignRiderId} onValueChange={(val) => setReassignRiderId(val)}>
-                  <SelectTrigger id="reassign-select" className="bg-secondary border-border">
+                <Select
+                  value={reassignRiderId}
+                  onValueChange={(val) => setReassignRiderId(val)}>
+                  <SelectTrigger
+                    id="reassign-select"
+                    className="bg-secondary border-border">
                     <SelectValue placeholder="Select rider" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover border-border">
@@ -902,11 +1065,86 @@ export default function BoatsClient({
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsReassignRiderOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsReassignRiderOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={loading}>
                 {loading ? "Updating..." : "Update Assignment"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modal: Assign / Bind QR Sticker ── */}
+      <Dialog open={isAssignStickerOpen} onOpenChange={setIsAssignStickerOpen}>
+        <DialogContent className="sm:max-w-md bg-popover border-border text-popover-foreground">
+          <form onSubmit={handleAssignStickerSubmit}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center space-x-2">
+                <Tag className="w-5 h-5 text-primary" />
+                <span>Assign / Bind QR Sticker to Boat</span>
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground">
+                Select an available pre-loaded physical sticker for{" "}
+                <strong>{selectedBoatForSticker?.name}</strong>.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4 text-sm">
+              <div className="space-y-1.5">
+                <Label>Target Boat</Label>
+                <div className="p-3 bg-secondary rounded-lg font-medium border border-border">
+                  ⛵ {selectedBoatForSticker?.name} (
+                  {selectedBoatForSticker?.registrationNumber})
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="sticker-assign-select">
+                  Select Physical Sticker from Pool
+                </Label>
+                <Select
+                  value={assignStickerId}
+                  onValueChange={(val) => setAssignStickerId(val)}>
+                  <SelectTrigger
+                    id="sticker-assign-select"
+                    className="bg-secondary border-border">
+                    <SelectValue placeholder="Select sticker from pool" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-border">
+                    <SelectItem value="none">No Sticker (Unassign)</SelectItem>
+                    {selectedBoatForSticker?.sticker && (
+                      <SelectItem value={selectedBoatForSticker.sticker.id}>
+                        Current:{" "}
+                        {selectedBoatForSticker.sticker.stickerCode ||
+                          selectedBoatForSticker.sticker.stickerUrl}
+                      </SelectItem>
+                    )}
+                    {initialAvailableStickers.map((stk) => (
+                      <SelectItem key={stk.id} value={stk.id}>
+                        {stk.stickerCode
+                          ? `Code: ${stk.stickerCode}`
+                          : stk.stickerUrl}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAssignStickerOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? "Saving..." : "Save Sticker Assignment"}
               </Button>
             </DialogFooter>
           </form>
@@ -923,13 +1161,16 @@ export default function BoatsClient({
                 <span>Pre-Load Physical Sticker URLs</span>
               </DialogTitle>
               <DialogDescription className="text-muted-foreground">
-                Paste QR code sticker URLs provided by the team (one URL per line).
+                Paste QR code sticker URLs provided by the team (one URL per
+                line).
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4 text-sm">
               <div className="space-y-1.5">
-                <Label htmlFor="sticker-urls">Sticker URLs List (One per line) *</Label>
+                <Label htmlFor="sticker-urls">
+                  Sticker URLs List (One per line) *
+                </Label>
                 <Textarea
                   id="sticker-urls"
                   rows={5}
@@ -943,7 +1184,10 @@ export default function BoatsClient({
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsAddStickersOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddStickersOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={loading}>

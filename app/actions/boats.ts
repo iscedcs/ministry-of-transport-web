@@ -17,7 +17,7 @@ export interface OnboardBoatInput {
 export interface OnboardRiderInput {
   fullName: string;
   phoneNumber: string;
-  licenseNumber: string;
+  licenseNumber?: string;
 }
 
 // ─── Sticker Inventory Pool Actions ──────────────────────────────────────────
@@ -148,17 +148,46 @@ export async function onboardBoat(input: OnboardBoatInput) {
     return { success: false, error: error?.message || "Failed to onboard boat." };
   }
 }
+export async function assignStickerToBoat(boatId: string, stickerId: string) {
+  try {
+    // Unassign any currently assigned sticker on this boat
+    await db.boatSticker.updateMany({
+      where: { assignedBoatId: boatId },
+      data: { isAssigned: false, assignedBoatId: null, assignedAt: null },
+    });
+
+    if (stickerId && stickerId !== "none") {
+      await db.boatSticker.update({
+        where: { id: stickerId },
+        data: {
+          isAssigned: true,
+          assignedBoatId: boatId,
+          assignedAt: new Date(),
+        },
+      });
+    }
+
+    revalidatePath("/boats");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error assigning sticker to boat:", error);
+    return { success: false, error: "Failed to assign sticker to boat." };
+  }
+}
 
 export async function onboardRider(input: OnboardRiderInput) {
   try {
-    if (!input.fullName || !input.phoneNumber || !input.licenseNumber) {
-      return { success: false, error: "Full name, phone number, and license number are required." };
+    if (!input.fullName || !input.phoneNumber) {
+      return { success: false, error: "Full name and phone number are required." };
     }
 
-    const licUpper = input.licenseNumber.trim().toUpperCase();
-    const existingLic = await db.boatRider.findUnique({ where: { licenseNumber: licUpper } });
-    if (existingLic) {
-      return { success: false, error: `A rider with license number '${licUpper}' already exists.` };
+    let licUpper: string | null = null;
+    if (input.licenseNumber && input.licenseNumber.trim().length > 0) {
+      licUpper = input.licenseNumber.trim().toUpperCase();
+      const existingLic = await db.boatRider.findUnique({ where: { licenseNumber: licUpper } });
+      if (existingLic) {
+        return { success: false, error: `A rider with license number '${licUpper}' already exists.` };
+      }
     }
 
     const rider = await db.boatRider.create({
