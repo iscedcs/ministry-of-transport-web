@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -263,20 +263,23 @@ export default function BoatsClient({
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 text-white p-6 rounded-2xl shadow-lg border border-slate-800">
-        <div className="space-y-1">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-green-500/20 text-green-400 rounded-xl border border-green-500/30">
-              <Ship className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Boats & Waterways Fleet</h1>
-              <p className="text-sm text-slate-400">
-                Maritime transport vessel onboarding, rider management, & security QR verification.
-              </p>
-            </div>
+    <div className="flex flex-col gap-6 max-w-6xl">
+      {/* Header Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 bg-card border border-border rounded-xl shadow-sm">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center justify-center">
+            <Ship className="w-5 h-5" />
+          </div>
+          <div>
+            <h1
+              className="text-2xl font-bold text-foreground"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              Boats & Waterways Fleet
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Maritime transport vessel onboarding, rider management, & security QR verification.
+            </p>
           </div>
         </div>
 
@@ -284,26 +287,26 @@ export default function BoatsClient({
           <Button
             onClick={() => setIsOnboardRiderOpen(true)}
             variant="outline"
-            className="border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200"
+            size="sm"
           >
-            <UserPlus className="w-4 h-4 mr-2 text-green-400" />
+            <UserPlus className="w-4 h-4 mr-1.5 text-primary" />
             Add Rider
           </Button>
 
           <Button
             onClick={() => setIsAddStickersOpen(true)}
             variant="outline"
-            className="border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200"
+            size="sm"
           >
-            <Tag className="w-4 h-4 mr-2 text-amber-400" />
+            <Tag className="w-4 h-4 mr-1.5 text-warning" />
             Pre-Load Stickers
           </Button>
 
           <Button
             onClick={() => setIsOnboardBoatOpen(true)}
-            className="bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-900/30"
+            size="sm"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-4 h-4 mr-1.5" />
             Onboard Boat
           </Button>
         </div>
@@ -311,87 +314,95 @@ export default function BoatsClient({
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+        <Card className="bg-card border-border shadow-sm">
           <CardContent className="p-5 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Onboarded Boats</p>
-              <h3 className="text-2xl font-bold mt-1 text-slate-900 dark:text-white">{initialBoats.length}</h3>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Total Onboarded Boats
+              </p>
+              <h3 className="text-2xl font-bold mt-1 text-foreground">{initialBoats.length}</h3>
             </div>
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-bold">
-              <Anchor className="w-6 h-6" />
+            <div className="w-10 h-10 bg-primary/10 text-primary rounded-lg flex items-center justify-center">
+              <Anchor className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+        <Card className="bg-card border-border shadow-sm">
           <CardContent className="p-5 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Active Boat Riders</p>
-              <h3 className="text-2xl font-bold mt-1 text-slate-900 dark:text-white">{initialRiders.length}</h3>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Active Boat Riders
+              </p>
+              <h3 className="text-2xl font-bold mt-1 text-foreground">{initialRiders.length}</h3>
             </div>
-            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center font-bold">
-              <UserCheck className="w-6 h-6" />
+            <div className="w-10 h-10 bg-emerald-500/10 text-emerald-400 rounded-lg flex items-center justify-center">
+              <UserCheck className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+        <Card className="bg-card border-border shadow-sm">
           <CardContent className="p-5 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Available Stickers Pool</p>
-              <h3 className="text-2xl font-bold mt-1 text-amber-600">{initialAvailableStickers.length}</h3>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Available Stickers Pool
+              </p>
+              <h3 className="text-2xl font-bold mt-1 text-primary">{initialAvailableStickers.length}</h3>
             </div>
-            <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center font-bold">
-              <Tag className="w-6 h-6" />
+            <div className="w-10 h-10 bg-amber-500/10 text-amber-400 rounded-lg flex items-center justify-center">
+              <Tag className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+        <Card className="bg-card border-border shadow-sm">
           <CardContent className="p-5 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Linked QR Stickers</p>
-              <h3 className="text-2xl font-bold mt-1 text-purple-600">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Linked QR Stickers
+              </p>
+              <h3 className="text-2xl font-bold mt-1 text-foreground">
                 {initialAllStickers.filter((s) => s.isAssigned).length}
               </h3>
             </div>
-            <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center font-bold">
-              <QrCode className="w-6 h-6" />
+            <div className="w-10 h-10 bg-blue-500/10 text-blue-400 rounded-lg flex items-center justify-center">
+              <QrCode className="w-5 h-5" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Tabs & Search Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-3">
-        <div className="flex items-center space-x-2">
+      {/* Tabs & Search Filter Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setActiveTab("boats")}
-            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+            className={
               activeTab === "boats"
-                ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-            }`}
+                ? "px-4 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 shadow-sm"
+                : "px-4 py-1.5 rounded-full text-xs font-medium text-muted-foreground border border-border hover:bg-secondary transition-colors"
+            }
           >
             Boat Fleet ({filteredBoats.length})
           </button>
           <button
             onClick={() => setActiveTab("riders")}
-            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+            className={
               activeTab === "riders"
-                ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-            }`}
+                ? "px-4 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 shadow-sm"
+                : "px-4 py-1.5 rounded-full text-xs font-medium text-muted-foreground border border-border hover:bg-secondary transition-colors"
+            }
           >
             Riders / Drivers ({initialRiders.length})
           </button>
           <button
             onClick={() => setActiveTab("stickers")}
-            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+            className={
               activeTab === "stickers"
-                ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-            }`}
+                ? "px-4 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20 shadow-sm"
+                : "px-4 py-1.5 rounded-full text-xs font-medium text-muted-foreground border border-border hover:bg-secondary transition-colors"
+            }
           >
             Sticker Inventory ({initialAllStickers.length})
           </button>
@@ -399,12 +410,12 @@ export default function BoatsClient({
 
         {activeTab === "boats" && (
           <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Search boats, reg, security code..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 bg-white dark:bg-slate-900 text-sm"
+              className="pl-9 bg-secondary border-border text-xs text-foreground"
             />
           </div>
         )}
@@ -412,80 +423,80 @@ export default function BoatsClient({
 
       {/* Main Tab Content */}
       {activeTab === "boats" && (
-        <Card className="border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-700">
+              <thead className="bg-secondary border-b border-border text-muted-foreground font-semibold text-xs uppercase tracking-wider">
                 <tr>
-                  <th className="p-4">Boat Details</th>
-                  <th className="p-4">Registration No.</th>
-                  <th className="p-4">Security Code</th>
-                  <th className="p-4">Assigned Rider</th>
-                  <th className="p-4">Sticker QR</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4 text-right">Actions</th>
+                  <th className="px-4 py-3">Boat Details</th>
+                  <th className="px-4 py-3">Registration No.</th>
+                  <th className="px-4 py-3">Security Code</th>
+                  <th className="px-4 py-3">Assigned Rider</th>
+                  <th className="px-4 py-3">Sticker QR</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
+              <tbody className="divide-y divide-border text-foreground">
                 {filteredBoats.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-slate-500">
-                      No boats found. Click <strong>Onboard Boat</strong> to register a vessel.
+                    <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                      No boats found. Click <strong className="text-foreground">Onboard Boat</strong> to register a vessel.
                     </td>
                   </tr>
                 ) : (
                   filteredBoats.map((boat) => (
-                    <tr key={boat.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="p-4 font-medium">
+                    <tr key={boat.id} className="hover:bg-secondary/50 transition-colors">
+                      <td className="px-4 py-3 font-medium">
                         <div className="flex items-center space-x-3">
-                          <div className="w-9 h-9 bg-blue-100 text-blue-700 rounded-lg flex items-center justify-center font-bold text-xs">
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
                             ⛵
                           </div>
                           <div>
-                            <div className="font-semibold text-slate-900 dark:text-white">{boat.name}</div>
-                            <div className="text-xs text-slate-500">
-                              {boat.boatType} • {boat.capacity || 10} Pax Capacity
+                            <div className="font-semibold text-foreground">{boat.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {boat.boatType} • {boat.capacity || 10} Pax
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="p-4 font-mono font-medium text-slate-700 dark:text-slate-300">
+                      <td className="px-4 py-3 font-mono font-medium text-foreground">
                         {boat.registrationNumber}
                       </td>
-                      <td className="p-4">
-                        <Badge variant="outline" className="font-mono bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
+                      <td className="px-4 py-3">
+                        <span className="font-mono text-xs px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 font-semibold inline-flex items-center">
                           <ShieldCheck className="w-3 h-3 mr-1" />
                           {boat.securityCode}
-                        </Badge>
+                        </span>
                       </td>
-                      <td className="p-4">
+                      <td className="px-4 py-3">
                         {boat.assignedRider ? (
                           <div>
-                            <div className="font-medium text-slate-900 dark:text-white">{boat.assignedRider.fullName}</div>
-                            <div className="text-xs text-slate-500">{boat.assignedRider.phoneNumber}</div>
+                            <div className="font-medium text-foreground">{boat.assignedRider.fullName}</div>
+                            <div className="text-xs text-muted-foreground">{boat.assignedRider.phoneNumber}</div>
                           </div>
                         ) : (
-                          <span className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-950 dark:text-amber-300 px-2 py-1 rounded">
+                          <span className="text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
                             Unassigned
                           </span>
                         )}
                       </td>
-                      <td className="p-4">
+                      <td className="px-4 py-3">
                         {boat.sticker ? (
-                          <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border-none flex items-center w-fit">
+                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 inline-flex items-center">
                             <Tag className="w-3 h-3 mr-1" />
                             {boat.sticker.stickerCode || "Linked"}
-                          </Badge>
+                          </span>
                         ) : (
-                          <span className="text-xs text-slate-400">No Sticker</span>
+                          <span className="text-xs text-muted-foreground">No Sticker</span>
                         )}
                       </td>
-                      <td className="p-4">
-                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-none">
+                      <td className="px-4 py-3">
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                           {boat.status}
-                        </Badge>
+                        </span>
                       </td>
-                      <td className="p-4 text-right space-x-2">
+                      <td className="px-4 py-3 text-right space-x-2">
                         <Button
                           size="sm"
                           variant="outline"
@@ -494,19 +505,19 @@ export default function BoatsClient({
                             setReassignRiderId(boat.assignedRiderId || "none");
                             setIsReassignRiderOpen(true);
                           }}
-                          className="h-8 text-xs border-slate-300"
+                          className="h-8 text-xs border-border"
                         >
-                          <RefreshCw className="w-3 h-3 mr-1" />
+                          <RefreshCw className="w-3 h-3 mr-1 text-primary" />
                           Reassign Rider
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => window.open(`/verify/boat/${boat.id}`, "_blank")}
-                          className="h-8 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          className="h-8 text-xs text-primary hover:bg-primary/10"
                         >
                           <ExternalLink className="w-3 h-3 mr-1" />
-                          Public Verification
+                          Public Card
                         </Button>
                       </td>
                     </tr>
@@ -515,57 +526,59 @@ export default function BoatsClient({
               </tbody>
             </table>
           </div>
-        </Card>
+        </div>
       )}
 
       {activeTab === "riders" && (
-        <Card className="border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-700">
+              <thead className="bg-secondary border-b border-border text-muted-foreground font-semibold text-xs uppercase tracking-wider">
                 <tr>
-                  <th className="p-4">Rider Name</th>
-                  <th className="p-4">Phone Number</th>
-                  <th className="p-4">Marine License No.</th>
-                  <th className="p-4">Currently Operating</th>
-                  <th className="p-4">Status</th>
+                  <th className="px-4 py-3">Rider Name</th>
+                  <th className="px-4 py-3">Phone Number</th>
+                  <th className="px-4 py-3">Marine License No.</th>
+                  <th className="px-4 py-3">Currently Operating</th>
+                  <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
+              <tbody className="divide-y divide-border text-foreground">
                 {initialRiders.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-500">
-                      No boat riders registered yet. Click <strong>Add Rider</strong> to create one.
+                    <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                      No boat riders registered yet. Click <strong className="text-foreground">Add Rider</strong> to create one.
                     </td>
                   </tr>
                 ) : (
                   initialRiders.map((rider) => (
-                    <tr key={rider.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="p-4 font-semibold text-slate-900 dark:text-white flex items-center space-x-2">
-                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs">
+                    <tr key={rider.id} className="hover:bg-secondary/50 transition-colors">
+                      <td className="px-4 py-3 font-semibold text-foreground flex items-center space-x-2">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs border border-primary/20">
                           {rider.fullName[0]}
                         </div>
                         <span>{rider.fullName}</span>
                       </td>
-                      <td className="p-4 text-slate-600 dark:text-slate-400">{rider.phoneNumber}</td>
-                      <td className="p-4 font-mono font-medium text-slate-700 dark:text-slate-300">
+                      <td className="px-4 py-3 text-muted-foreground">{rider.phoneNumber}</td>
+                      <td className="px-4 py-3 font-mono font-medium text-foreground">
                         {rider.licenseNumber}
                       </td>
-                      <td className="p-4">
+                      <td className="px-4 py-3">
                         {rider.boats && rider.boats.length > 0 ? (
                           <div className="space-y-1">
                             {rider.boats.map((b) => (
-                              <Badge key={b.id} variant="secondary" className="text-xs bg-slate-100 text-slate-800 mr-1">
+                              <span key={b.id} className="text-xs bg-secondary text-foreground px-2 py-0.5 rounded border border-border mr-1 inline-block">
                                 ⛵ {b.name} ({b.registrationNumber})
-                              </Badge>
+                              </span>
                             ))}
                           </div>
                         ) : (
-                          <span className="text-xs text-slate-400 italic">Not assigned to any boat</span>
+                          <span className="text-xs text-muted-foreground italic">Not assigned to any boat</span>
                         )}
                       </td>
-                      <td className="p-4">
-                        <Badge className="bg-emerald-100 text-emerald-800 border-none">{rider.status}</Badge>
+                      <td className="px-4 py-3">
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          {rider.status}
+                        </span>
                       </td>
                     </tr>
                   ))
@@ -573,61 +586,65 @@ export default function BoatsClient({
               </tbody>
             </table>
           </div>
-        </Card>
+        </div>
       )}
 
       {activeTab === "stickers" && (
-        <Card className="border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-          <div className="p-4 bg-slate-50 border-b border-slate-200 dark:bg-slate-800/40 flex items-center justify-between">
+        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <div className="p-4 bg-secondary border-b border-border flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-slate-900 dark:text-white">Pre-Loaded Physical Sticker Inventory</h3>
-              <p className="text-xs text-slate-500">QR Sticker URLs provided by vendor waiting to be bound to boats.</p>
+              <h3 className="font-semibold text-foreground">Pre-Loaded Physical Sticker Inventory</h3>
+              <p className="text-xs text-muted-foreground">QR Sticker URLs provided by vendor waiting to be bound to boats.</p>
             </div>
-            <Button size="sm" onClick={() => setIsAddStickersOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white">
+            <Button size="sm" onClick={() => setIsAddStickersOpen(true)}>
               <Plus className="w-3.5 h-3.5 mr-1" />
               Pre-Load Stickers
             </Button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-700">
+              <thead className="bg-secondary border-b border-border text-muted-foreground font-semibold text-xs uppercase tracking-wider">
                 <tr>
-                  <th className="p-4">Sticker Code</th>
-                  <th className="p-4">Sticker Target QR URL</th>
-                  <th className="p-4">Assignment State</th>
-                  <th className="p-4">Bound Boat</th>
+                  <th className="px-4 py-3">Sticker Code</th>
+                  <th className="px-4 py-3">Sticker Target QR URL</th>
+                  <th className="px-4 py-3">Assignment State</th>
+                  <th className="px-4 py-3">Bound Boat</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
+              <tbody className="divide-y divide-border text-foreground">
                 {initialAllStickers.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-slate-500">
-                      No physical stickers pre-loaded. Click <strong>Pre-Load Stickers</strong> to add QR URLs.
+                    <td colSpan={4} className="p-8 text-center text-muted-foreground">
+                      No physical stickers pre-loaded. Click <strong className="text-foreground">Pre-Load Stickers</strong> to add QR URLs.
                     </td>
                   </tr>
                 ) : (
                   initialAllStickers.map((stk) => (
-                    <tr key={stk.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="p-4 font-mono font-semibold text-slate-900 dark:text-white">
+                    <tr key={stk.id} className="hover:bg-secondary/50 transition-colors">
+                      <td className="px-4 py-3 font-mono font-semibold text-foreground">
                         {stk.stickerCode || "N/A"}
                       </td>
-                      <td className="p-4 font-mono text-xs text-slate-600 dark:text-slate-400 max-w-xs truncate">
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground max-w-xs truncate">
                         {stk.stickerUrl}
                       </td>
-                      <td className="p-4">
+                      <td className="px-4 py-3">
                         {stk.isAssigned ? (
-                          <Badge className="bg-green-100 text-green-800 border-none">Assigned</Badge>
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            Assigned
+                          </span>
                         ) : (
-                          <Badge className="bg-amber-100 text-amber-800 border-none">Available Pool</Badge>
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                            Available Pool
+                          </span>
                         )}
                       </td>
-                      <td className="p-4 font-medium">
+                      <td className="px-4 py-3 font-medium">
                         {stk.assignedBoat ? (
                           <span>
                             {stk.assignedBoat.name} ({stk.assignedBoat.registrationNumber})
                           </span>
                         ) : (
-                          <span className="text-slate-400 text-xs italic">—</span>
+                          <span className="text-muted-foreground text-xs italic">—</span>
                         )}
                       </td>
                     </tr>
@@ -636,19 +653,19 @@ export default function BoatsClient({
               </tbody>
             </table>
           </div>
-        </Card>
+        </div>
       )}
 
       {/* ── Modal: Onboard Boat ── */}
       <Dialog open={isOnboardBoatOpen} onOpenChange={setIsOnboardBoatOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg bg-popover border-border text-popover-foreground">
           <form onSubmit={handleOnboardBoat}>
             <DialogHeader>
               <DialogTitle className="flex items-center space-x-2">
-                <Ship className="w-5 h-5 text-green-600" />
+                <Ship className="w-5 h-5 text-primary" />
                 <span>Onboard New Boat</span>
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-muted-foreground">
                 Register boat details. The system will auto-generate a unique security code.
               </DialogDescription>
             </DialogHeader>
@@ -661,6 +678,7 @@ export default function BoatsClient({
                   placeholder="e.g. Water Queen 1"
                   value={boatForm.name}
                   onChange={(e) => setBoatForm({ ...boatForm, name: e.target.value })}
+                  className="bg-secondary border-border"
                   required
                 />
               </div>
@@ -673,6 +691,7 @@ export default function BoatsClient({
                     placeholder="e.g. MOT-BOAT-001"
                     value={boatForm.registrationNumber}
                     onChange={(e) => setBoatForm({ ...boatForm, registrationNumber: e.target.value })}
+                    className="bg-secondary border-border"
                     required
                   />
                 </div>
@@ -683,10 +702,10 @@ export default function BoatsClient({
                     value={boatForm.boatType}
                     onValueChange={(val) => setBoatForm({ ...boatForm, boatType: val })}
                   >
-                    <SelectTrigger id="boat-type">
+                    <SelectTrigger id="boat-type" className="bg-secondary border-border">
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-popover border-border">
                       <SelectItem value="SPEEDBOAT">Speedboat</SelectItem>
                       <SelectItem value="FERRY">Passenger Ferry</SelectItem>
                       <SelectItem value="CANOE">Motorized Canoe</SelectItem>
@@ -705,6 +724,7 @@ export default function BoatsClient({
                     placeholder="10"
                     value={boatForm.capacity}
                     onChange={(e) => setBoatForm({ ...boatForm, capacity: e.target.value })}
+                    className="bg-secondary border-border"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -714,6 +734,7 @@ export default function BoatsClient({
                     placeholder="e.g. ENG-9920"
                     value={boatForm.engineNumber}
                     onChange={(e) => setBoatForm({ ...boatForm, engineNumber: e.target.value })}
+                    className="bg-secondary border-border"
                   />
                 </div>
               </div>
@@ -725,10 +746,10 @@ export default function BoatsClient({
                   value={boatForm.stickerId}
                   onValueChange={(val) => setBoatForm({ ...boatForm, stickerId: val })}
                 >
-                  <SelectTrigger id="sticker-select" className="bg-amber-50/50 border-amber-200">
+                  <SelectTrigger id="sticker-select" className="bg-secondary border-border">
                     <SelectValue placeholder="Select sticker from pool" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-popover border-border">
                     <SelectItem value="none">No Sticker (Assign Later)</SelectItem>
                     {initialAvailableStickers.map((stk) => (
                       <SelectItem key={stk.id} value={stk.id}>
@@ -738,7 +759,7 @@ export default function BoatsClient({
                   </SelectContent>
                 </Select>
                 {initialAvailableStickers.length === 0 && (
-                  <p className="text-xs text-amber-600 italic">
+                  <p className="text-xs text-warning italic">
                     No available stickers in pool. You can pre-load stickers anytime.
                   </p>
                 )}
@@ -751,10 +772,10 @@ export default function BoatsClient({
                   value={boatForm.assignedRiderId}
                   onValueChange={(val) => setBoatForm({ ...boatForm, assignedRiderId: val })}
                 >
-                  <SelectTrigger id="rider-select">
+                  <SelectTrigger id="rider-select" className="bg-secondary border-border">
                     <SelectValue placeholder="Select active rider" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-popover border-border">
                     <SelectItem value="none">Unassigned / Assign Later</SelectItem>
                     {initialRiders.map((r) => (
                       <SelectItem key={r.id} value={r.id}>
@@ -770,7 +791,7 @@ export default function BoatsClient({
               <Button type="button" variant="outline" onClick={() => setIsOnboardBoatOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading} className="bg-green-600 hover:bg-green-700 text-white">
+              <Button type="submit" disabled={loading}>
                 {loading ? "Onboarding..." : "Onboard Boat"}
               </Button>
             </DialogFooter>
@@ -780,14 +801,14 @@ export default function BoatsClient({
 
       {/* ── Modal: Add Rider ── */}
       <Dialog open={isOnboardRiderOpen} onOpenChange={setIsOnboardRiderOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-popover border-border text-popover-foreground">
           <form onSubmit={handleOnboardRider}>
             <DialogHeader>
               <DialogTitle className="flex items-center space-x-2">
-                <UserPlus className="w-5 h-5 text-emerald-600" />
+                <UserPlus className="w-5 h-5 text-primary" />
                 <span>Register Boat Rider / Driver</span>
               </DialogTitle>
-              <DialogDescription>Add a licensed marine operator into the system.</DialogDescription>
+              <DialogDescription className="text-muted-foreground">Add a licensed marine operator into the system.</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4 text-sm">
@@ -798,6 +819,7 @@ export default function BoatsClient({
                   placeholder="e.g. Captain John Doe"
                   value={riderForm.fullName}
                   onChange={(e) => setRiderForm({ ...riderForm, fullName: e.target.value })}
+                  className="bg-secondary border-border"
                   required
                 />
               </div>
@@ -809,6 +831,7 @@ export default function BoatsClient({
                   placeholder="08012345678"
                   value={riderForm.phoneNumber}
                   onChange={(e) => setRiderForm({ ...riderForm, phoneNumber: e.target.value })}
+                  className="bg-secondary border-border"
                   required
                 />
               </div>
@@ -820,6 +843,7 @@ export default function BoatsClient({
                   placeholder="e.g. MAR-99821"
                   value={riderForm.licenseNumber}
                   onChange={(e) => setRiderForm({ ...riderForm, licenseNumber: e.target.value })}
+                  className="bg-secondary border-border"
                   required
                 />
               </div>
@@ -829,7 +853,7 @@ export default function BoatsClient({
               <Button type="button" variant="outline" onClick={() => setIsOnboardRiderOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Button type="submit" disabled={loading}>
                 {loading ? "Saving..." : "Save Rider"}
               </Button>
             </DialogFooter>
@@ -839,14 +863,14 @@ export default function BoatsClient({
 
       {/* ── Modal: Reassign Rider ── */}
       <Dialog open={isReassignRiderOpen} onOpenChange={setIsReassignRiderOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-popover border-border text-popover-foreground">
           <form onSubmit={handleReassignRiderSubmit}>
             <DialogHeader>
               <DialogTitle className="flex items-center space-x-2">
-                <RefreshCw className="w-5 h-5 text-blue-600" />
+                <RefreshCw className="w-5 h-5 text-primary" />
                 <span>Reassign Rider for Boat</span>
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-muted-foreground">
                 Reassign driver operating <strong>{selectedBoatForReassign?.name}</strong>.
               </DialogDescription>
             </DialogHeader>
@@ -854,7 +878,7 @@ export default function BoatsClient({
             <div className="space-y-4 py-4 text-sm">
               <div className="space-y-1.5">
                 <Label>Selected Boat</Label>
-                <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-lg font-medium">
+                <div className="p-3 bg-secondary rounded-lg font-medium border border-border">
                   ⛵ {selectedBoatForReassign?.name} ({selectedBoatForReassign?.registrationNumber})
                 </div>
               </div>
@@ -862,10 +886,10 @@ export default function BoatsClient({
               <div className="space-y-1.5">
                 <Label htmlFor="reassign-select">Select New Rider</Label>
                 <Select value={reassignRiderId} onValueChange={(val) => setReassignRiderId(val)}>
-                  <SelectTrigger id="reassign-select">
+                  <SelectTrigger id="reassign-select" className="bg-secondary border-border">
                     <SelectValue placeholder="Select rider" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-popover border-border">
                     <SelectItem value="none">Unassign Driver</SelectItem>
                     {initialRiders.map((r) => (
                       <SelectItem key={r.id} value={r.id}>
@@ -881,7 +905,7 @@ export default function BoatsClient({
               <Button type="button" variant="outline" onClick={() => setIsReassignRiderOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button type="submit" disabled={loading}>
                 {loading ? "Updating..." : "Update Assignment"}
               </Button>
             </DialogFooter>
@@ -891,14 +915,14 @@ export default function BoatsClient({
 
       {/* ── Modal: Pre-Load Sticker URLs ── */}
       <Dialog open={isAddStickersOpen} onOpenChange={setIsAddStickersOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-popover border-border text-popover-foreground">
           <form onSubmit={handleAddStickersSubmit}>
             <DialogHeader>
               <DialogTitle className="flex items-center space-x-2">
-                <Tag className="w-5 h-5 text-amber-600" />
+                <Tag className="w-5 h-5 text-primary" />
                 <span>Pre-Load Physical Sticker URLs</span>
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-muted-foreground">
                 Paste QR code sticker URLs provided by the team (one URL per line).
               </DialogDescription>
             </DialogHeader>
@@ -909,10 +933,10 @@ export default function BoatsClient({
                 <Textarea
                   id="sticker-urls"
                   rows={5}
-                  placeholder="https://external-domain.com/qr/STK-001&#10;https://external-domain.com/qr/STK-002&#10;https://external-domain.com/qr/STK-003"
+                  placeholder="https://transpaytms.com/v/status1772628800404&#10;https://transpaytms.com/v/status1772628288905"
                   value={batchStickerUrls}
                   onChange={(e) => setBatchStickerUrls(e.target.value)}
-                  className="font-mono text-xs"
+                  className="font-mono text-xs bg-secondary border-border"
                   required
                 />
               </div>
@@ -922,7 +946,7 @@ export default function BoatsClient({
               <Button type="button" variant="outline" onClick={() => setIsAddStickersOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading} className="bg-amber-600 hover:bg-amber-700 text-white">
+              <Button type="submit" disabled={loading}>
                 {loading ? "Importing..." : "Add to Pool"}
               </Button>
             </DialogFooter>
