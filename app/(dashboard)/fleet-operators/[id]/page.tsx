@@ -21,6 +21,7 @@ import {
   getFleetApplication,
   type FleetApplicationDetail,
 } from "@/app/actions/mass-transit";
+import { verifyDocument } from "@/app/actions/motor-park";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,7 +35,8 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { RowGrid as Row } from "@/components/ui/row";
 import { fmtDateShort as fmt } from "@/lib/utils/format";
-import { FileText, Download } from "lucide-react";
+import { FileText, Download, ShieldCheck } from "lucide-react";
+import { FleetWorkflowActions } from "./fleet-workflow-actions";
 
 // ── Action Bar ─────────────────────────────────────────────────────────────────
 
@@ -232,6 +234,14 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
 
   const co = result.data!;
 
+  const canApproveDocs = [
+    "HOD_TRANSPORT_OPS",
+    "HOD_PARKS",
+    "HOD_PARKS_REVALIDATION",
+    "HOD_VIS",
+    "SYSTEM_ADMIN",
+  ].includes(session.role);
+
   return (
     <div className="flex flex-col gap-6 max-w-5xl">
       {/* Breadcrumb */}
@@ -263,6 +273,42 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
 
       {/* Action Bar */}
       <ActionBar company={co} role={session.role} />
+
+      {/* Sequential Executive Workflow Actions */}
+      <FleetWorkflowActions
+        companyId={co.id}
+        status={co.applicationStatus}
+        role={session.role}
+      />
+
+      {/* Signatures & Executive Approvals timeline card */}
+      <Card className="my-2">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-primary" /> Signatures & Executive Approvals
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-3 rounded-lg border bg-card">
+            <span className="text-xs text-muted-foreground block mb-1">HOD Transport Ops</span>
+            <p className="font-semibold text-xs text-foreground">
+              {co.hodApprovedAt ? `✓ Signed on ${fmt(co.hodApprovedAt)}` : "⏳ Pending Signature"}
+            </p>
+          </div>
+          <div className="p-3 rounded-lg border bg-card">
+            <span className="text-xs text-muted-foreground block mb-1">Permanent Secretary</span>
+            <p className="font-semibold text-xs text-foreground">
+              {co.psApprovedAt ? `✓ Signed on ${fmt(co.psApprovedAt)}` : "⏳ Pending Signature"}
+            </p>
+          </div>
+          <div className="p-3 rounded-lg border bg-card">
+            <span className="text-xs text-muted-foreground block mb-1">Hon. Commissioner</span>
+            <p className="font-semibold text-xs text-foreground">
+              {co.commissionerApprovedAt ? `✓ Signed on ${fmt(co.commissionerApprovedAt)}` : "⏳ Pending Signature"}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Company Information */}
@@ -370,51 +416,150 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {co.documents.cac && (
-                <div className="flex items-center justify-between p-3 border border-border/50 rounded-lg bg-secondary/20">
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <FileText className="w-5 h-5 text-primary shrink-0" />
-                    <div className="flex flex-col overflow-hidden">
-                      <span className="text-sm font-medium">CAC Certificate</span>
-                      <span className="text-xs text-muted-foreground truncate">{co.documents.cac.fileName}</span>
+                <div className="flex flex-col gap-3 p-3 border border-border/50 rounded-lg bg-secondary/20">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <FileText className="w-5 h-5 text-primary shrink-0" />
+                      <div className="flex flex-col overflow-hidden">
+                        <span className="text-sm font-medium">CAC Certificate</span>
+                        <span className="text-xs text-muted-foreground truncate">{co.documents.cac.fileName}</span>
+                      </div>
                     </div>
+                    <Button asChild variant="ghost" size="sm" className="shrink-0">
+                      <a href={co.documents.cac.fileUrl} target="_blank" rel="noreferrer">
+                        <Download className="w-4 h-4 mr-2" /> View
+                      </a>
+                    </Button>
                   </div>
-                  <Button asChild variant="ghost" size="sm" className="shrink-0">
-                    <a href={co.documents.cac.fileUrl} target="_blank" rel="noreferrer">
-                      <Download className="w-4 h-4 mr-2" /> View
-                    </a>
-                  </Button>
+                  <div className="pt-2 border-t border-border/50 flex flex-col gap-2">
+                    {co.documents.cac.verifiedAt ? (
+                      <div className="bg-green-500/10 text-green-700 dark:text-green-400 p-2 rounded border border-green-500/20 text-xs">
+                        <span>✅ Reviewed & Verified ({fmt(co.documents.cac.verifiedAt)})</span>
+                        {co.documents.cac.verificationNotes && (
+                          <p className="text-[11px] text-muted-foreground mt-1">
+                            <strong>Comment:</strong> {co.documents.cac.verificationNotes}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-amber-500/5 text-amber-700 dark:text-amber-400 p-2 rounded border border-amber-500/10 text-xs flex items-center justify-between">
+                        <span>⏳ Pending HOD Review</span>
+                      </div>
+                    )}
+                    {canApproveDocs && (
+                      <form action={async (formData) => {
+                        "use server";
+                        const approved = formData.get("approved") === "true";
+                        const notes = formData.get("notes") as string;
+                        await verifyDocument(co.documents!.cac!.id, approved, notes);
+                        redirect(`/fleet-operators/${co.id}`);
+                      }} className="flex flex-col gap-2 mt-1 bg-background p-2 rounded border border-border/50">
+                        <input type="text" name="notes" placeholder="HOD verification comment (optional)" className="w-full text-xs p-1.5 rounded border bg-secondary/50" />
+                        <div className="flex items-center gap-2">
+                          <button type="submit" name="approved" value="true" className="px-2.5 py-1 text-xs font-medium rounded bg-green-600 hover:bg-green-700 text-white flex-1">Approve Document</button>
+                          <button type="submit" name="approved" value="false" className="px-2.5 py-1 text-xs font-medium rounded bg-destructive hover:bg-destructive/90 text-white flex-1">Reject Document</button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
                 </div>
               )}
               {co.documents.land && (
-                <div className="flex items-center justify-between p-3 border border-border/50 rounded-lg bg-secondary/20">
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <FileText className="w-5 h-5 text-primary shrink-0" />
-                    <div className="flex flex-col overflow-hidden">
-                      <span className="text-sm font-medium">Land Ownership/Lease</span>
-                      <span className="text-xs text-muted-foreground truncate">{co.documents.land.fileName}</span>
+                <div className="flex flex-col gap-3 p-3 border border-border/50 rounded-lg bg-secondary/20">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <FileText className="w-5 h-5 text-primary shrink-0" />
+                      <div className="flex flex-col overflow-hidden">
+                        <span className="text-sm font-medium">Land Ownership/Lease</span>
+                        <span className="text-xs text-muted-foreground truncate">{co.documents.land.fileName}</span>
+                      </div>
                     </div>
+                    <Button asChild variant="ghost" size="sm" className="shrink-0">
+                      <a href={co.documents.land.fileUrl} target="_blank" rel="noreferrer">
+                        <Download className="w-4 h-4 mr-2" /> View
+                      </a>
+                    </Button>
                   </div>
-                  <Button asChild variant="ghost" size="sm" className="shrink-0">
-                    <a href={co.documents.land.fileUrl} target="_blank" rel="noreferrer">
-                      <Download className="w-4 h-4 mr-2" /> View
-                    </a>
-                  </Button>
+                  <div className="pt-2 border-t border-border/50 flex flex-col gap-2">
+                    {co.documents.land.verifiedAt ? (
+                      <div className="bg-green-500/10 text-green-700 dark:text-green-400 p-2 rounded border border-green-500/20 text-xs">
+                        <span>✅ Reviewed & Verified ({fmt(co.documents.land.verifiedAt)})</span>
+                        {co.documents.land.verificationNotes && (
+                          <p className="text-[11px] text-muted-foreground mt-1">
+                            <strong>Comment:</strong> {co.documents.land.verificationNotes}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-amber-500/5 text-amber-700 dark:text-amber-400 p-2 rounded border border-amber-500/10 text-xs flex items-center justify-between">
+                        <span>⏳ Pending HOD Review</span>
+                      </div>
+                    )}
+                    {canApproveDocs && (
+                      <form action={async (formData) => {
+                        "use server";
+                        const approved = formData.get("approved") === "true";
+                        const notes = formData.get("notes") as string;
+                        await verifyDocument(co.documents!.land!.id, approved, notes);
+                        redirect(`/fleet-operators/${co.id}`);
+                      }} className="flex flex-col gap-2 mt-1 bg-background p-2 rounded border border-border/50">
+                        <input type="text" name="notes" placeholder="HOD verification comment (optional)" className="w-full text-xs p-1.5 rounded border bg-secondary/50" />
+                        <div className="flex items-center gap-2">
+                          <button type="submit" name="approved" value="true" className="px-2.5 py-1 text-xs font-medium rounded bg-green-600 hover:bg-green-700 text-white flex-1">Approve Document</button>
+                          <button type="submit" name="approved" value="false" className="px-2.5 py-1 text-xs font-medium rounded bg-destructive hover:bg-destructive/90 text-white flex-1">Reject Document</button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
                 </div>
               )}
               {co.documents.asin && (
-                <div className="flex items-center justify-between p-3 border border-border/50 rounded-lg bg-secondary/20">
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <FileText className="w-5 h-5 text-primary shrink-0" />
-                    <div className="flex flex-col overflow-hidden">
-                      <span className="text-sm font-medium">Corporate ASIN</span>
-                      <span className="text-xs text-muted-foreground truncate">{co.documents.asin.fileName}</span>
+                <div className="flex flex-col gap-3 p-3 border border-border/50 rounded-lg bg-secondary/20">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <FileText className="w-5 h-5 text-primary shrink-0" />
+                      <div className="flex flex-col overflow-hidden">
+                        <span className="text-sm font-medium">Corporate ASIN</span>
+                        <span className="text-xs text-muted-foreground truncate">{co.documents.asin.fileName}</span>
+                      </div>
                     </div>
+                    <Button asChild variant="ghost" size="sm" className="shrink-0">
+                      <a href={co.documents.asin.fileUrl} target="_blank" rel="noreferrer">
+                        <Download className="w-4 h-4 mr-2" /> View
+                      </a>
+                    </Button>
                   </div>
-                  <Button asChild variant="ghost" size="sm" className="shrink-0">
-                    <a href={co.documents.asin.fileUrl} target="_blank" rel="noreferrer">
-                      <Download className="w-4 h-4 mr-2" /> View
-                    </a>
-                  </Button>
+                  <div className="pt-2 border-t border-border/50 flex flex-col gap-2">
+                    {co.documents.asin.verifiedAt ? (
+                      <div className="bg-green-500/10 text-green-700 dark:text-green-400 p-2 rounded border border-green-500/20 text-xs">
+                        <span>✅ Reviewed & Verified ({fmt(co.documents.asin.verifiedAt)})</span>
+                        {co.documents.asin.verificationNotes && (
+                          <p className="text-[11px] text-muted-foreground mt-1">
+                            <strong>Comment:</strong> {co.documents.asin.verificationNotes}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-amber-500/5 text-amber-700 dark:text-amber-400 p-2 rounded border border-amber-500/10 text-xs flex items-center justify-between">
+                        <span>⏳ Pending HOD Review</span>
+                      </div>
+                    )}
+                    {canApproveDocs && (
+                      <form action={async (formData) => {
+                        "use server";
+                        const approved = formData.get("approved") === "true";
+                        const notes = formData.get("notes") as string;
+                        await verifyDocument(co.documents!.asin!.id, approved, notes);
+                        redirect(`/fleet-operators/${co.id}`);
+                      }} className="flex flex-col gap-2 mt-1 bg-background p-2 rounded border border-border/50">
+                        <input type="text" name="notes" placeholder="HOD verification comment (optional)" className="w-full text-xs p-1.5 rounded border bg-secondary/50" />
+                        <div className="flex items-center gap-2">
+                          <button type="submit" name="approved" value="true" className="px-2.5 py-1 text-xs font-medium rounded bg-green-600 hover:bg-green-700 text-white flex-1">Approve Document</button>
+                          <button type="submit" name="approved" value="false" className="px-2.5 py-1 text-xs font-medium rounded bg-destructive hover:bg-destructive/90 text-white flex-1">Reject Document</button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

@@ -30,7 +30,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { RowGrid as Row } from "@/components/ui/row";
 import { fmtDateShort as fmt, formatNaira as naira } from "@/lib/utils/format";
-import { FileText, Download, Eye, ExternalLink } from "lucide-react";
+import { FileText, Download, Eye, ExternalLink, ShieldCheck } from "lucide-react";
+import { MotorParkWorkflowActions } from "./motor-park-workflow-actions";
 
 // ── Status-based workflow actions ──────────────────────────────────────────────
 
@@ -440,8 +441,10 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
   const park = result.data!;
 
   const canApproveDocs = [
-    "PERMANENT_SECRETARY",
-    "COMMISSIONER",
+    "HOD_PARKS",
+    "HOD_PARKS_REVALIDATION",
+    "HOD_VIS",
+    "HOD_TRANSPORT_OPS",
     "SYSTEM_ADMIN",
   ].includes(session.role);
 
@@ -496,6 +499,42 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
 
       {/* Action bar — role-gated */}
       <ActionBar park={park} role={session.role} />
+
+      {/* Sequential Executive Workflow Actions */}
+      <MotorParkWorkflowActions
+        parkId={park.id}
+        status={park.applicationStatus}
+        role={session.role}
+      />
+
+      {/* Signatures & Executive Approvals timeline card */}
+      <Card className="my-2">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-primary" /> Signatures & Executive Approvals
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-3 rounded-lg border bg-card">
+            <span className="text-xs text-muted-foreground block mb-1">HOD Parks Sign-off</span>
+            <p className="font-semibold text-xs text-foreground">
+              {park.hodApprovedAt ? `✓ Signed on ${fmt(park.hodApprovedAt)}` : "⏳ Pending Signature"}
+            </p>
+          </div>
+          <div className="p-3 rounded-lg border bg-card">
+            <span className="text-xs text-muted-foreground block mb-1">Permanent Secretary</span>
+            <p className="font-semibold text-xs text-foreground">
+              {park.psApprovedAt ? `✓ Signed on ${fmt(park.psApprovedAt)}` : "⏳ Pending Signature"}
+            </p>
+          </div>
+          <div className="p-3 rounded-lg border bg-card">
+            <span className="text-xs text-muted-foreground block mb-1">Hon. Commissioner</span>
+            <p className="font-semibold text-xs text-foreground">
+              {park.commissionerApprovedAt ? `✓ Signed on ${fmt(park.commissionerApprovedAt)}` : "⏳ Pending Signature"}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Temporal approval banner */}
       {park.applicationStatus === "TEMPORAL_APPROVAL" && (

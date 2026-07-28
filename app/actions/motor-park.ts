@@ -21,6 +21,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { sendInspectionApprovalNotification } from "@/lib/email";
 import {
   requireAuth,
   requireRole,
@@ -335,6 +336,9 @@ export type MotorParkDetail = {
   lastRevalidatedAt: Date | null;
   nextRevalidationDue: Date | null;
   appliedAt: Date;
+  hodApprovedAt: Date | null;
+  psApprovedAt: Date | null;
+  commissionerApprovedAt: Date | null;
   approvedAt: Date | null;
   approvedByUserId: string | null;
   revokedAt: Date | null;
@@ -484,6 +488,9 @@ export async function getMotorPark(
       lastRevalidatedAt: true,
       nextRevalidationDue: true,
       appliedAt: true,
+      hodApprovedAt: true,
+      psApprovedAt: true,
+      commissionerApprovedAt: true,
       approvedAt: true,
       approvedByUserId: true,
       revokedAt: true,
@@ -667,7 +674,7 @@ export async function scheduleParkInspection(
     };
   }
 
-  const [inspection] = await Promise.all([
+  const [inspection, inspectorUser] = await Promise.all([
     db.inspection.create({
       data: {
         inspectionType: data.inspectionType,
@@ -678,10 +685,14 @@ export async function scheduleParkInspection(
         scheduledByUserId: session.userId,
         assignedToUserId: data.assignedToUserId,
         inspectorStationLocation: data.inspectorStationLocation,
-        status: "SCHEDULED",
+        status: "PENDING_PS_APPROVAL",
         completedByUserId: data.assignedToUserId, // Will be overwritten on completion
       },
       select: { id: true },
+    }),
+    db.user.findUnique({
+      where: { id: data.assignedToUserId },
+      select: { firstName: true, lastName: true },
     }),
     db.motorPark.update({
       where: { id: data.linkedEntityId },
@@ -694,16 +705,43 @@ export async function scheduleParkInspection(
     db.auditLog.create({
       data: {
         performedByUserId: session.userId,
-        action: "INSPECTION_SCHEDULED",
+        action: "INSPECTION_SCHEDULED_PENDING_PS_APPROVAL",
         entityType: "MOTOR_PARK",
         entityId: data.linkedEntityId,
-        changeDescription: `${data.inspectionType} inspection scheduled for ${data.scheduledDate}`,
+        changeDescription: `${data.inspectionType} inspection scheduled for ${data.scheduledDate} (Pending PS Approval)`,
       },
     }),
   ]);
 
+  // Dispatch email notification to Permanent Secretary
+  try {
+    const [inspectorUser, schedulerUser] = await Promise.all([
+      db.user.findUnique({
+        where: { id: data.assignedToUserId },
+        select: { firstName: true, lastName: true },
+      }),
+      db.user.findUnique({
+        where: { id: session.userId },
+        select: { firstName: true, lastName: true, role: true },
+      }),
+    ]);
+    const inspectorName = inspectorUser ? `${inspectorUser.firstName} ${inspectorUser.lastName}` : "Assigned Inspector";
+    const scheduledByName = schedulerUser ? `${schedulerUser.firstName} ${schedulerUser.lastName}` : `HOD (${session.role})`;
+    await sendInspectionApprovalNotification({
+      entityName: park.businessName,
+      entityType: "Motor Park",
+      scheduledDate: data.scheduledDate,
+      inspectorName,
+      scheduledByName,
+      entityUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://mot.anambra.gov.ng"}/motor-parks/${park.id}`,
+    });
+  } catch (emailErr) {
+    console.error("Failed to send PS email notification for scheduled inspection:", emailErr);
+  }
+
   revalidatePath(`/motor-parks/${data.linkedEntityId}`);
   revalidatePath("/motor-parks");
+  revalidatePath("/inspections");
 
   return { success: true, data: { inspectionId: inspection.id } };
 }
@@ -818,11 +856,11 @@ export async function submitInspectionReport(
       },
     });
 
-    // Update motor park status
+    // Update motor park status to PENDING_HOD_APPROVAL for HOD review
     if (inspection.motorParkId) {
       await tx.motorPark.update({
         where: { id: inspection.motorParkId },
-        data: { applicationStatus: "INSPECTION_COMPLETED" },
+        data: { applicationStatus: "PENDING_HOD_APPROVAL" },
       });
     }
 
@@ -846,11 +884,113 @@ export async function submitInspectionReport(
   return { success: true };
 }
 
+// ==================== WORKFLOW APPROVALS (HOD -> PS -> COMMISSIONER) ====================
+
+/**
+ * HOD Parks reviews inspection report and approves to Permanent Secretary.
+ */
+export async function hodApproveMotorPark(
+  parkId: string,
+): Promise<ActionResult> {
+  await requireRole(["HOD_PARKS", "HOD_PARKS_REVALIDATION", "SYSTEM_ADMIN"]);
+  const session = await requireAuth();
+
+  const park = await db.motorPark.findUnique({
+    where: { id: parkId },
+    select: { id: true, applicationStatus: true, businessName: true },
+  });
+
+  if (!park) return { success: false, error: "Motor park not found" };
+
+  const validStatuses = ["PENDING_HOD_APPROVAL", "INSPECTION_COMPLETED"];
+  if (!validStatuses.includes(park.applicationStatus)) {
+    return {
+      success: false,
+      error: `Cannot approve — current status is ${park.applicationStatus}.`,
+    };
+  }
+
+  const now = new Date();
+  await db.$transaction(async (tx) => {
+    await tx.motorPark.update({
+      where: { id: parkId },
+      data: {
+        applicationStatus: "PENDING_PS_APPROVAL",
+        hodApprovedAt: now,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        performedByUserId: session.userId,
+        action: "HOD_APPROVED_MOTOR_PARK",
+        entityType: "MOTOR_PARK",
+        entityId: parkId,
+        changeDescription: `HOD reviewed inspection report and signed off application to Permanent Secretary for ${park.businessName}`,
+      },
+    });
+  });
+
+  revalidatePath(`/motor-parks/${parkId}`);
+  revalidatePath("/motor-parks");
+  return { success: true };
+}
+
+/**
+ * Permanent Secretary reviews and approves application to Commissioner.
+ */
+export async function psApproveMotorPark(
+  parkId: string,
+): Promise<ActionResult> {
+  await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+  const session = await requireAuth();
+
+  const park = await db.motorPark.findUnique({
+    where: { id: parkId },
+    select: { id: true, applicationStatus: true, businessName: true },
+  });
+
+  if (!park) return { success: false, error: "Motor park not found" };
+
+  const validStatuses = ["PENDING_PS_APPROVAL", "INSPECTION_COMPLETED"];
+  if (!validStatuses.includes(park.applicationStatus)) {
+    return {
+      success: false,
+      error: `Cannot approve — current status is ${park.applicationStatus}.`,
+    };
+  }
+
+  const now = new Date();
+  await db.$transaction(async (tx) => {
+    await tx.motorPark.update({
+      where: { id: parkId },
+      data: {
+        applicationStatus: "PENDING_COMMISSIONER_APPROVAL",
+        psApprovedAt: now,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        performedByUserId: session.userId,
+        action: "PS_APPROVED_MOTOR_PARK",
+        entityType: "MOTOR_PARK",
+        entityId: parkId,
+        changeDescription: `Permanent Secretary reviewed and signed off application to Commissioner for ${park.businessName}`,
+      },
+    });
+  });
+
+  revalidatePath(`/motor-parks/${parkId}`);
+  revalidatePath("/motor-parks");
+  return { success: true };
+}
+
 // ==================== PERMIT TO BUILD (FR-013, STORY-026) ====================
 
 /**
- * FR-013: Commissioner or PS issues "Permit to Build" after initial inspection approval.
- * Moves application to PENDING_APPROVAL → APPROVED with permitToBuild metadata.
+ * FR-013: Commissioner issues "Permit to Build" after PS approval.
+ * Moves application to APPROVED with permitToBuild metadata.
  */
 export async function issuePermitToBuild(
   prevState: ActionResult,
@@ -876,10 +1016,16 @@ export async function issuePermitToBuild(
 
   if (!park) return { success: false, error: "Motor park not found" };
 
-  if (park.applicationStatus !== "INSPECTION_COMPLETED") {
+  const allowedStatuses = [
+    "PENDING_COMMISSIONER_APPROVAL",
+    "PENDING_PS_APPROVAL",
+    "PENDING_APPROVAL",
+    "INSPECTION_COMPLETED",
+  ];
+  if (!allowedStatuses.includes(park.applicationStatus)) {
     return {
       success: false,
-      error: `Cannot issue Permit to Build — current status is ${park.applicationStatus}. Inspection must be completed first.`,
+      error: `Cannot issue Permit to Build — current status is ${park.applicationStatus}. Inspection and approvals must be completed first.`,
     };
   }
 
@@ -893,6 +1039,7 @@ export async function issuePermitToBuild(
   const sixMonthsFromNow = new Date();
   sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
 
+  const now = new Date();
   await db.$transaction(async (tx) => {
     await tx.motorPark.update({
       where: { id: parkId },
@@ -900,9 +1047,10 @@ export async function issuePermitToBuild(
         applicationStatus: "APPROVED",
         permitStatus: "ACTIVE",
         permitNumber,
-        permitIssuedAt: new Date(),
+        permitIssuedAt: now,
         permitExpiresAt: sixMonthsFromNow,
-        approvedAt: new Date(),
+        approvedAt: now,
+        commissionerApprovedAt: now,
         approvedByUserId: session.userId,
       },
     });
@@ -1143,15 +1291,18 @@ export async function issueFinalApproval(
 
   if (!park) return { success: false, error: "Motor park not found" };
 
-  if (
-    park.applicationStatus !== "INSPECTION_COMPLETED" &&
-    park.applicationStatus !== "PENDING_APPROVAL" &&
-    park.applicationStatus !== "TEMPORAL_APPROVAL"
-  ) {
+  const allowedStatuses = [
+    "PENDING_COMMISSIONER_APPROVAL",
+    "PENDING_PS_APPROVAL",
+    "PENDING_APPROVAL",
+    "TEMPORAL_APPROVAL",
+    "INSPECTION_COMPLETED",
+  ];
+  if (!allowedStatuses.includes(park.applicationStatus)) {
     return {
       success: false,
       error:
-        "Final approval requires a completed inspection or temporal approval",
+        "Final approval requires a completed inspection, executive sign-off, or temporal approval",
     };
   }
 
@@ -1181,6 +1332,7 @@ export async function issueFinalApproval(
         lastRevalidatedAt: now,
         nextRevalidationDue: oneYearFromNow,
         approvedAt: now,
+        commissionerApprovedAt: now,
         approvedByUserId: session.userId,
       },
     });
@@ -1575,15 +1727,17 @@ export async function verifyDocument(
   const session = await requireAuth();
 
   const allowedRoles = [
-    "PERMANENT_SECRETARY",
-    "COMMISSIONER",
+    "HOD_PARKS",
+    "HOD_PARKS_REVALIDATION",
+    "HOD_VIS",
+    "HOD_TRANSPORT_OPS",
     "SYSTEM_ADMIN",
   ];
 
   if (!allowedRoles.includes(session.role)) {
     return {
       success: false,
-      error: "Only PS, Commissioner, or Admin can review documents.",
+      error: "Only HOD or Admin can review and approve documents.",
     };
   }
 

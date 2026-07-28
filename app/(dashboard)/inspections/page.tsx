@@ -14,7 +14,8 @@ import { listInspections } from "@/app/actions/inspections";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/misc";
-import { requireRole } from "@/lib/auth";
+import { requireRole, getSession } from "@/lib/auth";
+import PsApprovalButton from "./ps-approval-button";
 import { PAGE_SIZE } from "@/lib/consts";
 import { fmtDate, fmtDateShort } from "@/lib/utils/format";
 import Link from "next/link";
@@ -32,6 +33,7 @@ interface PageProps {
 
 const STATUS_FILTERS = [
   { value: "", label: "All" },
+  { value: "PENDING_PS_APPROVAL", label: "Pending PS Approval" },
   { value: "SCHEDULED", label: "Scheduled" },
   { value: "IN_PROGRESS", label: "In Progress" },
   { value: "COMPLETED", label: "Report Submitted" },
@@ -73,6 +75,7 @@ export default async function InspectionsPage({ searchParams }: PageProps) {
     redirect("/dashboard");
   }
 
+  const session = await getSession();
   const { page: pageStr, status, entityType } = await searchParams;
   const page = Math.max(1, parseInt(pageStr ?? "1", 10));
 
@@ -242,10 +245,15 @@ export default async function InspectionsPage({ searchParams }: PageProps) {
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <Button asChild variant="ghost" size="sm">
-                      <Link href={inspection.entityHref}>View</Link>
-                    </Button>
+                  <td className="px-4 py-3 text-right flex items-center justify-end space-x-2">
+                    {inspection.status === "PENDING_PS_APPROVAL" &&
+                    (session?.role === "PERMANENT_SECRETARY" || session?.role === "SYSTEM_ADMIN") ? (
+                      <PsApprovalButton inspectionId={inspection.id} />
+                    ) : (
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href={inspection.entityHref}>View</Link>
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}
