@@ -3,9 +3,20 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
 import ShareRideButton from "./share-ride-button";
-import { ShieldCheck, Anchor, CheckCircle2, User, Info, MapPin } from "lucide-react";
+import {
+  ShieldCheck,
+  Anchor,
+  CheckCircle2,
+  User,
+  Info,
+  MapPin,
+} from "lucide-react";
 
-export default async function VerifyBoatPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function VerifyBoatPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
 
   // Try fetching boat by ID or securityCode or sticker URL/code
@@ -27,7 +38,7 @@ export default async function VerifyBoatPage({ params }: { params: Promise<{ id:
 
   if (!boat) notFound();
 
-  const publicUrl = `https://mot.anambra.gov.ng/verify/boat/${boat.id}`;
+  const publicUrl = `${process.env.NEXT_PUBLIC_APP_URL}/verify/boat/${boat.id}`;
 
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 py-8">
@@ -52,7 +63,9 @@ export default async function VerifyBoatPage({ params }: { params: Promise<{ id:
             Verified Maritime Transport
           </Badge>
           <h1 className="text-2xl font-bold tracking-tight">{boat.name}</h1>
-          <p className="text-xs text-green-100 mt-1">Ministry of Transport, Anambra State</p>
+          <p className="text-xs text-green-100 mt-1">
+            Ministry of Transport, Anambra State
+          </p>
         </div>
 
         {/* Content Card Body */}
@@ -60,7 +73,9 @@ export default async function VerifyBoatPage({ params }: { params: Promise<{ id:
           {/* Security Badge Pill Floating */}
           <div className="-mt-7 z-20 bg-slate-900 text-white px-5 py-2 rounded-full shadow-xl border-2 border-green-500 flex items-center space-x-2">
             <ShieldCheck className="w-5 h-5 text-green-400" />
-            <span className="font-mono text-sm font-bold tracking-wider">{boat.securityCode}</span>
+            <span className="font-mono text-sm font-bold tracking-wider">
+              {boat.securityCode}
+            </span>
           </div>
 
           <div className="w-full space-y-4 mt-6">
@@ -79,7 +94,8 @@ export default async function VerifyBoatPage({ params }: { params: Promise<{ id:
             <div className="space-y-3 bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-sm">
               <div className="flex justify-between items-center py-1.5 border-b border-slate-200/60 dark:border-slate-800">
                 <span className="text-slate-500 flex items-center text-xs">
-                  <Anchor className="w-3.5 h-3.5 mr-1.5 text-blue-500" /> Registration No.
+                  <Anchor className="w-3.5 h-3.5 mr-1.5 text-blue-500" />{" "}
+                  Registration No.
                 </span>
                 <span className="font-mono font-bold text-slate-900 dark:text-white">
                   {boat.registrationNumber}
@@ -88,7 +104,8 @@ export default async function VerifyBoatPage({ params }: { params: Promise<{ id:
 
               <div className="flex justify-between items-center py-1.5 border-b border-slate-200/60 dark:border-slate-800">
                 <span className="text-slate-500 flex items-center text-xs">
-                  <Info className="w-3.5 h-3.5 mr-1.5 text-purple-500" /> Vessel Category
+                  <Info className="w-3.5 h-3.5 mr-1.5 text-purple-500" /> Vessel
+                  Category
                 </span>
                 <span className="font-medium text-slate-800 dark:text-slate-200">
                   {boat.boatType}
@@ -97,7 +114,8 @@ export default async function VerifyBoatPage({ params }: { params: Promise<{ id:
 
               <div className="flex justify-between items-center py-1.5">
                 <span className="text-slate-500 flex items-center text-xs">
-                  <User className="w-3.5 h-3.5 mr-1.5 text-amber-500" /> Passenger Capacity
+                  <User className="w-3.5 h-3.5 mr-1.5 text-amber-500" />{" "}
+                  Passenger Capacity
                 </span>
                 <span className="font-medium text-slate-800 dark:text-slate-200">
                   {boat.capacity || 10} Persons
@@ -108,7 +126,8 @@ export default async function VerifyBoatPage({ params }: { params: Promise<{ id:
             {/* Assigned Rider Information */}
             <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl border border-emerald-100 dark:border-emerald-900/50">
               <div className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider mb-2 flex items-center">
-                <User className="w-3.5 h-3.5 mr-1" /> Licensed Boat Operator / Driver
+                <User className="w-3.5 h-3.5 mr-1" /> Licensed Boat Operator /
+                Driver
               </div>
 
               {boat.assignedRider ? (
@@ -117,14 +136,22 @@ export default async function VerifyBoatPage({ params }: { params: Promise<{ id:
                     {boat.assignedRider.fullName[0]}
                   </div>
                   <div>
-                    <div className="font-bold text-slate-900 dark:text-white">{boat.assignedRider.fullName}</div>
+                    <div className="font-bold text-slate-900 dark:text-white">
+                      {boat.assignedRider.fullName}
+                    </div>
                     <div className="text-xs text-slate-600 dark:text-slate-400">
-                      License: <span className="font-mono">{boat.assignedRider.licenseNumber}</span> • {boat.assignedRider.phoneNumber}
+                      License:{" "}
+                      <span className="font-mono">
+                        {boat.assignedRider.licenseNumber}
+                      </span>{" "}
+                      • {boat.assignedRider.phoneNumber}
                     </div>
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-amber-700 italic">No assigned operator recorded for this vessel.</p>
+                <p className="text-xs text-amber-700 italic">
+                  No assigned operator recorded for this vessel.
+                </p>
               )}
             </div>
 
