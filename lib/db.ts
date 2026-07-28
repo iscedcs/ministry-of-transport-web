@@ -6,7 +6,7 @@
  * from the schema. We use @prisma/adapter-neon for Neon PostgreSQL.
  *
  * Prevents multiple instances during Next.js hot reloads via globalThis cache.
- * Use this `db` export everywhere, never instantiate PrismaClient directly.
+ * Dynamically re-instantiates if schema models are updated during dev.
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -21,7 +21,6 @@ function createPrismaClient(): PrismaClient {
   if (!connectionString) {
     throw new Error("DATABASE_URL environment variable is not set");
   }
-  // PrismaNeon accepts a PoolConfig; do not pre-create the Pool.
   const adapter = new PrismaNeon({ connectionString });
   return new PrismaClient({
     adapter,
@@ -32,8 +31,26 @@ function createPrismaClient(): PrismaClient {
   });
 }
 
-export const db = globalForPrisma.prisma ?? createPrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = db;
+function getDb(): PrismaClient {
+  if (process.env.NODE_ENV !== "production") {
+    if (!globalForPrisma.prisma || !("boatSticker" in globalForPrisma.prisma)) {
+      globalForPrisma.prisma = createPrismaClient();
+    }
+    return globalForPrisma.prisma;
+  }
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = createPrismaClient();
+  }
+  return globalForPrisma.prisma;
 }
+
+export const db: PrismaClient = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const client = getDb();
+    const value = (client as any)[prop];
+    if (typeof value === "function") {
+      return value.bind(client);
+    }
+    return value;
+  },
+});

@@ -73,6 +73,22 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
 
+  // ── Boats & Maritime Module ──
+  {
+    label: "Boats & Maritime",
+    href: "/boats",
+    icon: "🚤",
+    allowedRoles: [
+      "COMMISSIONER",
+      "PERMANENT_SECRETARY",
+      "HOD_TRANSPORT_OPS",
+      "HOD_PARKS",
+      "FIELD_INSPECTOR",
+      "SYSTEM_ADMIN",
+    ],
+  },
+
+
   // ── Revalidation Module ──
   {
     label: "Revalidation",

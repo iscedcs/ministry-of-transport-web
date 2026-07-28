@@ -47,6 +47,8 @@ const ALLOWED_ROLES = [
   "SYSTEM_ADMIN",
 ] as const;
 
+import { revalidatePath } from "next/cache";
+
 // ── listInspections ────────────────────────────────────────────────────────────
 
 export async function listInspections(
@@ -61,12 +63,25 @@ export async function listInspections(
     return { success: false, error: "Insufficient permissions" };
   }
 
-  const where = {
-    ...(status ? { status: status as "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "APPROVED" | "REJECTED" } : {}),
+  const where: any = {
+    ...(status
+      ? {
+          status: status as
+            | "PENDING_PS_APPROVAL"
+            | "SCHEDULED"
+            | "IN_PROGRESS"
+            | "COMPLETED"
+            | "APPROVED"
+            | "REJECTED",
+        }
+      : {}),
     ...(entityType ? { linkedEntityType: entityType } : {}),
-    // Field inspectors only see their assigned inspections
+    // Field inspectors only see their assigned & confirmed inspections (not unapproved pending PS approval)
     ...(session.role === "FIELD_INSPECTOR"
-      ? { assignedToUserId: session.userId }
+      ? {
+          assignedToUserId: session.userId,
+          status: { in: ["SCHEDULED", "IN_PROGRESS", "COMPLETED", "APPROVED"] },
+        }
       : {}),
   };
 
@@ -126,3 +141,103 @@ export async function listInspections(
 
   return { success: true, data: { inspections, total } };
 }
+
+// ── PS Approval / Rejection Actions ──────────────────────────────────────────
+
+export async function approveScheduledInspection(
+  inspectionId: string
+): Promise<ActionResult<{ id: string }>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  if (session.role !== "PERMANENT_SECRETARY" && session.role !== "SYSTEM_ADMIN") {
+    return { success: false, error: "Only Permanent Secretary can approve inspection schedules." };
+  }
+
+  const existing = await db.inspection.findUnique({
+    where: { id: inspectionId },
+  });
+
+  if (!existing) return { success: false, error: "Inspection not found" };
+
+  if (existing.status !== "PENDING_PS_APPROVAL") {
+    return {
+      success: false,
+      error: `Cannot approve inspection with current status '${existing.status}'.`,
+    };
+  }
+
+  await db.inspection.update({
+    where: { id: inspectionId },
+    data: {
+      status: "SCHEDULED",
+      psApprovedAt: new Date(),
+      psApprovedByUserId: session.userId,
+    },
+  });
+
+  await db.auditLog.create({
+    data: {
+      performedByUserId: session.userId,
+      action: "INSPECTION_SCHEDULE_APPROVED_BY_PS",
+      entityType: existing.linkedEntityType,
+      entityId: existing.linkedEntityId,
+      changeDescription: `Permanent Secretary approved inspection schedule for ${existing.linkedEntityType} (ID: ${existing.linkedEntityId}).`,
+    },
+  });
+
+  revalidatePath("/inspections");
+  if (existing.linkedEntityType === "MOTOR_PARK") {
+    revalidatePath(`/motor-parks/${existing.linkedEntityId}`);
+  } else if (existing.linkedEntityType === "MASS_TRANSIT") {
+    revalidatePath(`/fleet-operators/${existing.linkedEntityId}`);
+  }
+
+  return { success: true, data: { id: inspectionId } };
+}
+
+export async function rejectScheduledInspection(
+  inspectionId: string,
+  reason?: string
+): Promise<ActionResult<{ id: string }>> {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Not authenticated" };
+
+  if (session.role !== "PERMANENT_SECRETARY" && session.role !== "SYSTEM_ADMIN") {
+    return { success: false, error: "Only Permanent Secretary can reject inspection schedules." };
+  }
+
+  const existing = await db.inspection.findUnique({
+    where: { id: inspectionId },
+  });
+
+  if (!existing) return { success: false, error: "Inspection not found" };
+
+  await db.inspection.update({
+    where: { id: inspectionId },
+    data: {
+      status: "REJECTED",
+      psRejectionReason: reason || "Rejected by Permanent Secretary",
+    },
+  });
+
+  await db.auditLog.create({
+    data: {
+      performedByUserId: session.userId,
+      action: "INSPECTION_SCHEDULE_REJECTED_BY_PS",
+      entityType: existing.linkedEntityType,
+      entityId: existing.linkedEntityId,
+      changeDescription: `Permanent Secretary rejected inspection schedule. Reason: ${reason || "None provided"}`,
+    },
+  });
+
+  revalidatePath("/inspections");
+  if (existing.linkedEntityType === "MOTOR_PARK") {
+    revalidatePath(`/motor-parks/${existing.linkedEntityId}`);
+  } else if (existing.linkedEntityType === "MASS_TRANSIT") {
+    revalidatePath(`/fleet-operators/${existing.linkedEntityId}`);
+  }
+
+  return { success: true, data: { id: inspectionId } };
+}
+

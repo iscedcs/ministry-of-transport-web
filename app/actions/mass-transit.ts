@@ -22,6 +22,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { sendInspectionApprovalNotification } from "@/lib/email";
 import {
   requireAuth,
   requireRole,
@@ -358,6 +359,24 @@ export async function listFleetApplications(filters?: {
   return { success: true, data: { companies, total } };
 }
 
+export type TransitDocument = {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+  verifiedAt?: Date | null;
+  verifiedByUserId?: string | null;
+  verificationNotes?: string | null;
+  reviews?: {
+    id: string;
+    reviewedByUserId: string;
+    reviewerName: string;
+    reviewerRole: string;
+    notes: string | null;
+    isApproved: boolean;
+    reviewedAt: Date;
+  }[];
+};
+
 export type FleetApplicationDetail = {
   id: string;
   companyName: string;
@@ -373,9 +392,9 @@ export type FleetApplicationDetail = {
   landOwnershipDocId: string | null;
   corporateAsinDocumentId: string | null;
   documents?: {
-    cac?: { id: string; fileName: string; fileUrl: string };
-    land?: { id: string; fileName: string; fileUrl: string };
-    asin?: { id: string; fileName: string; fileUrl: string };
+    cac?: TransitDocument;
+    land?: TransitDocument;
+    asin?: TransitDocument;
   };
   terminals: {
     id: string;
@@ -397,6 +416,9 @@ export type FleetApplicationDetail = {
   lastRevalidatedAt: Date | null;
   nextRevalidationDue: Date | null;
   appliedAt: Date;
+  hodApprovedAt: Date | null;
+  psApprovedAt: Date | null;
+  commissionerApprovedAt: Date | null;
   approvedAt: Date | null;
   approvedByUserId: string | null;
   applicant: { id: string; firstName: string; lastName: string; email: string };
@@ -475,6 +497,9 @@ export async function getFleetApplication(
       lastRevalidatedAt: true,
       nextRevalidationDue: true,
       appliedAt: true,
+      hodApprovedAt: true,
+      psApprovedAt: true,
+      commissionerApprovedAt: true,
       approvedAt: true,
       approvedByUserId: true,
       terminals: {
@@ -570,7 +595,26 @@ export async function getFleetApplication(
 
   const docs = await db.document.findMany({
     where: { id: { in: docIds } },
-    select: { id: true, fileName: true, fileUrl: true },
+    select: {
+      id: true,
+      fileName: true,
+      fileUrl: true,
+      verifiedAt: true,
+      verifiedByUserId: true,
+      verificationNotes: true,
+      reviews: {
+        select: {
+          id: true,
+          reviewedByUserId: true,
+          reviewerName: true,
+          reviewerRole: true,
+          notes: true,
+          isApproved: true,
+          reviewedAt: true,
+        },
+        orderBy: { reviewedAt: "desc" },
+      },
+    },
   });
 
   const documents = {
@@ -827,7 +871,7 @@ export async function scheduleTerminalInspection(
         assignedToUserId: data.assignedToUserId,
         inspectorStationLocation: data.inspectorStationLocation,
         completedByUserId: session.userId, // placeholder — updated on completion
-        status: "SCHEDULED",
+        status: "PENDING_PS_APPROVAL",
       },
       select: { id: true },
     });
@@ -844,18 +888,46 @@ export async function scheduleTerminalInspection(
     await tx.auditLog.create({
       data: {
         performedByUserId: session.userId,
-        action: "TERMINAL_INSPECTION_SCHEDULED",
+        action: "TERMINAL_INSPECTION_SCHEDULED_PENDING_PS_APPROVAL",
         entityType: "MASS_TRANSIT",
         entityId: data.linkedEntityId,
-        changeDescription: `Terminal inspection scheduled for ${company.companyName} on ${data.scheduledDate.toISOString().split("T")[0]}. SLA due: ${dueDate.toISOString().split("T")[0]}`,
+        changeDescription: `Terminal inspection scheduled for ${company.companyName} on ${data.scheduledDate.toISOString().split("T")[0]} (Pending PS Approval). SLA due: ${dueDate.toISOString().split("T")[0]}`,
       },
     });
 
     return insp;
   });
 
+  // Dispatch email notification to Permanent Secretary
+  try {
+    const [inspectorUser, schedulerUser] = await Promise.all([
+      db.user.findUnique({
+        where: { id: data.assignedToUserId },
+        select: { firstName: true, lastName: true },
+      }),
+      db.user.findUnique({
+        where: { id: session.userId },
+        select: { firstName: true, lastName: true, role: true },
+      }),
+    ]);
+    const inspectorName = inspectorUser ? `${inspectorUser.firstName} ${inspectorUser.lastName}` : "Assigned Inspector";
+    const scheduledByName = schedulerUser ? `${schedulerUser.firstName} ${schedulerUser.lastName}` : `HOD (${session.role})`;
+
+    await sendInspectionApprovalNotification({
+      entityName: company.companyName,
+      entityType: "Mass Transit Fleet",
+      scheduledDate: data.scheduledDate,
+      inspectorName,
+      scheduledByName,
+      entityUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://mot.anambra.gov.ng"}/fleet-operators/${company.id}`,
+    });
+  } catch (emailErr) {
+    console.error("Failed to send PS email notification for terminal inspection:", emailErr);
+  }
+
   revalidatePath(`/fleet-operators/${data.linkedEntityId}`);
   revalidatePath("/fleet-operators");
+  revalidatePath("/inspections");
   return { success: true, data: { inspectionId: inspection.id } };
 }
 
@@ -895,7 +967,7 @@ export async function submitTerminalInspectionReport(
   if (!company) return { success: false, error: "Fleet application not found" };
 
   const newStatus =
-    recommendedAction === "REJECT" ? "REJECTED" : "INSPECTION_COMPLETED";
+    recommendedAction === "REJECT" ? "REJECTED" : "PENDING_HOD_APPROVAL";
 
   await db.$transaction(async (tx) => {
     await tx.inspection.update({
@@ -999,10 +1071,117 @@ export async function approveBrandingScheme(
   return { success: true };
 }
 
+// ==================== WORKFLOW APPROVALS (HOD -> PS -> COMMISSIONER) ====================
+
+/**
+ * HOD Transport Operations reviews inspection report and approves to Permanent Secretary.
+ */
+export async function hodApproveFleetOperator(
+  companyId: string,
+): Promise<ActionResult> {
+  await requireRole([
+    "HOD_TRANSPORT_OPS",
+    "HOD_PARKS",
+    "HOD_PARKS_REVALIDATION",
+    "SYSTEM_ADMIN",
+  ]);
+  const session = await requireAuth();
+
+  const company = await db.massTransitCompany.findUnique({
+    where: { id: companyId },
+    select: { id: true, applicationStatus: true, companyName: true },
+  });
+
+  if (!company) return { success: false, error: "Fleet application not found" };
+
+  const validStatuses = ["PENDING_HOD_APPROVAL", "INSPECTION_COMPLETED"];
+  if (!validStatuses.includes(company.applicationStatus)) {
+    return {
+      success: false,
+      error: `Cannot approve — current status is ${company.applicationStatus}.`,
+    };
+  }
+
+  const now = new Date();
+  await db.$transaction(async (tx) => {
+    await tx.massTransitCompany.update({
+      where: { id: companyId },
+      data: {
+        applicationStatus: "PENDING_PS_APPROVAL",
+        hodApprovedAt: now,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        performedByUserId: session.userId,
+        action: "HOD_APPROVED_FLEET_OPERATOR",
+        entityType: "MASS_TRANSIT",
+        entityId: companyId,
+        changeDescription: `HOD reviewed terminal inspection report and signed off application to Permanent Secretary for ${company.companyName}`,
+      },
+    });
+  });
+
+  revalidatePath(`/fleet-operators/${companyId}`);
+  revalidatePath("/fleet-operators");
+  return { success: true };
+}
+
+/**
+ * Permanent Secretary reviews and approves fleet application to Commissioner.
+ */
+export async function psApproveFleetOperator(
+  companyId: string,
+): Promise<ActionResult> {
+  await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+  const session = await requireAuth();
+
+  const company = await db.massTransitCompany.findUnique({
+    where: { id: companyId },
+    select: { id: true, applicationStatus: true, companyName: true },
+  });
+
+  if (!company) return { success: false, error: "Fleet application not found" };
+
+  const validStatuses = ["PENDING_PS_APPROVAL", "INSPECTION_COMPLETED"];
+  if (!validStatuses.includes(company.applicationStatus)) {
+    return {
+      success: false,
+      error: `Cannot approve — current status is ${company.applicationStatus}.`,
+    };
+  }
+
+  const now = new Date();
+  await db.$transaction(async (tx) => {
+    await tx.massTransitCompany.update({
+      where: { id: companyId },
+      data: {
+        applicationStatus: "PENDING_COMMISSIONER_APPROVAL",
+        psApprovedAt: now,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        performedByUserId: session.userId,
+        action: "PS_APPROVED_FLEET_OPERATOR",
+        entityType: "MASS_TRANSIT",
+        entityId: companyId,
+        changeDescription: `Permanent Secretary reviewed and signed off fleet application to Commissioner for ${company.companyName}`,
+      },
+    });
+  });
+
+  revalidatePath(`/fleet-operators/${companyId}`);
+  revalidatePath("/fleet-operators");
+  return { success: true };
+}
+
 // ==================== PERMIT TO OPERATE (FR-027, STORY-049) ====================
 
 /**
- * FR-027: Commissioner/PS issues Permit to Operate Certificate.
+ * FR-027: Commissioner issues Permit to Operate Certificate.
  * Permit is annual (1-year expiry). Number format: MOT/PTO/YYYY/NNNN.
  */
 export async function issuePermitToOperate(
@@ -1030,14 +1209,16 @@ export async function issuePermitToOperate(
 
   if (!company) return { success: false, error: "Fleet application not found" };
 
-  if (
-    !["INSPECTION_COMPLETED", "PENDING_APPROVAL"].includes(
-      company.applicationStatus,
-    )
-  ) {
+  const allowedStatuses = [
+    "PENDING_COMMISSIONER_APPROVAL",
+    "PENDING_PS_APPROVAL",
+    "PENDING_APPROVAL",
+    "INSPECTION_COMPLETED",
+  ];
+  if (!allowedStatuses.includes(company.applicationStatus)) {
     return {
       success: false,
-      error: `Cannot issue permit — current status is ${company.applicationStatus}. Inspection must be completed first.`,
+      error: `Cannot issue permit — current status is ${company.applicationStatus}. Inspection and executive approvals must be completed first.`,
     };
   }
 
@@ -1050,6 +1231,7 @@ export async function issuePermitToOperate(
   const oneYearFromNow = new Date();
   oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
 
+  const now = new Date();
   await db.$transaction(async (tx) => {
     await tx.massTransitCompany.update({
       where: { id: companyId },
@@ -1057,10 +1239,11 @@ export async function issuePermitToOperate(
         applicationStatus: "APPROVED",
         permitStatus: "ACTIVE",
         permitNumber,
-        permitIssuedAt: new Date(),
+        permitIssuedAt: now,
         permitExpiresAt: oneYearFromNow,
         nextRevalidationDue: oneYearFromNow,
-        approvedAt: new Date(),
+        approvedAt: now,
+        commissionerApprovedAt: now,
         approvedByUserId: session.userId,
       },
     });
