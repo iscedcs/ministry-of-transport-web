@@ -71,7 +71,13 @@ interface VehicleItem {
   particularsIssueDate: Date | null;
   particularsExpiryDate: Date | null;
   assignedRoute: string | null;
+  ownershipType: string;
+  ownerName: string | null;
+  ownerPhone: string | null;
+  ownerAddress: string | null;
+  ownerNIN: string | null;
   authorityRef: string;
+
   authorityIssueDate: Date | null;
   authorityExpiryDate: Date | null;
   status: string;
@@ -155,6 +161,11 @@ export default function TracasClient({
     fleetNumber: "",
     category: "BUS",
     customType: "",
+    ownershipType: "GOVERNMENT_OWNED",
+    ownerName: "",
+    ownerPhone: "",
+    ownerAddress: "",
+    ownerNIN: "",
     makeModel: "",
     engineNumber: "",
     chassisNumber: "",
@@ -167,6 +178,7 @@ export default function TracasClient({
     assignedDriverId: "",
     stickerId: "",
   });
+
 
 
   const [driverForm, setDriverForm] = useState({
@@ -287,6 +299,11 @@ export default function TracasClient({
           fleetNumber: "",
           category: "BUS",
           customType: "",
+          ownershipType: "GOVERNMENT_OWNED",
+          ownerName: "",
+          ownerPhone: "",
+          ownerAddress: "",
+          ownerNIN: "",
           makeModel: "",
           engineNumber: "",
           chassisNumber: "",
@@ -299,6 +316,7 @@ export default function TracasClient({
           assignedDriverId: "",
           stickerId: "",
         });
+
         router.refresh();
       } else {
 
@@ -632,11 +650,34 @@ export default function TracasClient({
                       </td>
 
                       <td className="py-3.5 px-4 text-xs">
-                        <Badge variant="outline" className="font-semibold uppercase text-[10px]">
-                          {vehicle.category}
-                        </Badge>
-                        <p className="text-muted-foreground mt-0.5">{vehicle.makeModel || "N/A"}</p>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Badge variant="outline" className="font-semibold uppercase text-[10px]">
+                            {vehicle.category}
+                          </Badge>
+                          <Badge
+                            className={
+                              vehicle.ownershipType === "INDIVIDUAL"
+                                ? "bg-purple-500/10 text-purple-500 border-purple-500/20 font-bold text-[10px]"
+                                : vehicle.ownershipType === "COLLABORATIVE"
+                                ? "bg-blue-500/10 text-blue-500 border-blue-500/20 font-bold text-[10px]"
+                                : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20 font-bold text-[10px]"
+                            }
+                          >
+                            {vehicle.ownershipType === "INDIVIDUAL"
+                              ? "Private Owner"
+                              : vehicle.ownershipType === "COLLABORATIVE"
+                              ? "Franchise"
+                              : "State Fleet"}
+                          </Badge>
+                        </div>
+                        <p className="text-muted-foreground">{vehicle.makeModel || "N/A"}</p>
+                        {vehicle.ownerName && (
+                          <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
+                            Owner: <span className="text-foreground font-semibold">{vehicle.ownerName}</span> ({vehicle.ownerPhone})
+                          </p>
+                        )}
                       </td>
+
 
                       <td className="py-3.5 px-4">
                         <span className="font-mono font-bold text-xs bg-secondary px-2 py-1 rounded-md text-foreground border border-border">
@@ -914,6 +955,78 @@ export default function TracasClient({
                   required
                 />
               </div>
+
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="ownershipType" className="font-semibold">
+                  Vehicle Ownership Type *
+                </Label>
+                <Select
+                  value={vehicleForm.ownershipType}
+                  onValueChange={(val) => setVehicleForm({ ...vehicleForm, ownershipType: val })}
+                >
+                  <SelectTrigger id="ownershipType">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GOVERNMENT_OWNED">Government Owned (TRACAS State Fleet)</SelectItem>
+                    <SelectItem value="INDIVIDUAL">Individual / Private Owner</SelectItem>
+                    <SelectItem value="COLLABORATIVE">Collaborative / Franchise Partner</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {vehicleForm.ownershipType !== "GOVERNMENT_OWNED" && (
+                <div className="sm:col-span-2 bg-secondary/40 border border-border p-4 rounded-2xl space-y-3">
+                  <p className="text-xs font-bold text-primary uppercase tracking-wider">
+                    Vehicle Owner Details (Required for Private / Collaborative Vehicles)
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="ownerName">Owner Full Name / Company Name *</Label>
+                      <Input
+                        id="ownerName"
+                        placeholder="e.g. Chief Emeka Okafor"
+                        value={vehicleForm.ownerName}
+                        onChange={(e) => setVehicleForm({ ...vehicleForm, ownerName: e.target.value })}
+                        required={vehicleForm.ownershipType !== "GOVERNMENT_OWNED"}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="ownerPhone">Owner Phone Number *</Label>
+                      <Input
+                        id="ownerPhone"
+                        placeholder="e.g. 08031234567"
+                        value={vehicleForm.ownerPhone}
+                        onChange={(e) => setVehicleForm({ ...vehicleForm, ownerPhone: e.target.value })}
+                        required={vehicleForm.ownershipType !== "GOVERNMENT_OWNED"}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="ownerAddress">Owner Residential / Business Address</Label>
+                      <Input
+                        id="ownerAddress"
+                        placeholder="e.g. 12 Zik Avenue, Awka"
+                        value={vehicleForm.ownerAddress}
+                        onChange={(e) => setVehicleForm({ ...vehicleForm, ownerAddress: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="ownerNIN">Owner NIN / CAC Reg No</Label>
+                      <Input
+                        id="ownerNIN"
+                        placeholder="e.g. 12345678901 or RC-12345"
+                        value={vehicleForm.ownerNIN}
+                        onChange={(e) => setVehicleForm({ ...vehicleForm, ownerNIN: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
 
               <div className="space-y-1.5">
                 <Label htmlFor="category">Vehicle Category</Label>

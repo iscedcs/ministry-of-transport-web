@@ -21,7 +21,13 @@ export interface LetterVehicleData {
   particularsIssueDate?: Date | string | null;
   particularsExpiryDate?: Date | string | null;
   assignedRoute?: string | null;
+  ownershipType?: string | null;
+  ownerName?: string | null;
+  ownerPhone?: string | null;
+  ownerAddress?: string | null;
+  ownerNIN?: string | null;
   authorityRef: string;
+
   authorityIssueDate?: Date | string | null;
   authorityExpiryDate?: Date | string | null;
   assignedDriver?: {
@@ -203,6 +209,22 @@ export function LetterOfAuthorityDocument({
               <span className="font-semibold">Driver&apos;s Name:</span>{" "}
               <span className="font-bold text-slate-950">{driver?.fullName || "Unassigned"}</span>
             </p>
+
+            {vehicle.ownerName && (
+              <p>
+                <span className="font-semibold">Vehicle Owner:</span>{" "}
+                <span className="font-bold text-slate-950">{vehicle.ownerName}</span>{" "}
+                {vehicle.ownerPhone && (
+                  <span className="font-mono text-xs text-slate-700">({vehicle.ownerPhone})</span>
+                )}
+                {vehicle.ownershipType && vehicle.ownershipType !== "GOVERNMENT_OWNED" && (
+                  <span className="ml-2 text-xs font-sans uppercase font-bold text-slate-600">
+                    [{vehicle.ownershipType === "INDIVIDUAL" ? "Private Owner" : "Franchise"}]
+                  </span>
+                )}
+              </p>
+            )}
+
 
             <p>
               <span className="font-semibold">Vehicle particulars issued on</span>{" "}

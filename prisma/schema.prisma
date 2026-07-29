@@ -1450,7 +1450,13 @@ model TracasVehicle {
   particularsIssueDate    DateTime?
   particularsExpiryDate   DateTime?
   assignedRoute           String?
+  ownershipType           String       @default("GOVERNMENT_OWNED") @db.VarChar(50)
+  ownerName               String?
+  ownerPhone              String?
+  ownerAddress            String?      @db.Text
+  ownerNIN                String?
   authorityRef            String       @unique
+
   authorityIssueDate      DateTime?    @default(now())
   authorityExpiryDate     DateTime?
   status                  PermitStatus @default(ACTIVE)

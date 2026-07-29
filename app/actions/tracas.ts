@@ -16,12 +16,18 @@ export interface OnboardTracasVehicleInput {
   particularsIssueDate?: string;
   particularsExpiryDate?: string;
   assignedRoute?: string;
+  ownershipType?: string;
+  ownerName?: string;
+  ownerPhone?: string;
+  ownerAddress?: string;
+  ownerNIN?: string;
   authorityRef?: string;
   authorityIssueDate?: string;
   authorityExpiryDate?: string;
   stickerId?: string;
   assignedDriverId?: string;
 }
+
 
 export interface OnboardTracasDriverInput {
   fullName: string;
@@ -156,6 +162,16 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
 
     const authorityRef = input.authorityRef?.trim() || (await generateUniqueAuthorityRef());
 
+    const ownershipType = input.ownershipType || "GOVERNMENT_OWNED";
+    if (ownershipType !== "GOVERNMENT_OWNED") {
+      if (!input.ownerName?.trim()) {
+        return { success: false, error: "Vehicle Owner Name is required for private/collaborative vehicles." };
+      }
+      if (!input.ownerPhone?.trim()) {
+        return { success: false, error: "Vehicle Owner Phone is required for private/collaborative vehicles." };
+      }
+    }
+
     const vehicle = await db.tracasVehicle.create({
       data: {
         registrationNumber: regNo,
@@ -170,12 +186,18 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
         particularsIssueDate: input.particularsIssueDate ? new Date(input.particularsIssueDate) : null,
         particularsExpiryDate: input.particularsExpiryDate ? new Date(input.particularsExpiryDate) : null,
         assignedRoute: input.assignedRoute || null,
+        ownershipType: ownershipType,
+        ownerName: input.ownerName?.trim() || null,
+        ownerPhone: input.ownerPhone?.trim() || null,
+        ownerAddress: input.ownerAddress?.trim() || null,
+        ownerNIN: input.ownerNIN?.trim() || null,
         authorityRef: authorityRef,
         authorityIssueDate: input.authorityIssueDate ? new Date(input.authorityIssueDate) : new Date(),
         authorityExpiryDate: input.authorityExpiryDate ? new Date(input.authorityExpiryDate) : null,
         assignedDriverId: input.assignedDriverId || null,
       },
     });
+
 
     if (input.stickerId) {
       await db.tracasSticker.update({
