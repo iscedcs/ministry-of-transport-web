@@ -33,7 +33,7 @@ function createPrismaClient(): PrismaClient {
 
 function getDb(): PrismaClient {
   if (process.env.NODE_ENV !== "production") {
-    if (!globalForPrisma.prisma || !("boatSticker" in globalForPrisma.prisma)) {
+    if (!globalForPrisma.prisma || !("tracasVehicle" in globalForPrisma.prisma)) {
       globalForPrisma.prisma = createPrismaClient();
     }
     return globalForPrisma.prisma;
@@ -46,11 +46,20 @@ function getDb(): PrismaClient {
 
 export const db: PrismaClient = new Proxy({} as PrismaClient, {
   get(_target, prop) {
-    const client = getDb();
-    const value = (client as any)[prop];
+    let client = getDb();
+    let value = (client as any)[prop];
+
+    // If property accessed on PrismaClient is undefined during hot reload, refresh client instance
+    if (value === undefined && typeof prop === "string" && prop !== "then" && !prop.startsWith("$")) {
+      globalForPrisma.prisma = createPrismaClient();
+      client = globalForPrisma.prisma;
+      value = (client as any)[prop];
+    }
+
     if (typeof value === "function") {
       return value.bind(client);
     }
     return value;
   },
 });
+
