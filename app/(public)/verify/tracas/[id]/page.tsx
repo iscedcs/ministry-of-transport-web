@@ -145,10 +145,25 @@ export default async function VerifyTracasPage({
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1">
               <span className="text-muted-foreground text-[10px] uppercase font-semibold block">
-                Vehicle Category
+                Vehicle Category & Ownership
               </span>
-              <p className="font-bold text-foreground">{vehicle.category}</p>
+              <p className="font-bold text-foreground">
+                {vehicle.category}{" "}
+                <span className="text-xs text-muted-foreground font-semibold">
+                  ({vehicle.ownershipType === "INDIVIDUAL" ? "Private Owner" : vehicle.ownershipType === "COLLABORATIVE" ? "Franchise" : "Government Fleet"})
+                </span>
+              </p>
             </div>
+
+            <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1">
+              <span className="text-muted-foreground text-[10px] uppercase font-semibold block">
+                Registered Owner
+              </span>
+              <p className="font-bold text-foreground truncate">
+                {vehicle.ownerName ? `${vehicle.ownerName} (${vehicle.ownerPhone || "N/A"})` : "Anambra State Govt (TRACAS)"}
+              </p>
+            </div>
+
 
             <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1">
               <span className="text-muted-foreground text-[10px] uppercase font-semibold block">
