@@ -505,6 +505,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
         parkId={park.id}
         status={park.applicationStatus}
         role={session.role}
+        initialMonthlyLevyKobo={park.monthlyLevyAmount}
       />
 
       {/* Signatures & Executive Approvals timeline card */}

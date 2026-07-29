@@ -1,21 +1,27 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { requireRole } from "@/lib/auth";
+import { requireRole, requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 export async function scheduleRevalidationInspection(
   applicationId: string,
   inspectorId: string,
-  date: string
+  inspectionDateStr: string,
 ) {
-  await requireRole(["HOD_PARKS_REVALIDATION", "SYSTEM_ADMIN"]);
+  await requireRole([
+    "HOD_PARKS_REVALIDATION",
+    "HOD_PARKS",
+    "COMMISSIONER",
+    "PERMANENT_SECRETARY",
+    "SYSTEM_ADMIN",
+  ]);
 
   const app = await db.revalidationApplication.update({
     where: { id: applicationId },
     data: {
       inspectionOfficerId: inspectorId,
-      inspectionDate: new Date(date),
+      inspectionDate: new Date(inspectionDateStr),
       status: "INSPECTION_SCHEDULED",
     },
   });
@@ -28,21 +34,16 @@ export async function scheduleRevalidationInspection(
 export async function submitRevalidationFindings(
   applicationId: string,
   findings: string,
-  recommendation: string
+  recommendation: string,
 ) {
-  // Only field inspectors can submit findings
-  await requireRole([
-    "FIELD_INSPECTOR",
-    "VEHICLE_INSPECTION_OFFICER",
-    "SYSTEM_ADMIN",
-  ]);
+  await requireAuth();
 
   const app = await db.revalidationApplication.update({
     where: { id: applicationId },
     data: {
       findings,
       recommendation,
-      status: "PENDING_HOD_APPROVAL",
+      status: "INSPECTION_COMPLETED",
     },
   });
 
@@ -52,7 +53,13 @@ export async function submitRevalidationFindings(
 }
 
 export async function hodApproveRevalidation(applicationId: string) {
-  await requireRole(["HOD_PARKS_REVALIDATION", "SYSTEM_ADMIN"]);
+  await requireRole([
+    "HOD_PARKS_REVALIDATION",
+    "HOD_PARKS",
+    "COMMISSIONER",
+    "PERMANENT_SECRETARY",
+    "SYSTEM_ADMIN",
+  ]);
 
   const app = await db.revalidationApplication.update({
     where: { id: applicationId },
@@ -68,7 +75,11 @@ export async function hodApproveRevalidation(applicationId: string) {
 }
 
 export async function psApproveRevalidation(applicationId: string) {
-  await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+  await requireRole([
+    "PERMANENT_SECRETARY",
+    "COMMISSIONER",
+    "SYSTEM_ADMIN",
+  ]);
 
   const app = await db.revalidationApplication.update({
     where: { id: applicationId },
@@ -86,7 +97,6 @@ export async function psApproveRevalidation(applicationId: string) {
 export async function commissionerApproveRevalidation(applicationId: string) {
   await requireRole(["COMMISSIONER", "SYSTEM_ADMIN"]);
 
-  // Generate Revalidation Number
   const currentYear = new Date().getFullYear();
   const count = await db.revalidationApplication.count({
     where: {
@@ -100,7 +110,7 @@ export async function commissionerApproveRevalidation(applicationId: string) {
   const revalidationNumber = `AN-REV-${currentYear}-${seq}`;
 
   const validUntil = new Date();
-  validUntil.setFullYear(validUntil.getFullYear() + 1); // Valid for 1 year
+  validUntil.setFullYear(validUntil.getFullYear() + 1);
 
   const app = await db.revalidationApplication.update({
     where: { id: applicationId },
@@ -113,26 +123,53 @@ export async function commissionerApproveRevalidation(applicationId: string) {
     },
   });
 
-  // Check if MotorPark already exists by ASIN
-  const existingPark = await db.motorPark.findUnique({
-    where: { anssidNumber: app.asinNumber },
-  });
+  // Look up existing MotorPark by motorParkId, ASIN number, permit number, or applicant user ID
+  let existingPark = null;
+
+  if (app.motorParkId) {
+    existingPark = await db.motorPark.findUnique({
+      where: { id: app.motorParkId },
+    });
+  }
+
+  if (!existingPark && app.asinNumber) {
+    existingPark = await db.motorPark.findFirst({
+      where: {
+        OR: [
+          { anssidNumber: { equals: app.asinNumber, mode: "insensitive" as const } },
+          ...(app.existingApprovalNum ? [{ permitNumber: { equals: app.existingApprovalNum, mode: "insensitive" as const } }] : []),
+          { contactUserId: app.applicantUserId },
+        ],
+      },
+    });
+  }
 
   if (existingPark) {
+    // Update EXISTING MotorPark — NEVER create a duplicate record
     await db.motorPark.update({
       where: { id: existingPark.id },
       data: {
+        businessName: app.parkName || existingPark.businessName,
+        transportCompanyName: app.ownerName || existingPark.transportCompanyName,
+        streetAddress: app.physicalLocation || existingPark.streetAddress,
+        lga: app.lga || existingPark.lga,
+        townCity: app.townCommunity || existingPark.townCity,
+        contactPerson: app.representativeName || existingPark.contactPerson,
+        contactPhone: app.phoneNumber || existingPark.contactPhone,
+        contactEmail: app.emailAddress || existingPark.contactEmail,
+        managerResidentialAddress: app.residentialAddress || existingPark.managerResidentialAddress,
+        cacRegistrationNumber: app.cacRegistrationNumber || existingPark.cacRegistrationNumber,
         lastRevalidatedAt: new Date(),
         nextRevalidationDue: validUntil,
         applicationStatus: "APPROVED",
         permitStatus: "ACTIVE",
         permitExpiresAt: validUntil,
-        permitNumber: revalidationNumber,
-        permitIssuedAt: new Date(),
+        permitNumber: existingPark.permitNumber || revalidationNumber,
+        permitIssuedAt: existingPark.permitIssuedAt || new Date(),
       },
     });
   } else {
-    // Create new MotorPark from the Revalidation application
+    // Create new MotorPark only if no existing record exists anywhere
     await db.motorPark.create({
       data: {
         businessName: app.parkName,

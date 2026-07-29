@@ -941,13 +941,15 @@ export async function hodApproveMotorPark(
  */
 export async function psApproveMotorPark(
   parkId: string,
+  adjustedMonthlyLevy?: number,
+  psRecommendationNotes?: string,
 ): Promise<ActionResult> {
   await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
   const session = await requireAuth();
 
   const park = await db.motorPark.findUnique({
     where: { id: parkId },
-    select: { id: true, applicationStatus: true, businessName: true },
+    select: { id: true, applicationStatus: true, businessName: true, monthlyLevyAmount: true },
   });
 
   if (!park) return { success: false, error: "Motor park not found" };
@@ -961,14 +963,45 @@ export async function psApproveMotorPark(
   }
 
   const now = new Date();
+  const amountInKobo =
+    adjustedMonthlyLevy !== undefined && adjustedMonthlyLevy >= 0
+      ? Math.round(adjustedMonthlyLevy * 100)
+      : park.monthlyLevyAmount;
+
   await db.$transaction(async (tx) => {
     await tx.motorPark.update({
       where: { id: parkId },
       data: {
         applicationStatus: "PENDING_COMMISSIONER_APPROVAL",
         psApprovedAt: now,
+        monthlyLevyAmount: amountInKobo,
+        psRecommendationNotes: psRecommendationNotes?.trim() || null,
       },
     });
+
+    if (amountInKobo) {
+      const existingFee = await tx.motorParkFee.findFirst({
+        where: { motorParkId: parkId, feeType: "MONTHLY_LEVY" },
+      });
+      if (existingFee) {
+        await tx.motorParkFee.update({
+          where: { id: existingFee.id },
+          data: { amount: amountInKobo },
+        });
+      } else {
+        const nextMonth = new Date(now);
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        await tx.motorParkFee.create({
+          data: {
+            motorParkId: parkId,
+            feeType: "MONTHLY_LEVY",
+            amount: amountInKobo,
+            dueDate: nextMonth,
+            status: "PENDING",
+          },
+        });
+      }
+    }
 
     await tx.auditLog.create({
       data: {
@@ -976,7 +1009,11 @@ export async function psApproveMotorPark(
         action: "PS_APPROVED_MOTOR_PARK",
         entityType: "MOTOR_PARK",
         entityId: parkId,
-        changeDescription: `Permanent Secretary reviewed and signed off application to Commissioner for ${park.businessName}`,
+        changeDescription: `Permanent Secretary submitted recommendation to Commissioner for ${park.businessName}${
+          adjustedMonthlyLevy !== undefined
+            ? ` with finalized monthly levy of ₦${adjustedMonthlyLevy.toLocaleString()}`
+            : ""
+        }${psRecommendationNotes ? `. Notes: ${psRecommendationNotes}` : ""}`,
       },
     });
   });
@@ -996,7 +1033,7 @@ export async function issuePermitToBuild(
   prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult<{ permitNumber: string }>> {
-  await requireExecutive();
+  await requireRole(["COMMISSIONER", "SYSTEM_ADMIN"]);
   const session = await requireAuth();
 
   const parkId = formData.get("parkId") as string;
@@ -1016,16 +1053,11 @@ export async function issuePermitToBuild(
 
   if (!park) return { success: false, error: "Motor park not found" };
 
-  const allowedStatuses = [
-    "PENDING_COMMISSIONER_APPROVAL",
-    "PENDING_PS_APPROVAL",
-    "PENDING_APPROVAL",
-    "INSPECTION_COMPLETED",
-  ];
+  const allowedStatuses = ["PENDING_COMMISSIONER_APPROVAL"];
   if (!allowedStatuses.includes(park.applicationStatus)) {
     return {
       success: false,
-      error: `Cannot issue Permit to Build — current status is ${park.applicationStatus}. Inspection and approvals must be completed first.`,
+      error: `Cannot issue Permit to Build — application is in status ${park.applicationStatus}. Permanent Secretary recommendation and approval must be completed first.`,
     };
   }
 
@@ -1271,7 +1303,7 @@ export async function issueFinalApproval(
   prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult<{ permitNumber: string; revalidationDue: Date }>> {
-  await requireExecutive();
+  await requireRole(["COMMISSIONER", "SYSTEM_ADMIN"]);
   const session = await requireAuth();
 
   const parkId = formData.get("parkId") as string;
@@ -1293,16 +1325,13 @@ export async function issueFinalApproval(
 
   const allowedStatuses = [
     "PENDING_COMMISSIONER_APPROVAL",
-    "PENDING_PS_APPROVAL",
-    "PENDING_APPROVAL",
     "TEMPORAL_APPROVAL",
-    "INSPECTION_COMPLETED",
   ];
   if (!allowedStatuses.includes(park.applicationStatus)) {
     return {
       success: false,
       error:
-        "Final approval requires a completed inspection, executive sign-off, or temporal approval",
+        "Final approval requires Permanent Secretary recommendation or temporal approval prior to Commissioner sign-off.",
     };
   }
 

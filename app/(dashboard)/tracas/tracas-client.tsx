@@ -1,0 +1,1538 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import {
+  Bus,
+  Plus,
+  QrCode,
+  UserCheck,
+  UserPlus,
+  RefreshCw,
+  Search,
+  ExternalLink,
+  ShieldCheck,
+  Tag,
+  FileText,
+  User,
+  Phone,
+  Calendar,
+  CheckCircle2,
+  Printer,
+  Upload,
+  X,
+  Camera,
+} from "lucide-react";
+
+import {
+  onboardTracasVehicle,
+  onboardTracasDriver,
+  reassignTracasDriver,
+  assignStickerToTracasVehicle,
+  addStickerUrlsToTracasPool,
+} from "@/app/actions/tracas";
+
+interface VehicleItem {
+  id: string;
+  registrationNumber: string;
+  fleetNumber: string;
+  category: string;
+  makeModel: string | null;
+  engineNumber: string | null;
+  chassisNumber: string | null;
+  insuranceCertificateNo: string | null;
+  insuranceCommencement: Date | null;
+  insuranceExpiry: Date | null;
+  particularsIssueDate: Date | null;
+  particularsExpiryDate: Date | null;
+  assignedRoute: string | null;
+  authorityRef: string;
+  authorityIssueDate: Date | null;
+  authorityExpiryDate: Date | null;
+  status: string;
+  assignedDriverId: string | null;
+  assignedDriver: {
+    id: string;
+    fullName: string;
+    phoneNumber: string;
+    photoUrl: string | null;
+    licenseNumber: string | null;
+  } | null;
+  sticker: {
+    id: string;
+    stickerUrl: string;
+    stickerCode: string | null;
+  } | null;
+  createdAt: Date;
+}
+
+interface DriverItem {
+  id: string;
+  fullName: string;
+  phoneNumber: string;
+  email: string | null;
+  photoUrl: string | null;
+  nin: string | null;
+  asinNumber: string | null;
+  residentialAddress: string | null;
+  stateOfOrigin: string | null;
+  lga: string | null;
+  licenseNumber: string | null;
+  licenseIssueDate: Date | null;
+  licenseExpiryDate: Date | null;
+  status: string;
+  vehicles?: { id: string; registrationNumber: string; fleetNumber: string }[];
+}
+
+interface StickerItem {
+  id: string;
+  stickerUrl: string;
+  stickerCode: string | null;
+  isAssigned: boolean;
+  assignedVehicleId: string | null;
+  assignedVehicle?: {
+    id: string;
+    registrationNumber: string;
+    fleetNumber: string;
+  } | null;
+}
+
+interface TracasClientProps {
+  initialVehicles: VehicleItem[];
+  initialDrivers: DriverItem[];
+  initialStickers: StickerItem[];
+}
+
+export default function TracasClient({
+  initialVehicles,
+  initialDrivers,
+  initialStickers,
+}: TracasClientProps) {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"vehicles" | "drivers" | "stickers">(
+    "vehicles"
+  );
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Modals
+  const [isOnboardVehicleOpen, setIsOnboardVehicleOpen] = useState(false);
+  const [isOnboardDriverOpen, setIsOnboardDriverOpen] = useState(false);
+  const [isReassignDriverOpen, setIsReassignDriverOpen] = useState(false);
+  const [isAssignStickerOpen, setIsAssignStickerOpen] = useState(false);
+  const [isAddStickersOpen, setIsAddStickersOpen] = useState(false);
+
+  // Selected Target Objects for Modals
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleItem | null>(null);
+
+  // Form States
+  const [vehicleForm, setVehicleForm] = useState({
+    registrationNumber: "",
+    fleetNumber: "",
+    category: "BUS",
+    customType: "",
+    makeModel: "",
+    engineNumber: "",
+    chassisNumber: "",
+    insuranceCertificateNo: "",
+    insuranceCommencement: "",
+    insuranceExpiry: "",
+    particularsIssueDate: "",
+    particularsExpiryDate: "",
+    assignedRoute: "",
+    assignedDriverId: "",
+    stickerId: "",
+  });
+
+
+  const [driverForm, setDriverForm] = useState({
+    fullName: "",
+    phoneNumber: "",
+    email: "",
+    photoUrl: "",
+    nin: "",
+    asinNumber: "",
+    residentialAddress: "",
+    stateOfOrigin: "",
+    lga: "",
+    dateOfBirth: "",
+    gender: "MALE",
+    bloodGroup: "",
+    maritalStatus: "",
+    educationalQualification: "",
+    nextOfKinName: "",
+    nextOfKinPhone: "",
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+    guarantorName: "",
+    guarantorPhone: "",
+    guarantorAddress: "",
+    licenseNumber: "",
+    licenseIssueDate: "",
+    licenseExpiryDate: "",
+    operatorAssociation: "",
+    notes: "",
+  });
+
+  const [reassignForm, setReassignForm] = useState({
+    vehicleId: "",
+    driverId: "NONE",
+  });
+
+  const [assignStickerForm, setAssignStickerForm] = useState({
+    vehicleId: "",
+    stickerId: "NONE",
+  });
+
+  const [batchStickerUrls, setBatchStickerUrls] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file (PNG, JPG, WEBP).");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image file size must be less than 5MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        setDriverForm((prev) => ({ ...prev, photoUrl: result }));
+        toast.success("Passport photograph loaded successfully!");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Filtered lists
+
+  const availableStickers = initialStickers.filter((s) => !s.isAssigned);
+
+  const filteredVehicles = initialVehicles.filter(
+    (v) =>
+      v.registrationNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      v.fleetNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      v.authorityRef.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (v.assignedDriver?.fullName &&
+        v.assignedDriver.fullName.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const filteredDrivers = initialDrivers.filter(
+    (d) =>
+      d.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      d.phoneNumber.includes(searchQuery) ||
+      (d.licenseNumber && d.licenseNumber.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const filteredStickers = initialStickers.filter(
+    (s) =>
+      s.stickerUrl.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.stickerCode && s.stickerCode.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  // Submit Vehicle Form
+  const handleOnboardVehicle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const finalCategory = vehicleForm.customType.trim()
+        ? vehicleForm.customType.trim()
+        : vehicleForm.category;
+
+      const res = await onboardTracasVehicle({
+        ...vehicleForm,
+        category: finalCategory,
+        assignedDriverId:
+          vehicleForm.assignedDriverId === "NONE" ? undefined : vehicleForm.assignedDriverId,
+        stickerId: vehicleForm.stickerId === "NONE" ? undefined : vehicleForm.stickerId,
+      });
+
+      if (res.success) {
+        toast.success("TRACAS vehicle onboarded successfully!");
+        setIsOnboardVehicleOpen(false);
+        setVehicleForm({
+          registrationNumber: "",
+          fleetNumber: "",
+          category: "BUS",
+          customType: "",
+          makeModel: "",
+          engineNumber: "",
+          chassisNumber: "",
+          insuranceCertificateNo: "",
+          insuranceCommencement: "",
+          insuranceExpiry: "",
+          particularsIssueDate: "",
+          particularsExpiryDate: "",
+          assignedRoute: "",
+          assignedDriverId: "",
+          stickerId: "",
+        });
+        router.refresh();
+      } else {
+
+        toast.error(res.error || "Failed to onboard vehicle.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "An unexpected error occurred.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Submit Driver Bio-Data Form
+  const handleOnboardDriver = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const res = await onboardTracasDriver(driverForm);
+      if (res.success) {
+        toast.success("TRACAS driver bio-data enumerated & saved!");
+        setIsOnboardDriverOpen(false);
+        setDriverForm({
+          fullName: "",
+          phoneNumber: "",
+          email: "",
+          photoUrl: "",
+          nin: "",
+          asinNumber: "",
+          residentialAddress: "",
+          stateOfOrigin: "",
+          lga: "",
+          dateOfBirth: "",
+          gender: "MALE",
+          bloodGroup: "",
+          maritalStatus: "",
+          educationalQualification: "",
+          nextOfKinName: "",
+          nextOfKinPhone: "",
+          emergencyContactName: "",
+          emergencyContactPhone: "",
+          guarantorName: "",
+          guarantorPhone: "",
+          guarantorAddress: "",
+          licenseNumber: "",
+          licenseIssueDate: "",
+          licenseExpiryDate: "",
+          operatorAssociation: "",
+          notes: "",
+        });
+        router.refresh();
+      } else {
+        toast.error(res.error || "Failed to onboard driver.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "An unexpected error occurred.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Submit Reassign Driver
+  const handleReassignDriver = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reassignForm.vehicleId) return;
+    setIsSubmitting(true);
+    try {
+      const driverId = reassignForm.driverId === "NONE" ? null : reassignForm.driverId;
+      const res = await reassignTracasDriver(reassignForm.vehicleId, driverId);
+      if (res.success) {
+        toast.success("Driver assignment updated!");
+        setIsReassignDriverOpen(false);
+        router.refresh();
+      } else {
+        toast.error(res.error || "Failed to reassign driver.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "An unexpected error occurred.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Submit Assign Sticker
+  const handleAssignSticker = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assignStickerForm.vehicleId) return;
+    setIsSubmitting(true);
+    try {
+      const stickerId = assignStickerForm.stickerId === "NONE" ? null : assignStickerForm.stickerId;
+      const res = await assignStickerToTracasVehicle(assignStickerForm.vehicleId, stickerId);
+      if (res.success) {
+        toast.success("Vehicle sticker binding updated!");
+        setIsAssignStickerOpen(false);
+        router.refresh();
+      } else {
+        toast.error(res.error || "Failed to update sticker.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "An unexpected error occurred.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Batch Pre-load Stickers
+  const handleAddStickers = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const urls = batchStickerUrls
+      .split("\n")
+      .map((u) => u.trim())
+      .filter((u) => u.length > 0);
+
+    if (urls.length === 0) {
+      toast.error("Please enter at least one sticker URL.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await addStickerUrlsToTracasPool(urls);
+      if (res.success) {
+        toast.success(`Successfully pre-loaded ${res.count} stickers!`);
+        setIsAddStickersOpen(false);
+        setBatchStickerUrls("");
+        router.refresh();
+      } else {
+        toast.error(res.error || "Failed to pre-load stickers.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "An unexpected error occurred.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {/* Header Banner */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border/50 pb-5">
+        <div>
+          <h1
+            className="text-2xl font-bold text-foreground flex items-center gap-2.5"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            <Bus className="w-7 h-7 text-primary" />
+            TRACAS Transport Fleet
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Transport Company of Anambra State · Vehicle & Driver Enumeration, Fleet QR Stickers & Official Letter of Authority Generator
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            variant="outline"
+            onClick={() => setIsAddStickersOpen(true)}
+            className="gap-2 cursor-pointer"
+          >
+            <Tag className="w-4 h-4 text-primary" />
+            Pre-Load QR Stickers
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => setIsOnboardDriverOpen(true)}
+            className="gap-2 cursor-pointer"
+          >
+            <UserPlus className="w-4 h-4 text-primary" />
+            Enumerate Driver
+          </Button>
+
+          <Button
+            onClick={() => setIsOnboardVehicleOpen(true)}
+            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-md cursor-pointer font-semibold"
+          >
+            <Plus className="w-4 h-4" />
+            Onboard Vehicle
+          </Button>
+        </div>
+      </div>
+
+      {/* Fleet Metrics Overview */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-card border-border/60">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Total Fleet Vehicles
+              </p>
+              <h3 className="text-2xl font-bold text-foreground mt-1">
+                {initialVehicles.length}
+              </h3>
+            </div>
+            <div className="p-3 bg-primary/10 rounded-2xl">
+              <Bus className="w-6 h-6 text-primary" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border/60">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Enumerated Drivers
+              </p>
+              <h3 className="text-2xl font-bold text-foreground mt-1">
+                {initialDrivers.length}
+              </h3>
+            </div>
+            <div className="p-3 bg-emerald-500/10 rounded-2xl">
+              <UserCheck className="w-6 h-6 text-emerald-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border/60">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Available Stickers Pool
+              </p>
+              <h3 className="text-2xl font-bold text-foreground mt-1">
+                {availableStickers.length}
+              </h3>
+            </div>
+            <div className="p-3 bg-amber-500/10 rounded-2xl">
+              <QrCode className="w-6 h-6 text-amber-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border/60">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Active Authority Letters
+              </p>
+              <h3 className="text-2xl font-bold text-foreground mt-1">
+                {initialVehicles.filter((v) => v.status === "ACTIVE").length}
+              </h3>
+            </div>
+            <div className="p-3 bg-blue-500/10 rounded-2xl">
+              <ShieldCheck className="w-6 h-6 text-blue-500" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tabs & Search Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card p-3 rounded-2xl border border-border/60">
+        <div className="flex items-center gap-1.5 p-1 bg-secondary rounded-xl">
+          <Button
+            variant={activeTab === "vehicles" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setActiveTab("vehicles")}
+            className="rounded-lg gap-2 cursor-pointer text-xs font-medium"
+          >
+            <Bus className="w-3.5 h-3.5" />
+            Vehicles Fleet ({initialVehicles.length})
+          </Button>
+
+          <Button
+            variant={activeTab === "drivers" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setActiveTab("drivers")}
+            className="rounded-lg gap-2 cursor-pointer text-xs font-medium"
+          >
+            <UserCheck className="w-3.5 h-3.5" />
+            Enumerated Drivers ({initialDrivers.length})
+          </Button>
+
+          <Button
+            variant={activeTab === "stickers" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setActiveTab("stickers")}
+            className="rounded-lg gap-2 cursor-pointer text-xs font-medium"
+          >
+            <QrCode className="w-3.5 h-3.5" />
+            Sticker Inventory ({initialStickers.length})
+          </Button>
+        </div>
+
+        <div className="relative max-w-xs w-full">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search reg, fleet no, driver..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 bg-background/50 text-xs rounded-xl"
+          />
+        </div>
+      </div>
+
+      {/* TAB 1: VEHICLES FLEET TABLE */}
+      {activeTab === "vehicles" && (
+        <Card className="bg-card border-border/60 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-border/60 bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <th className="py-3.5 px-4">Registration & Fleet</th>
+                  <th className="py-3.5 px-4">Category / Model</th>
+                  <th className="py-3.5 px-4">Authority Ref</th>
+                  <th className="py-3.5 px-4">Assigned Driver</th>
+                  <th className="py-3.5 px-4">Physical Sticker</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40 text-sm">
+                {filteredVehicles.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                      No TRACAS vehicles found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredVehicles.map((vehicle) => (
+                    <tr key={vehicle.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="py-3.5 px-4 font-medium">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                            <Bus className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="font-bold text-foreground">{vehicle.registrationNumber}</p>
+                            <p className="text-xs text-muted-foreground font-mono">
+                              Fleet: {vehicle.fleetNumber}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-xs">
+                        <Badge variant="outline" className="font-semibold uppercase text-[10px]">
+                          {vehicle.category}
+                        </Badge>
+                        <p className="text-muted-foreground mt-0.5">{vehicle.makeModel || "N/A"}</p>
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <span className="font-mono font-bold text-xs bg-secondary px-2 py-1 rounded-md text-foreground border border-border">
+                          {vehicle.authorityRef}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-xs">
+                        {vehicle.assignedDriver ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-muted border border-border overflow-hidden flex-shrink-0">
+                              {vehicle.assignedDriver.photoUrl ? (
+                                <img
+                                  src={vehicle.assignedDriver.photoUrl}
+                                  alt=""
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <User className="w-3.5 h-3.5 text-muted-foreground m-1" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-foreground">
+                                {vehicle.assignedDriver.fullName}
+                              </p>
+                              <p className="text-muted-foreground">{vehicle.assignedDriver.phoneNumber}</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground italic text-xs">Unassigned</span>
+                        )}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-xs">
+                        {vehicle.sticker ? (
+                          <span className="text-emerald-500 font-medium flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Bound
+                          </span>
+                        ) : (
+                          <span className="text-amber-500 font-medium flex items-center gap-1">
+                            <Tag className="w-3.5 h-3.5" /> No Sticker
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Link
+                            href={`/tracas/${vehicle.id}/letter`}
+                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 bg-primary/10 text-primary font-semibold rounded-lg hover:bg-primary/20 transition-colors"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            Letter
+                          </Link>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedVehicle(vehicle);
+                              setAssignStickerForm({
+                                vehicleId: vehicle.id,
+                                stickerId: vehicle.sticker?.id || "NONE",
+                              });
+                              setIsAssignStickerOpen(true);
+                            }}
+                            className="h-8 px-2 text-xs gap-1 cursor-pointer"
+                          >
+                            <QrCode className="w-3.5 h-3.5" /> Sticker
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedVehicle(vehicle);
+                              setReassignForm({
+                                vehicleId: vehicle.id,
+                                driverId: vehicle.assignedDriverId || "NONE",
+                              });
+                              setIsReassignDriverOpen(true);
+                            }}
+                            className="h-8 px-2 text-xs gap-1 cursor-pointer"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" /> Driver
+                          </Button>
+
+                          <Link
+                            href={`/verify/tracas/${vehicle.authorityRef}`}
+                            target="_blank"
+                            className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary transition-colors"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* TAB 2: ENUMERATED DRIVERS TABLE */}
+      {activeTab === "drivers" && (
+        <Card className="bg-card border-border/60 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-border/60 bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <th className="py-3.5 px-4">Driver Name & Photo</th>
+                  <th className="py-3.5 px-4">Contact</th>
+                  <th className="py-3.5 px-4">NIN / ASIN</th>
+                  <th className="py-3.5 px-4">Driver's License</th>
+                  <th className="py-3.5 px-4">Assigned Vehicles</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40 text-sm">
+                {filteredDrivers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-muted-foreground">
+                      No enumerated TRACAS drivers found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredDrivers.map((driver) => (
+                    <tr key={driver.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="py-3.5 px-4 font-medium">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-muted border border-border overflow-hidden flex-shrink-0 flex items-center justify-center">
+                            {driver.photoUrl ? (
+                              <img src={driver.photoUrl} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <User className="w-5 h-5 text-muted-foreground" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-bold text-foreground">{driver.fullName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {driver.stateOfOrigin || "Anambra"} {driver.lga ? `· ${driver.lga}` : ""}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-xs">
+                        <p className="font-semibold text-foreground">{driver.phoneNumber}</p>
+                        <p className="text-muted-foreground">{driver.email || "No email"}</p>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-xs font-mono">
+                        <p>NIN: <span className="font-semibold text-foreground">{driver.nin || "N/A"}</span></p>
+                        <p>ASIN: <span className="font-semibold text-foreground">{driver.asinNumber || "N/A"}</span></p>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-xs font-mono">
+                        <p className="font-bold text-foreground">{driver.licenseNumber || "N/A"}</p>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-xs">
+                        {driver.vehicles && driver.vehicles.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {driver.vehicles.map((v) => (
+                              <Badge key={v.id} variant="secondary" className="font-mono text-[10px]">
+                                {v.registrationNumber} ({v.fleetNumber})
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground italic text-xs">None</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* TAB 3: STICKER INVENTORY TABLE */}
+      {activeTab === "stickers" && (
+        <Card className="bg-card border-border/60 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-border/60 bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <th className="py-3.5 px-4">Sticker URL / Code</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4">Bound Vehicle</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40 text-sm">
+                {filteredStickers.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="py-12 text-center text-muted-foreground">
+                      No stickers pre-loaded in inventory pool.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredStickers.map((sticker) => (
+                    <tr key={sticker.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="py-3.5 px-4 font-mono text-xs">
+                        <p className="font-bold text-foreground truncate max-w-md">{sticker.stickerUrl}</p>
+                        <p className="text-muted-foreground">Code: {sticker.stickerCode}</p>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-xs">
+                        {sticker.isAssigned ? (
+                          <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 font-bold text-[10px]">
+                            BOUND
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 font-bold text-[10px]">
+                            AVAILABLE POOL
+                          </Badge>
+                        )}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-xs">
+                        {sticker.assignedVehicle ? (
+                          <span className="font-bold text-foreground">
+                            {sticker.assignedVehicle.registrationNumber} (Fleet {sticker.assignedVehicle.fleetNumber})
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground italic">Unbound</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* MODAL 1: ONBOARD VEHICLE */}
+      <Dialog open={isOnboardVehicleOpen} onOpenChange={setIsOnboardVehicleOpen}>
+        <DialogContent className="max-w-2xl bg-card text-foreground border-border max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+              <Bus className="w-5 h-5 text-primary" />
+              Onboard TRACAS Vehicle
+            </DialogTitle>
+            <DialogDescription>
+              Register a vehicle under Transport Company of Anambra State (TRACAS) to issue an official Letter of Authority.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleOnboardVehicle} className="space-y-4 py-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="registrationNumber">Registration Number *</Label>
+                <Input
+                  id="registrationNumber"
+                  placeholder="e.g. CH123 or AKD 910 YE"
+                  value={vehicleForm.registrationNumber}
+                  onChange={(e) => setVehicleForm({ ...vehicleForm, registrationNumber: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="fleetNumber">Fleet Number *</Label>
+                <Input
+                  id="fleetNumber"
+                  placeholder="e.g. 234RCl or LV00004"
+                  value={vehicleForm.fleetNumber}
+                  onChange={(e) => setVehicleForm({ ...vehicleForm, fleetNumber: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="category">Vehicle Category</Label>
+                <Select
+                  value={vehicleForm.category}
+                  onValueChange={(val) => setVehicleForm({ ...vehicleForm, category: val })}
+                >
+                  <SelectTrigger id="category">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BUS">Bus</SelectItem>
+                    <SelectItem value="MINIBUS">Minibus</SelectItem>
+                    <SelectItem value="SIENNA">Sienna / MPV</SelectItem>
+                    <SelectItem value="COASTER">Coaster Bus</SelectItem>
+                    <SelectItem value="TAXI">Taxi</SelectItem>
+                    <SelectItem value="TRUCK">Truck</SelectItem>
+                    <SelectItem value="LIGHT_COMMERCIAL">Light Commercial</SelectItem>
+                    <SelectItem value="CAR">Car</SelectItem>
+                    <SelectItem value="TRICYCLE">Tricycle (Keke)</SelectItem>
+                    <SelectItem value="OTHER">Other Category</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="customType">
+                  {vehicleForm.category === "OTHER"
+                    ? "Specify Vehicle Type *"
+                    : "Vehicle Type / Sub-Category (Optional)"}
+                </Label>
+                <Input
+                  id="customType"
+                  placeholder="e.g. 18-Seater Shuttle, Sienna LE, Executive Bus..."
+                  value={vehicleForm.customType}
+                  onChange={(e) => setVehicleForm({ ...vehicleForm, customType: e.target.value })}
+                  required={vehicleForm.category === "OTHER"}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="makeModel">Make & Model</Label>
+                <Input
+                  id="makeModel"
+                  placeholder="e.g. Toyota Hiace Hummer"
+                  value={vehicleForm.makeModel}
+                  onChange={(e) => setVehicleForm({ ...vehicleForm, makeModel: e.target.value })}
+                />
+              </div>
+
+
+              <div className="space-y-1.5">
+                <Label htmlFor="engineNumber">Engine Number</Label>
+                <Input
+                  id="engineNumber"
+                  placeholder="e.g. LLMN200"
+                  value={vehicleForm.engineNumber}
+                  onChange={(e) => setVehicleForm({ ...vehicleForm, engineNumber: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="chassisNumber">Chassis No / VIN</Label>
+                <Input
+                  id="chassisNumber"
+                  placeholder="e.g. 09877662"
+                  value={vehicleForm.chassisNumber}
+                  onChange={(e) => setVehicleForm({ ...vehicleForm, chassisNumber: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="insuranceCertificateNo">Insurance Certificate No.</Label>
+                <Input
+                  id="insuranceCertificateNo"
+                  placeholder="e.g. LLW0003"
+                  value={vehicleForm.insuranceCertificateNo}
+                  onChange={(e) => setVehicleForm({ ...vehicleForm, insuranceCertificateNo: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="insuranceCommencement">Insurance Commencement</Label>
+                <Input
+                  id="insuranceCommencement"
+                  type="date"
+                  value={vehicleForm.insuranceCommencement}
+                  onChange={(e) => setVehicleForm({ ...vehicleForm, insuranceCommencement: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="insuranceExpiry">Insurance Expiry Date</Label>
+                <Input
+                  id="insuranceExpiry"
+                  type="date"
+                  value={vehicleForm.insuranceExpiry}
+                  onChange={(e) => setVehicleForm({ ...vehicleForm, insuranceExpiry: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="particularsIssueDate">Particulars Issue Date</Label>
+                <Input
+                  id="particularsIssueDate"
+                  type="date"
+                  value={vehicleForm.particularsIssueDate}
+                  onChange={(e) => setVehicleForm({ ...vehicleForm, particularsIssueDate: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="particularsExpiryDate">Particulars Expiry Date</Label>
+                <Input
+                  id="particularsExpiryDate"
+                  type="date"
+                  value={vehicleForm.particularsExpiryDate}
+                  onChange={(e) => setVehicleForm({ ...vehicleForm, particularsExpiryDate: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="assignedRoute">Assigned Route</Label>
+                <Input
+                  id="assignedRoute"
+                  placeholder="e.g. Awka - Onitsha Expressway"
+                  value={vehicleForm.assignedRoute}
+                  onChange={(e) => setVehicleForm({ ...vehicleForm, assignedRoute: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="assignedDriverId">Assign Driver (Optional)</Label>
+                <Select
+                  value={vehicleForm.assignedDriverId}
+                  onValueChange={(val) => setVehicleForm({ ...vehicleForm, assignedDriverId: val })}
+                >
+                  <SelectTrigger id="assignedDriverId">
+                    <SelectValue placeholder="Select driver..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">-- No Driver Assigned --</SelectItem>
+                    {initialDrivers.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.fullName} ({d.phoneNumber})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="stickerId">Bind Pre-Loaded Sticker (Optional)</Label>
+                <Select
+                  value={vehicleForm.stickerId}
+                  onValueChange={(val) => setVehicleForm({ ...vehicleForm, stickerId: val })}
+                >
+                  <SelectTrigger id="stickerId">
+                    <SelectValue placeholder="Select QR sticker..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">-- No Sticker Selected --</SelectItem>
+                    {availableStickers.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.stickerCode || s.stickerUrl}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-4">
+              <Button variant="outline" type="button" onClick={() => setIsOnboardVehicleOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting} className="font-semibold">
+                {isSubmitting ? "Onboarding..." : "Onboard Vehicle & Generate Authority"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 2: ONBOARD DRIVER (ENUMERATION) */}
+      <Dialog open={isOnboardDriverOpen} onOpenChange={setIsOnboardDriverOpen}>
+        <DialogContent className="max-w-3xl bg-card text-foreground border-border max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+              <UserPlus className="w-5 h-5 text-primary" />
+              Driver Enumeration & Bio-Data Registration
+            </DialogTitle>
+            <DialogDescription>
+              Complete driver bio-data enumeration for TRACAS identification and authority card licensing.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleOnboardDriver} className="space-y-4 py-2">
+            <div className="border-b border-border pb-2">
+              <h4 className="font-bold text-sm text-primary uppercase tracking-wider">
+                1. Personal Bio-Data
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="fullName">Full Name *</Label>
+                <Input
+                  id="fullName"
+                  placeholder="e.g. Azubuike Ifeanyi"
+                  value={driverForm.fullName}
+                  onChange={(e) => setDriverForm({ ...driverForm, fullName: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="phoneNumber">Phone Number *</Label>
+                <Input
+                  id="phoneNumber"
+                  placeholder="e.g. 08030000000"
+                  value={driverForm.phoneNumber}
+                  onChange={(e) => setDriverForm({ ...driverForm, phoneNumber: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5 sm:col-span-3">
+                <Label htmlFor="photo-upload-input" className="flex items-center gap-1.5 font-semibold text-foreground">
+                  <Camera className="w-4 h-4 text-primary" />
+                  Passport Photograph Upload *
+                </Label>
+
+                <input
+                  id="photo-upload-input"
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoFileChange}
+                  className="hidden"
+                />
+
+                {driverForm.photoUrl ? (
+                  <div className="flex items-center gap-4 bg-secondary/40 border border-border p-3.5 rounded-2xl">
+                    <div className="w-20 h-24 rounded-xl bg-muted border border-border overflow-hidden flex-shrink-0 relative shadow-sm">
+                      <img
+                        src={driverForm.photoUrl}
+                        alt="Driver Passport Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-xs font-bold text-emerald-500 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Passport Photograph Selected
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Image ready to be attached to driver's official Letter of Authority.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => document.getElementById("photo-upload-input")?.click()}
+                          className="h-8 text-xs gap-1.5 cursor-pointer font-medium"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          Change Image
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDriverForm((prev) => ({ ...prev, photoUrl: "" }))}
+                          className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 gap-1 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => document.getElementById("photo-upload-input")?.click()}
+                    className="border-2 border-dashed border-border hover:border-primary/60 bg-secondary/20 hover:bg-secondary/40 rounded-2xl p-5 flex flex-col items-center justify-center cursor-pointer transition-all text-center group"
+                  >
+                    <div className="w-11 h-11 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-2 group-hover:scale-110 transition-transform">
+                      <Upload className="w-5 h-5" />
+                    </div>
+                    <p className="text-sm font-bold text-foreground">
+                      Click to Upload Passport Photograph
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Select PNG, JPG, WEBP or GIF file from your device (Max 5MB)
+                    </p>
+                  </div>
+                )}
+              </div>
+
+
+              <div className="space-y-1.5">
+                <Label htmlFor="nin">NIN (National ID Number)</Label>
+                <Input
+                  id="nin"
+                  placeholder="11-digit NIN"
+                  value={driverForm.nin}
+                  onChange={(e) => setDriverForm({ ...driverForm, nin: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="asinNumber">ASIN Number (Anambra State ID)</Label>
+                <Input
+                  id="asinNumber"
+                  placeholder="ASIN Number"
+                  value={driverForm.asinNumber}
+                  onChange={(e) => setDriverForm({ ...driverForm, asinNumber: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="email">Email Address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="driver@example.com"
+                  value={driverForm.email}
+                  onChange={(e) => setDriverForm({ ...driverForm, email: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="residentialAddress">Residential Address</Label>
+                <Input
+                  id="residentialAddress"
+                  placeholder="Full residential address"
+                  value={driverForm.residentialAddress}
+                  onChange={(e) => setDriverForm({ ...driverForm, residentialAddress: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="stateOfOrigin">State of Origin</Label>
+                <Input
+                  id="stateOfOrigin"
+                  placeholder="e.g. Anambra"
+                  value={driverForm.stateOfOrigin}
+                  onChange={(e) => setDriverForm({ ...driverForm, stateOfOrigin: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="lga">LGA of Origin</Label>
+                <Input
+                  id="lga"
+                  placeholder="e.g. Awka South"
+                  value={driverForm.lga}
+                  onChange={(e) => setDriverForm({ ...driverForm, lga: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                <Input
+                  id="dateOfBirth"
+                  type="date"
+                  value={driverForm.dateOfBirth}
+                  onChange={(e) => setDriverForm({ ...driverForm, dateOfBirth: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="gender">Gender</Label>
+                <Select
+                  value={driverForm.gender}
+                  onValueChange={(val) => setDriverForm({ ...driverForm, gender: val })}
+                >
+                  <SelectTrigger id="gender">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MALE">Male</SelectItem>
+                    <SelectItem value="FEMALE">Female</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="border-b border-border pb-2 pt-2">
+              <h4 className="font-bold text-sm text-primary uppercase tracking-wider">
+                2. Driver License & Next of Kin / Guarantor
+              </h4>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="licenseNumber">Driver's License Number</Label>
+                <Input
+                  id="licenseNumber"
+                  placeholder="e.g. WHL323"
+                  value={driverForm.licenseNumber}
+                  onChange={(e) => setDriverForm({ ...driverForm, licenseNumber: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="licenseIssueDate">License Issue Date</Label>
+                <Input
+                  id="licenseIssueDate"
+                  type="date"
+                  value={driverForm.licenseIssueDate}
+                  onChange={(e) => setDriverForm({ ...driverForm, licenseIssueDate: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="licenseExpiryDate">License Expiry Date</Label>
+                <Input
+                  id="licenseExpiryDate"
+                  type="date"
+                  value={driverForm.licenseExpiryDate}
+                  onChange={(e) => setDriverForm({ ...driverForm, licenseExpiryDate: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="nextOfKinName">Next of Kin Name</Label>
+                <Input
+                  id="nextOfKinName"
+                  placeholder="Full name"
+                  value={driverForm.nextOfKinName}
+                  onChange={(e) => setDriverForm({ ...driverForm, nextOfKinName: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="nextOfKinPhone">Next of Kin Phone</Label>
+                <Input
+                  id="nextOfKinPhone"
+                  placeholder="Phone number"
+                  value={driverForm.nextOfKinPhone}
+                  onChange={(e) => setDriverForm({ ...driverForm, nextOfKinPhone: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="guarantorName">Guarantor Name</Label>
+                <Input
+                  id="guarantorName"
+                  placeholder="Full name"
+                  value={driverForm.guarantorName}
+                  onChange={(e) => setDriverForm({ ...driverForm, guarantorName: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="guarantorAddress">Guarantor Address</Label>
+                <Input
+                  id="guarantorAddress"
+                  placeholder="Address"
+                  value={driverForm.guarantorAddress}
+                  onChange={(e) => setDriverForm({ ...driverForm, guarantorAddress: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="guarantorPhone">Guarantor Phone</Label>
+                <Input
+                  id="guarantorPhone"
+                  placeholder="Phone number"
+                  value={driverForm.guarantorPhone}
+                  onChange={(e) => setDriverForm({ ...driverForm, guarantorPhone: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-4">
+              <Button variant="outline" type="button" onClick={() => setIsOnboardDriverOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting} className="font-semibold">
+                {isSubmitting ? "Saving..." : "Save Enumeration Data"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 3: REASSIGN DRIVER */}
+      <Dialog open={isReassignDriverOpen} onOpenChange={setIsReassignDriverOpen}>
+        <DialogContent className="max-w-md bg-card text-foreground border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-bold">
+              <RefreshCw className="w-5 h-5 text-primary" />
+              Reassign Vehicle Driver
+            </DialogTitle>
+            <DialogDescription>
+              Assign or change the enumerated driver operating vehicle {selectedVehicle?.registrationNumber}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleReassignDriver} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="reassignDriverId">Select Driver</Label>
+              <Select
+                value={reassignForm.driverId}
+                onValueChange={(val) => setReassignForm({ ...reassignForm, driverId: val })}
+              >
+                <SelectTrigger id="reassignDriverId">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NONE">-- Unassign Driver --</SelectItem>
+                  {initialDrivers.map((d) => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.fullName} ({d.phoneNumber})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button variant="outline" type="button" onClick={() => setIsReassignDriverOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Updating..." : "Update Assignment"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 4: ASSIGN STICKER */}
+      <Dialog open={isAssignStickerOpen} onOpenChange={setIsAssignStickerOpen}>
+        <DialogContent className="max-w-md bg-card text-foreground border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-bold">
+              <QrCode className="w-5 h-5 text-primary" />
+              Bind Physical QR Sticker
+            </DialogTitle>
+            <DialogDescription>
+              Bind a pre-loaded physical sticker URL to vehicle {selectedVehicle?.registrationNumber}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAssignSticker} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="assignStickerId">Select Available Sticker</Label>
+              <Select
+                value={assignStickerForm.stickerId}
+                onValueChange={(val) => setAssignStickerForm({ ...assignStickerForm, stickerId: val })}
+              >
+                <SelectTrigger id="assignStickerId">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="NONE">-- Unbind Sticker --</SelectItem>
+                  {availableStickers.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.stickerCode || s.stickerUrl}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button variant="outline" type="button" onClick={() => setIsAssignStickerOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Updating..." : "Save Binding"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 5: PRE-LOAD STICKERS */}
+      <Dialog open={isAddStickersOpen} onOpenChange={setIsAddStickersOpen}>
+        <DialogContent className="max-w-md bg-card text-foreground border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-bold">
+              <Tag className="w-5 h-5 text-primary" />
+              Pre-Load Physical QR Sticker Inventory
+            </DialogTitle>
+            <DialogDescription>
+              Paste sticker verification URLs (one per line) sent by vendor.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAddStickers} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="batchUrls">Sticker URLs List</Label>
+              <Textarea
+                id="batchUrls"
+                rows={5}
+                placeholder="https://transpaytms.com/v/status1772628800404&#10;https://transpaytms.com/v/status1772628288905"
+                value={batchStickerUrls}
+                onChange={(e) => setBatchStickerUrls(e.target.value)}
+                className="font-mono text-xs"
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button variant="outline" type="button" onClick={() => setIsAddStickersOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Adding..." : "Add to Pool"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
