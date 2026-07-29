@@ -1,5 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/lib/db";
+
 import { CheckCircle2, ShieldCheck, User, Bus, FileText, Calendar, MapPin, Hash, Phone } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";

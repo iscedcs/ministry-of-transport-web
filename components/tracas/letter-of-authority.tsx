@@ -1,9 +1,11 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import Image from "next/image";
 import { Printer, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
+
 
 export interface LetterVehicleData {
   id: string;
@@ -198,7 +200,7 @@ export function LetterOfAuthorityDocument({
 
           <div className="space-y-2 py-2 font-serif">
             <p>
-              <span className="font-semibold">Driver's Name:</span>{" "}
+              <span className="font-semibold">Driver&apos;s Name:</span>{" "}
               <span className="font-bold text-slate-950">{driver?.fullName || "Unassigned"}</span>
             </p>
 
@@ -217,7 +219,7 @@ export function LetterOfAuthorityDocument({
             </p>
 
             <p>
-              <span className="font-semibold">Driver's License Number</span>{" "}
+              <span className="font-semibold">Driver&apos;s License Number</span>{" "}
               <span className="font-mono font-bold">{driver?.licenseNumber || "N/A"}</span>{" "}
               <span className="font-semibold">Issued on</span>{" "}
               <span className="text-xs font-mono">{formatDateStr(driver?.licenseIssueDate)}</span>{" "}
@@ -276,10 +278,11 @@ export function LetterOfAuthorityDocument({
               <span className="text-slate-400 font-mono text-[10px] italic mb-1">[DIGITAL SIGNATURE]</span>
             </div>
             <p className="font-bold text-slate-950 text-sm sm:text-base">Okeke Njideka</p>
-            <p className="text-slate-700 font-medium">Ag" MD/CEO (TRACAS)</p>
+            <p className="text-slate-700 font-medium">Ag. MD/CEO (TRACAS)</p>
             <p className="text-slate-950 font-mono font-bold">08034728664</p>
           </div>
         </div>
+
 
         {/* Bottom Bar Accent */}
         <div className="mt-10 -mx-8 sm:-mx-12 -mb-8 sm:-mb-12 bg-emerald-800 text-white text-center py-2.5 px-4 font-sans text-xs font-semibold tracking-wide print:-mx-0 print:-mb-0">

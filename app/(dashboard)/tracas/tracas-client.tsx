@@ -1,6 +1,8 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState } from "react";
+
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -750,8 +752,9 @@ export default function TracasClient({
                   <th className="py-3.5 px-4">Driver Name & Photo</th>
                   <th className="py-3.5 px-4">Contact</th>
                   <th className="py-3.5 px-4">NIN / ASIN</th>
-                  <th className="py-3.5 px-4">Driver's License</th>
+                  <th className="py-3.5 px-4">Driver&apos;s License</th>
                   <th className="py-3.5 px-4">Assigned Vehicles</th>
+
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40 text-sm">
@@ -1168,8 +1171,9 @@ export default function TracasClient({
                           <CheckCircle2 className="w-3.5 h-3.5" /> Passport Photograph Selected
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Image ready to be attached to driver's official Letter of Authority.
+                          Image ready to be attached to driver&apos;s official Letter of Authority.
                         </p>
+
                       </div>
 
                       <div className="flex items-center gap-2">
@@ -1312,7 +1316,7 @@ export default function TracasClient({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="licenseNumber">Driver's License Number</Label>
+                <Label htmlFor="licenseNumber">Driver&apos;s License Number</Label>
                 <Input
                   id="licenseNumber"
                   placeholder="e.g. WHL323"
@@ -1320,6 +1324,7 @@ export default function TracasClient({
                   onChange={(e) => setDriverForm({ ...driverForm, licenseNumber: e.target.value })}
                 />
               </div>
+
 
               <div className="space-y-1.5">
                 <Label htmlFor="licenseIssueDate">License Issue Date</Label>
