@@ -2,7 +2,10 @@
 
 import { useState, useEffect, useTransition, useRef } from "react";
 import Link from "next/link";
-import { submitRevalidationApplication } from "@/app/actions/revalidation";
+import {
+  submitRevalidationApplication,
+  getExistingParkForRevalidation,
+} from "@/app/actions/revalidation";
 import { uploadCacDocument } from "@/app/actions/upload";
 import { getMyProfile, type UserProfile } from "@/app/actions/auth";
 import {
@@ -14,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -21,7 +25,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { CheckCircle2, Upload, X, Loader2 } from "lucide-react";
+import { CheckCircle2, Upload, X, Loader2, Building2 } from "lucide-react";
 import { toast } from "sonner";
 
 const EMPTY: RevalidationDraftData = {
@@ -116,14 +120,35 @@ export default function ApplyRevalidationPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    Promise.all([loadRevalidationDraft(), getMyProfile()])
-      .then(([draft, profileResult]) => {
+    Promise.all([
+      loadRevalidationDraft(),
+      getMyProfile(),
+      getExistingParkForRevalidation(),
+    ])
+      .then(([draft, profileResult, existingPark]) => {
         if (draft) {
           setData(draft.data);
           setCurrentStep(draft.stepReached);
           const done = new Set<number>();
           for (let i = 1; i < draft.stepReached; i++) done.add(i);
           setCompletedSteps(done);
+        } else if (existingPark) {
+          setData((prev) => ({
+            ...prev,
+            motorParkId: existingPark.id,
+            parkName: existingPark.parkName || prev.parkName,
+            ownerName: existingPark.ownerName || prev.ownerName,
+            representativeName: existingPark.ownerName || prev.representativeName,
+            phoneNumber: existingPark.phoneNumber || prev.phoneNumber,
+            emailAddress: existingPark.emailAddress || prev.emailAddress,
+            residentialAddress: existingPark.residentialAddress || prev.residentialAddress,
+            asinNumber: existingPark.asinNumber || prev.asinNumber,
+            physicalLocation: existingPark.physicalLocation || prev.physicalLocation,
+            townCommunity: existingPark.townCommunity || prev.townCommunity,
+            lga: existingPark.lga || prev.lga,
+            existingApprovalNum: existingPark.existingApprovalNum || prev.existingApprovalNum,
+            cacRegistrationNumber: existingPark.cacRegistrationNumber || prev.cacRegistrationNumber,
+          }));
         } else if (profileResult.success) {
           const p = profileResult.data as UserProfile;
           setData((prev) => ({
@@ -287,6 +312,24 @@ export default function ApplyRevalidationPage() {
         </nav>
         <h1 className="text-2xl font-bold">Motor Park Revalidation (2026/2027)</h1>
       </div>
+
+      {data.motorParkId && (
+        <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center space-x-2.5">
+            <Building2 className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+            <div>
+              <span className="font-semibold text-amber-950 dark:text-amber-100">Revalidating Existing Park: </span>
+              <span className="font-medium">{data.parkName}</span>
+              {data.existingApprovalNum && (
+                <span className="ml-1 text-muted-foreground font-mono">({data.existingApprovalNum})</span>
+              )}
+            </div>
+          </div>
+          <Badge variant="outline" className="border-amber-500/50 text-amber-700 dark:text-amber-300 bg-amber-500/10 flex-shrink-0">
+            Existing Record Pre-filled
+          </Badge>
+        </div>
+      )}
 
       <div className="flex items-center gap-2 mb-4 text-sm font-medium flex-wrap">
         {STEPS.map((step) => (

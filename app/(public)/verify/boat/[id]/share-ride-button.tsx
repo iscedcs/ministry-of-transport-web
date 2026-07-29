@@ -64,7 +64,7 @@ export default function ShareRideButton({
     <div className="w-full space-y-2 mt-6">
       <Button
         onClick={handleShare}
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center space-x-2"
+        className="w-full bg-[var(--brand-gold)] text-[var(--text-inverse)] hover:bg-[var(--brand-gold-up)] font-bold py-3.5 rounded-xl shadow-lg shadow-[var(--brand-gold-glow)] flex items-center justify-center space-x-2 transition-all"
       >
         <Share2 className="w-4 h-4" />
         <span>Share Ride Details for Safety</span>
@@ -74,17 +74,21 @@ export default function ShareRideButton({
         <Button
           variant="outline"
           onClick={shareToWhatsApp}
-          className="border-green-600/30 text-green-700 hover:bg-green-50 rounded-xl"
+          className="border-border text-foreground hover:bg-secondary rounded-xl py-2.5"
         >
-          <MessageSquare className="w-3.5 h-3.5 mr-1.5 text-green-600" />
+          <MessageSquare className="w-3.5 h-3.5 mr-1.5 text-emerald-400" />
           Share via WhatsApp
         </Button>
         <Button
           variant="outline"
           onClick={copyToClipboard}
-          className="border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl"
+          className="border-border text-foreground hover:bg-secondary rounded-xl py-2.5"
         >
-          {copied ? <Check className="w-3.5 h-3.5 mr-1.5 text-green-600" /> : <Copy className="w-3.5 h-3.5 mr-1.5 text-slate-500" />}
+          {copied ? (
+            <Check className="w-3.5 h-3.5 mr-1.5 text-emerald-400" />
+          ) : (
+            <Copy className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
+          )}
           {copied ? "Copied!" : "Copy Details"}
         </Button>
       </div>

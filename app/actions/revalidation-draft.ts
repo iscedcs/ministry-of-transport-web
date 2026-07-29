@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 
 export type RevalidationDraftData = {
+  motorParkId?: string;
   ownerName: string;
   ownershipType: string;
   cacRegistrationNumber: string;

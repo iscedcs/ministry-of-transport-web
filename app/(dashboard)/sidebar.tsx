@@ -88,6 +88,22 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
 
+  // ── TRACAS Module ──
+  {
+    label: "TRACAS Transport",
+    href: "/tracas",
+    icon: "🚏",
+    allowedRoles: [
+      "COMMISSIONER",
+      "PERMANENT_SECRETARY",
+      "HOD_TRANSPORT_OPS",
+      "HOD_PARKS",
+      "FIELD_INSPECTOR",
+      "SYSTEM_ADMIN",
+    ],
+  },
+
+
 
   // ── Revalidation Module ──
   {

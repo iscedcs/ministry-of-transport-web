@@ -406,6 +406,9 @@ export type FleetApplicationDetail = {
     managerResidentialAddress: string;
   }[];
   currentFleetSize: number;
+  monthlyLevyAmount: number | null;
+  assessedFeeAmount: number | null;
+  psRecommendationNotes: string | null;
   applicationStatus: string;
   permitStatus: string | null;
   permitNumber: string | null;
@@ -487,6 +490,9 @@ export async function getFleetApplication(
       landOwnershipDocId: true,
       corporateAsinDocumentId: true,
       currentFleetSize: true,
+      monthlyLevyAmount: true,
+      assessedFeeAmount: true,
+      psRecommendationNotes: true,
       applicationStatus: true,
       permitStatus: true,
       permitNumber: true,
@@ -1133,13 +1139,15 @@ export async function hodApproveFleetOperator(
  */
 export async function psApproveFleetOperator(
   companyId: string,
+  adjustedMonthlyLevy?: number,
+  psRecommendationNotes?: string,
 ): Promise<ActionResult> {
   await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
   const session = await requireAuth();
 
   const company = await db.massTransitCompany.findUnique({
     where: { id: companyId },
-    select: { id: true, applicationStatus: true, companyName: true },
+    select: { id: true, applicationStatus: true, companyName: true, monthlyLevyAmount: true },
   });
 
   if (!company) return { success: false, error: "Fleet application not found" };
@@ -1153,12 +1161,19 @@ export async function psApproveFleetOperator(
   }
 
   const now = new Date();
+  const amountInKobo =
+    adjustedMonthlyLevy !== undefined && adjustedMonthlyLevy >= 0
+      ? Math.round(adjustedMonthlyLevy * 100)
+      : company.monthlyLevyAmount;
+
   await db.$transaction(async (tx) => {
     await tx.massTransitCompany.update({
       where: { id: companyId },
       data: {
         applicationStatus: "PENDING_COMMISSIONER_APPROVAL",
         psApprovedAt: now,
+        monthlyLevyAmount: amountInKobo,
+        psRecommendationNotes: psRecommendationNotes?.trim() || null,
       },
     });
 
@@ -1168,7 +1183,11 @@ export async function psApproveFleetOperator(
         action: "PS_APPROVED_FLEET_OPERATOR",
         entityType: "MASS_TRANSIT",
         entityId: companyId,
-        changeDescription: `Permanent Secretary reviewed and signed off fleet application to Commissioner for ${company.companyName}`,
+        changeDescription: `Permanent Secretary submitted recommendation to Commissioner for ${company.companyName}${
+          adjustedMonthlyLevy !== undefined
+            ? ` with finalized monthly levy of ₦${adjustedMonthlyLevy.toLocaleString()}`
+            : ""
+        }${psRecommendationNotes ? `. Notes: ${psRecommendationNotes}` : ""}`,
       },
     });
   });
@@ -1188,14 +1207,8 @@ export async function issuePermitToOperate(
   prevState: ActionResult<{ permitNumber: string }> | undefined,
   formData: FormData,
 ): Promise<ActionResult<{ permitNumber: string }>> {
+  await requireRole(["COMMISSIONER", "SYSTEM_ADMIN"]);
   const session = await requireAuth();
-
-  if (!canIssuePermits(session.role)) {
-    return {
-      success: false,
-      error: "Only Commissioner or Permanent Secretary can issue permits",
-    };
-  }
 
   const companyId = formData.get("companyId") as string;
   const approvalNotes = (formData.get("approvalNotes") as string) || "";
@@ -1209,16 +1222,11 @@ export async function issuePermitToOperate(
 
   if (!company) return { success: false, error: "Fleet application not found" };
 
-  const allowedStatuses = [
-    "PENDING_COMMISSIONER_APPROVAL",
-    "PENDING_PS_APPROVAL",
-    "PENDING_APPROVAL",
-    "INSPECTION_COMPLETED",
-  ];
+  const allowedStatuses = ["PENDING_COMMISSIONER_APPROVAL"];
   if (!allowedStatuses.includes(company.applicationStatus)) {
     return {
       success: false,
-      error: `Cannot issue permit — current status is ${company.applicationStatus}. Inspection and executive approvals must be completed first.`,
+      error: `Cannot issue permit — application is in status ${company.applicationStatus}. Permanent Secretary recommendation and approval must be completed first.`,
     };
   }
 

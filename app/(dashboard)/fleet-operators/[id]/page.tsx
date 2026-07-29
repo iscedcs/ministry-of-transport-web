@@ -279,6 +279,7 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
         companyId={co.id}
         status={co.applicationStatus}
         role={session.role}
+        initialMonthlyLevyKobo={co.monthlyLevyAmount}
       />
 
       {/* Signatures & Executive Approvals timeline card */}

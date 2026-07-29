@@ -296,6 +296,9 @@ model MotorPark {
   assessedFeeAmount Int? // in kobo (from Payment.amount)
   monthlyLevyAmount Int? // in kobo
 
+  // PS Recommendation
+  psRecommendationNotes String? @db.Text
+
   // Revalidation
   lastRevalidatedAt   DateTime?
   nextRevalidationDue DateTime?
@@ -317,8 +320,9 @@ model MotorPark {
   inspections   Inspection[]
   fees          MotorParkFee[]
   payments      Payment[]      @relation("MotorParkPayment")
-  notifications Notification[] @relation("MotorParkNotification")
+  notifications Notification[]            @relation("MotorParkNotification")
   parkStaff     ParkStaff[]
+  revalidations RevalidationApplication[] @relation("MotorParkRevalidation")
 
   @@index([applicationStatus])
   @@index([permitStatus])
@@ -530,6 +534,11 @@ model MassTransitCompany {
   terminalInspectionId    String?
   terminalInspectionDueAt DateTime? // 5 working days per FR-023
 
+  // Fees & PS Recommendation
+  assessedFeeAmount     Int? // in kobo
+  monthlyLevyAmount     Int? // in kobo
+  psRecommendationNotes String? @db.Text
+
   // Revalidation
   lastRevalidatedAt   DateTime?
   nextRevalidationDue DateTime?
@@ -553,6 +562,7 @@ model MassTransitCompany {
   payments              Payment[]                  @relation("MassTransitPayment")
   notifications         Notification[]             @relation("MassTransitNotification")
   vehicleSubmissionReqs VehicleSubmissionRequest[]
+  revalidations         RevalidationApplication[] @relation("MassTransitRevalidation")
 
   @@index([applicationStatus])
   @@index([permitStatus])
@@ -1269,10 +1279,14 @@ model RevalidationApplication {
   residentialAddress    String  @db.Text
 
   // SECTION B: ASIN DETAILS
-  asinNumber         String  @unique
+  asinNumber         String
   nin                String
   tin                String?
   revalidationNumber String? @unique
+
+  // LINKED ENTITIES FOR REVALIDATION (Carry-Forward & Non-Duplicate Updates)
+  motorParkId          String?
+  massTransitCompanyId String?
 
   // SECTION C: MOTOR PARK INFORMATION
   parkName              String
@@ -1337,11 +1351,15 @@ model RevalidationApplication {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  applicant         User  @relation("RevalidationApplicant", fields: [applicantUserId], references: [id])
-  inspectionOfficer User? @relation("RevalidationInspector", fields: [inspectionOfficerId], references: [id])
+  applicant          User                @relation("RevalidationApplicant", fields: [applicantUserId], references: [id])
+  inspectionOfficer  User?               @relation("RevalidationInspector", fields: [inspectionOfficerId], references: [id])
+  motorPark          MotorPark?          @relation("MotorParkRevalidation", fields: [motorParkId], references: [id], onDelete: SetNull)
+  massTransitCompany MassTransitCompany? @relation("MassTransitRevalidation", fields: [massTransitCompanyId], references: [id], onDelete: SetNull)
 
   @@index([applicantUserId])
   @@index([status])
+  @@index([motorParkId])
+  @@index([massTransitCompanyId])
 }
 
 // ==================== MARITIME / BOAT MODULE ====================
@@ -1400,4 +1418,95 @@ model BoatRider {
   @@index([licenseNumber])
   @@index([status])
 }
+
+// ==================== TRACAS MODULE ====================
+
+model TracasSticker {
+  id                String    @id @default(cuid())
+  stickerUrl        String    @unique @db.VarChar(500)
+  stickerCode       String?   @unique @db.VarChar(100)
+  isAssigned        Boolean   @default(false)
+  assignedVehicleId String?   @unique
+  createdAt         DateTime  @default(now())
+  assignedAt        DateTime?
+
+  assignedVehicle TracasVehicle? @relation(fields: [assignedVehicleId], references: [id], onDelete: SetNull)
+
+  @@index([isAssigned])
+  @@index([stickerUrl])
+}
+
+model TracasVehicle {
+  id                      String       @id @default(cuid())
+  registrationNumber      String       @unique
+  fleetNumber             String       @unique
+  category                String       @default("BUS") @db.VarChar(50)
+  makeModel               String?
+  engineNumber            String?
+  chassisNumber           String?
+  insuranceCertificateNo  String?
+  insuranceCommencement   DateTime?
+  insuranceExpiry         DateTime?
+  particularsIssueDate    DateTime?
+  particularsExpiryDate   DateTime?
+  assignedRoute           String?
+  authorityRef            String       @unique
+  authorityIssueDate      DateTime?    @default(now())
+  authorityExpiryDate     DateTime?
+  status                  PermitStatus @default(ACTIVE)
+
+  assignedDriverId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  assignedDriver TracasDriver?  @relation(fields: [assignedDriverId], references: [id], onDelete: SetNull)
+  sticker        TracasSticker?
+
+  @@index([registrationNumber])
+  @@index([fleetNumber])
+  @@index([authorityRef])
+  @@index([assignedDriverId])
+  @@index([status])
+}
+
+model TracasDriver {
+  id                        String       @id @default(cuid())
+  fullName                  String
+  phoneNumber               String
+  email                     String?
+  photoUrl                  String?      @db.Text
+  nin                       String?
+  asinNumber                String?
+  residentialAddress        String?      @db.Text
+  stateOfOrigin             String?
+  lga                       String?
+  dateOfBirth               DateTime?
+  gender                    String?
+  bloodGroup                String?
+  maritalStatus             String?
+  educationalQualification  String?
+  nextOfKinName             String?
+  nextOfKinPhone            String?
+  emergencyContactName      String?
+  emergencyContactPhone     String?
+  guarantorName             String?
+  guarantorPhone            String?
+  guarantorAddress          String?      @db.Text
+  licenseNumber             String?      @unique
+  licenseIssueDate          DateTime?
+  licenseExpiryDate         DateTime?
+  operatorAssociation       String?
+  notes                     String?      @db.Text
+  status                    PermitStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  vehicles TracasVehicle[]
+
+  @@index([licenseNumber])
+  @@index([phoneNumber])
+  @@index([status])
+}
+
 
