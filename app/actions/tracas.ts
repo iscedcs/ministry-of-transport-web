@@ -122,7 +122,37 @@ export async function getTracasStickersList() {
   }
 }
 
-// ─── Authority Ref Code Generator ─────────────────────────────────────────
+// ─── Auto Generators ───────────────────────────────────────────────────────
+
+async function generateNextFleetNumber(): Promise<string> {
+  const vehicles = await db.tracasVehicle.findMany({
+    select: { fleetNumber: true },
+  });
+
+  let maxNum = 0;
+  for (const v of vehicles) {
+    if (v.fleetNumber && v.fleetNumber.toUpperCase().startsWith("LV")) {
+      const numPart = parseInt(v.fleetNumber.toUpperCase().replace("LV", ""), 10);
+      if (!isNaN(numPart) && numPart > maxNum) {
+        maxNum = numPart;
+      }
+    }
+  }
+
+  const nextNum = maxNum + 1;
+  return `LV${nextNum.toString().padStart(3, "0")}`;
+}
+
+async function generateDriverSecurityCode(): Promise<string> {
+  let attempts = 0;
+  while (attempts < 20) {
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    const existing = await db.tracasDriver.findFirst({ where: { securityCode: code } });
+    if (!existing) return code;
+    attempts++;
+  }
+  return Math.floor(1000 + Math.random() * 9000).toString();
+}
 
 async function generateUniqueAuthorityRef(): Promise<string> {
   let attempts = 0;
@@ -143,12 +173,9 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
     if (!input.registrationNumber?.trim()) {
       return { success: false, error: "Registration Number is required." };
     }
-    if (!input.fleetNumber?.trim()) {
-      return { success: false, error: "Fleet Number is required." };
-    }
 
     const regNo = input.registrationNumber.trim();
-    const fleetNo = input.fleetNumber.trim();
+    const fleetNo = input.fleetNumber?.trim() || (await generateNextFleetNumber());
 
     const existingReg = await db.tracasVehicle.findUnique({ where: { registrationNumber: regNo } });
     if (existingReg) {
@@ -277,10 +304,13 @@ export async function onboardTracasDriver(input: OnboardTracasDriverInput) {
       }
     }
 
+    const securityCode = await generateDriverSecurityCode();
+
     const driver = await db.tracasDriver.create({
       data: {
         fullName: input.fullName.trim(),
         phoneNumber: input.phoneNumber.trim(),
+        securityCode: securityCode,
         email: input.email || null,
         photoUrl: input.photoUrl || null,
         nin: input.nin || null,
@@ -313,6 +343,48 @@ export async function onboardTracasDriver(input: OnboardTracasDriverInput) {
   } catch (error: any) {
     console.error("Error onboarding TRACAS driver:", error);
     return { success: false, error: error?.message || "Failed to onboard driver." };
+  }
+}
+
+export async function getTracasDriverData(identifier: string) {
+  try {
+    let driver = await db.tracasDriver.findFirst({
+      where: {
+        OR: [
+          { id: identifier },
+          { securityCode: identifier },
+          { licenseNumber: identifier },
+        ],
+      },
+      include: {
+        vehicles: {
+          select: { id: true, registrationNumber: true, fleetNumber: true },
+        },
+      },
+    });
+
+    if (driver && !driver.securityCode) {
+      // Lazy migration for legacy drivers missing a 4-digit security code
+      const newSecCode = await generateDriverSecurityCode();
+      driver = await db.tracasDriver.update({
+        where: { id: driver.id },
+        data: { securityCode: newSecCode },
+        include: {
+          vehicles: {
+            select: { id: true, registrationNumber: true, fleetNumber: true },
+          },
+        },
+      });
+    }
+
+    if (!driver) {
+      return { success: false, error: "TRACAS driver record not found." };
+    }
+
+    return { success: true, driver };
+  } catch (error: any) {
+    console.error("Error fetching TRACAS driver data:", error);
+    return { success: false, error: "Failed to load driver details." };
   }
 }
 
