@@ -47,6 +47,7 @@ import {
   Upload,
   X,
   Camera,
+  IdCard,
 } from "lucide-react";
 
 import {
@@ -101,6 +102,7 @@ interface DriverItem {
   id: string;
   fullName: string;
   phoneNumber: string;
+  securityCode?: string | null;
   email: string | null;
   photoUrl: string | null;
   nin: string | null;
@@ -140,9 +142,9 @@ export default function TracasClient({
   initialStickers,
 }: TracasClientProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"vehicles" | "drivers" | "stickers">(
-    "vehicles"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "vehicles" | "drivers" | "stickers"
+  >("vehicles");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Modals
@@ -153,7 +155,9 @@ export default function TracasClient({
   const [isAddStickersOpen, setIsAddStickersOpen] = useState(false);
 
   // Selected Target Objects for Modals
-  const [selectedVehicle, setSelectedVehicle] = useState<VehicleItem | null>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleItem | null>(
+    null,
+  );
 
   // Form States
   const [vehicleForm, setVehicleForm] = useState({
@@ -178,8 +182,6 @@ export default function TracasClient({
     assignedDriverId: "",
     stickerId: "",
   });
-
-
 
   const [driverForm, setDriverForm] = useState({
     fullName: "",
@@ -258,20 +260,24 @@ export default function TracasClient({
       v.fleetNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       v.authorityRef.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (v.assignedDriver?.fullName &&
-        v.assignedDriver.fullName.toLowerCase().includes(searchQuery.toLowerCase()))
+        v.assignedDriver.fullName
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase())),
   );
 
   const filteredDrivers = initialDrivers.filter(
     (d) =>
       d.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       d.phoneNumber.includes(searchQuery) ||
-      (d.licenseNumber && d.licenseNumber.toLowerCase().includes(searchQuery.toLowerCase()))
+      (d.licenseNumber &&
+        d.licenseNumber.toLowerCase().includes(searchQuery.toLowerCase())),
   );
 
   const filteredStickers = initialStickers.filter(
     (s) =>
       s.stickerUrl.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (s.stickerCode && s.stickerCode.toLowerCase().includes(searchQuery.toLowerCase()))
+      (s.stickerCode &&
+        s.stickerCode.toLowerCase().includes(searchQuery.toLowerCase())),
   );
 
   // Submit Vehicle Form
@@ -287,8 +293,11 @@ export default function TracasClient({
         ...vehicleForm,
         category: finalCategory,
         assignedDriverId:
-          vehicleForm.assignedDriverId === "NONE" ? undefined : vehicleForm.assignedDriverId,
-        stickerId: vehicleForm.stickerId === "NONE" ? undefined : vehicleForm.stickerId,
+          vehicleForm.assignedDriverId === "NONE"
+            ? undefined
+            : vehicleForm.assignedDriverId,
+        stickerId:
+          vehicleForm.stickerId === "NONE" ? undefined : vehicleForm.stickerId,
       });
 
       if (res.success) {
@@ -319,7 +328,6 @@ export default function TracasClient({
 
         router.refresh();
       } else {
-
         toast.error(res.error || "Failed to onboard vehicle.");
       }
     } catch (err: any) {
@@ -383,7 +391,8 @@ export default function TracasClient({
     if (!reassignForm.vehicleId) return;
     setIsSubmitting(true);
     try {
-      const driverId = reassignForm.driverId === "NONE" ? null : reassignForm.driverId;
+      const driverId =
+        reassignForm.driverId === "NONE" ? null : reassignForm.driverId;
       const res = await reassignTracasDriver(reassignForm.vehicleId, driverId);
       if (res.success) {
         toast.success("Driver assignment updated!");
@@ -405,8 +414,14 @@ export default function TracasClient({
     if (!assignStickerForm.vehicleId) return;
     setIsSubmitting(true);
     try {
-      const stickerId = assignStickerForm.stickerId === "NONE" ? null : assignStickerForm.stickerId;
-      const res = await assignStickerToTracasVehicle(assignStickerForm.vehicleId, stickerId);
+      const stickerId =
+        assignStickerForm.stickerId === "NONE"
+          ? null
+          : assignStickerForm.stickerId;
+      const res = await assignStickerToTracasVehicle(
+        assignStickerForm.vehicleId,
+        stickerId,
+      );
       if (res.success) {
         toast.success("Vehicle sticker binding updated!");
         setIsAssignStickerOpen(false);
@@ -459,13 +474,13 @@ export default function TracasClient({
         <div>
           <h1
             className="text-2xl font-bold text-foreground flex items-center gap-2.5"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
+            style={{ fontFamily: "var(--font-display)" }}>
             <Bus className="w-7 h-7 text-primary" />
             TRACAS Transport Fleet
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Transport Company of Anambra State · Vehicle & Driver Enumeration, Fleet QR Stickers & Official Letter of Authority Generator
+            Transport Company of Anambra State · Vehicle & Driver Enumeration,
+            Fleet QR Stickers & Official Letter of Authority Generator
           </p>
         </div>
 
@@ -473,8 +488,7 @@ export default function TracasClient({
           <Button
             variant="outline"
             onClick={() => setIsAddStickersOpen(true)}
-            className="gap-2 cursor-pointer"
-          >
+            className="gap-2 cursor-pointer">
             <Tag className="w-4 h-4 text-primary" />
             Pre-Load QR Stickers
           </Button>
@@ -482,16 +496,14 @@ export default function TracasClient({
           <Button
             variant="outline"
             onClick={() => setIsOnboardDriverOpen(true)}
-            className="gap-2 cursor-pointer"
-          >
+            className="gap-2 cursor-pointer">
             <UserPlus className="w-4 h-4 text-primary" />
             Enumerate Driver
           </Button>
 
           <Button
             onClick={() => setIsOnboardVehicleOpen(true)}
-            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-md cursor-pointer font-semibold"
-          >
+            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-md cursor-pointer font-semibold">
             <Plus className="w-4 h-4" />
             Onboard Vehicle
           </Button>
@@ -572,8 +584,7 @@ export default function TracasClient({
             variant={activeTab === "vehicles" ? "default" : "ghost"}
             size="sm"
             onClick={() => setActiveTab("vehicles")}
-            className="rounded-lg gap-2 cursor-pointer text-xs font-medium"
-          >
+            className="rounded-lg gap-2 cursor-pointer text-xs font-medium">
             <Bus className="w-3.5 h-3.5" />
             Vehicles Fleet ({initialVehicles.length})
           </Button>
@@ -582,8 +593,7 @@ export default function TracasClient({
             variant={activeTab === "drivers" ? "default" : "ghost"}
             size="sm"
             onClick={() => setActiveTab("drivers")}
-            className="rounded-lg gap-2 cursor-pointer text-xs font-medium"
-          >
+            className="rounded-lg gap-2 cursor-pointer text-xs font-medium">
             <UserCheck className="w-3.5 h-3.5" />
             Enumerated Drivers ({initialDrivers.length})
           </Button>
@@ -592,8 +602,7 @@ export default function TracasClient({
             variant={activeTab === "stickers" ? "default" : "ghost"}
             size="sm"
             onClick={() => setActiveTab("stickers")}
-            className="rounded-lg gap-2 cursor-pointer text-xs font-medium"
-          >
+            className="rounded-lg gap-2 cursor-pointer text-xs font-medium">
             <QrCode className="w-3.5 h-3.5" />
             Sticker Inventory ({initialStickers.length})
           </Button>
@@ -628,20 +637,26 @@ export default function TracasClient({
               <tbody className="divide-y divide-border/40 text-sm">
                 {filteredVehicles.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                    <td
+                      colSpan={6}
+                      className="py-12 text-center text-muted-foreground">
                       No TRACAS vehicles found.
                     </td>
                   </tr>
                 ) : (
                   filteredVehicles.map((vehicle) => (
-                    <tr key={vehicle.id} className="hover:bg-muted/20 transition-colors">
+                    <tr
+                      key={vehicle.id}
+                      className="hover:bg-muted/20 transition-colors">
                       <td className="py-3.5 px-4 font-medium">
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
                             <Bus className="w-4 h-4" />
                           </div>
                           <div>
-                            <p className="font-bold text-foreground">{vehicle.registrationNumber}</p>
+                            <p className="font-bold text-foreground">
+                              {vehicle.registrationNumber}
+                            </p>
                             <p className="text-xs text-muted-foreground font-mono">
                               Fleet: {vehicle.fleetNumber}
                             </p>
@@ -651,7 +666,9 @@ export default function TracasClient({
 
                       <td className="py-3.5 px-4 text-xs">
                         <div className="flex items-center gap-1.5 mb-1">
-                          <Badge variant="outline" className="font-semibold uppercase text-[10px]">
+                          <Badge
+                            variant="outline"
+                            className="font-semibold uppercase text-[10px]">
                             {vehicle.category}
                           </Badge>
                           <Badge
@@ -659,25 +676,29 @@ export default function TracasClient({
                               vehicle.ownershipType === "INDIVIDUAL"
                                 ? "bg-purple-500/10 text-purple-500 border-purple-500/20 font-bold text-[10px]"
                                 : vehicle.ownershipType === "COLLABORATIVE"
-                                ? "bg-blue-500/10 text-blue-500 border-blue-500/20 font-bold text-[10px]"
-                                : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20 font-bold text-[10px]"
-                            }
-                          >
+                                  ? "bg-blue-500/10 text-blue-500 border-blue-500/20 font-bold text-[10px]"
+                                  : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20 font-bold text-[10px]"
+                            }>
                             {vehicle.ownershipType === "INDIVIDUAL"
                               ? "Private Owner"
                               : vehicle.ownershipType === "COLLABORATIVE"
-                              ? "Franchise"
-                              : "State Fleet"}
+                                ? "Franchise"
+                                : "State Fleet"}
                           </Badge>
                         </div>
-                        <p className="text-muted-foreground">{vehicle.makeModel || "N/A"}</p>
+                        <p className="text-muted-foreground">
+                          {vehicle.makeModel || "N/A"}
+                        </p>
                         {vehicle.ownerName && (
                           <p className="text-[11px] text-muted-foreground font-medium mt-0.5">
-                            Owner: <span className="text-foreground font-semibold">{vehicle.ownerName}</span> ({vehicle.ownerPhone})
+                            Owner:{" "}
+                            <span className="text-foreground font-semibold">
+                              {vehicle.ownerName}
+                            </span>{" "}
+                            ({vehicle.ownerPhone})
                           </p>
                         )}
                       </td>
-
 
                       <td className="py-3.5 px-4">
                         <span className="font-mono font-bold text-xs bg-secondary px-2 py-1 rounded-md text-foreground border border-border">
@@ -703,11 +724,15 @@ export default function TracasClient({
                               <p className="font-semibold text-foreground">
                                 {vehicle.assignedDriver.fullName}
                               </p>
-                              <p className="text-muted-foreground">{vehicle.assignedDriver.phoneNumber}</p>
+                              <p className="text-muted-foreground">
+                                {vehicle.assignedDriver.phoneNumber}
+                              </p>
                             </div>
                           </div>
                         ) : (
-                          <span className="text-muted-foreground italic text-xs">Unassigned</span>
+                          <span className="text-muted-foreground italic text-xs">
+                            Unassigned
+                          </span>
                         )}
                       </td>
 
@@ -727,8 +752,7 @@ export default function TracasClient({
                         <div className="flex items-center justify-end gap-1.5">
                           <Link
                             href={`/tracas/${vehicle.id}/letter`}
-                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 bg-primary/10 text-primary font-semibold rounded-lg hover:bg-primary/20 transition-colors"
-                          >
+                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 bg-primary/10 text-primary font-semibold rounded-lg hover:bg-primary/20 transition-colors">
                             <FileText className="w-3.5 h-3.5" />
                             Letter
                           </Link>
@@ -744,8 +768,7 @@ export default function TracasClient({
                               });
                               setIsAssignStickerOpen(true);
                             }}
-                            className="h-8 px-2 text-xs gap-1 cursor-pointer"
-                          >
+                            className="h-8 px-2 text-xs gap-1 cursor-pointer">
                             <QrCode className="w-3.5 h-3.5" /> Sticker
                           </Button>
 
@@ -760,16 +783,14 @@ export default function TracasClient({
                               });
                               setIsReassignDriverOpen(true);
                             }}
-                            className="h-8 px-2 text-xs gap-1 cursor-pointer"
-                          >
+                            className="h-8 px-2 text-xs gap-1 cursor-pointer">
                             <RefreshCw className="w-3.5 h-3.5" /> Driver
                           </Button>
 
                           <Link
                             href={`/verify/tracas/${vehicle.authorityRef}`}
                             target="_blank"
-                            className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary transition-colors"
-                          >
+                            className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-secondary transition-colors">
                             <ExternalLink className="w-4 h-4" />
                           </Link>
                         </div>
@@ -791,67 +812,122 @@ export default function TracasClient({
               <thead>
                 <tr className="border-b border-border/60 bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   <th className="py-3.5 px-4">Driver Name & Photo</th>
+                  <th className="py-3.5 px-4">Sec. Code</th>
                   <th className="py-3.5 px-4">Contact</th>
                   <th className="py-3.5 px-4">NIN / ASIN</th>
                   <th className="py-3.5 px-4">Driver&apos;s License</th>
                   <th className="py-3.5 px-4">Assigned Vehicles</th>
-
+                  <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40 text-sm">
                 {filteredDrivers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-12 text-center text-muted-foreground">
+                    <td
+                      colSpan={7}
+                      className="py-12 text-center text-muted-foreground">
                       No enumerated TRACAS drivers found.
                     </td>
                   </tr>
                 ) : (
                   filteredDrivers.map((driver) => (
-                    <tr key={driver.id} className="hover:bg-muted/20 transition-colors">
+                    <tr
+                      key={driver.id}
+                      className="hover:bg-muted/20 transition-colors">
                       <td className="py-3.5 px-4 font-medium">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-muted border border-border overflow-hidden flex-shrink-0 flex items-center justify-center">
                             {driver.photoUrl ? (
-                              <img src={driver.photoUrl} alt="" className="w-full h-full object-cover" />
+                              <img
+                                src={driver.photoUrl}
+                                alt=""
+                                className="w-full h-full object-cover"
+                              />
                             ) : (
                               <User className="w-5 h-5 text-muted-foreground" />
                             )}
                           </div>
                           <div>
-                            <p className="font-bold text-foreground">{driver.fullName}</p>
+                            <p className="font-bold text-foreground">
+                              {driver.fullName}
+                            </p>
                             <p className="text-xs text-muted-foreground">
-                              {driver.stateOfOrigin || "Anambra"} {driver.lga ? `· ${driver.lga}` : ""}
+                              {driver.stateOfOrigin || "Anambra"}{" "}
+                              {driver.lga ? `· ${driver.lga}` : ""}
                             </p>
                           </div>
                         </div>
                       </td>
 
+                      <td className="py-3.5 px-4 text-xs font-mono">
+                        <Badge
+                          variant="outline"
+                          className="font-mono bg-primary/5 text-primary border-primary/20">
+                          {driver.securityCode || "N/A"}
+                        </Badge>
+                      </td>
+
                       <td className="py-3.5 px-4 text-xs">
-                        <p className="font-semibold text-foreground">{driver.phoneNumber}</p>
-                        <p className="text-muted-foreground">{driver.email || "No email"}</p>
+                        <p className="font-semibold text-foreground">
+                          {driver.phoneNumber}
+                        </p>
+                        <p className="text-muted-foreground">
+                          {driver.email || "No email"}
+                        </p>
                       </td>
 
                       <td className="py-3.5 px-4 text-xs font-mono">
-                        <p>NIN: <span className="font-semibold text-foreground">{driver.nin || "N/A"}</span></p>
-                        <p>ASIN: <span className="font-semibold text-foreground">{driver.asinNumber || "N/A"}</span></p>
+                        <p>
+                          NIN:{" "}
+                          <span className="font-semibold text-foreground">
+                            {driver.nin || "N/A"}
+                          </span>
+                        </p>
+                        <p>
+                          ASIN:{" "}
+                          <span className="font-semibold text-foreground">
+                            {driver.asinNumber || "N/A"}
+                          </span>
+                        </p>
                       </td>
 
                       <td className="py-3.5 px-4 text-xs font-mono">
-                        <p className="font-bold text-foreground">{driver.licenseNumber || "N/A"}</p>
+                        <p className="font-bold text-foreground">
+                          {driver.licenseNumber || "N/A"}
+                        </p>
                       </td>
 
                       <td className="py-3.5 px-4 text-xs">
                         {driver.vehicles && driver.vehicles.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {driver.vehicles.map((v) => (
-                              <Badge key={v.id} variant="secondary" className="font-mono text-[10px]">
+                              <Badge
+                                key={v.id}
+                                variant="secondary"
+                                className="font-mono text-[10px]">
                                 {v.registrationNumber} ({v.fleetNumber})
                               </Badge>
                             ))}
                           </div>
                         ) : (
-                          <span className="text-muted-foreground italic text-xs">None</span>
+                          <span className="text-muted-foreground italic text-xs">
+                            None
+                          </span>
                         )}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-xs text-right">
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-1 text-xs">
+                          <Link
+                            href={`/tracas/driver/${driver.id}/id-card`}
+                            target="_blank">
+                            <IdCard className="w-3.5 h-3.5" /> View ID Card
+                          </Link>
+                        </Button>
                       </td>
                     </tr>
                   ))
@@ -877,16 +953,24 @@ export default function TracasClient({
               <tbody className="divide-y divide-border/40 text-sm">
                 {filteredStickers.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="py-12 text-center text-muted-foreground">
+                    <td
+                      colSpan={3}
+                      className="py-12 text-center text-muted-foreground">
                       No stickers pre-loaded in inventory pool.
                     </td>
                   </tr>
                 ) : (
                   filteredStickers.map((sticker) => (
-                    <tr key={sticker.id} className="hover:bg-muted/20 transition-colors">
+                    <tr
+                      key={sticker.id}
+                      className="hover:bg-muted/20 transition-colors">
                       <td className="py-3.5 px-4 font-mono text-xs">
-                        <p className="font-bold text-foreground truncate max-w-md">{sticker.stickerUrl}</p>
-                        <p className="text-muted-foreground">Code: {sticker.stickerCode}</p>
+                        <p className="font-bold text-foreground truncate max-w-md">
+                          {sticker.stickerUrl}
+                        </p>
+                        <p className="text-muted-foreground">
+                          Code: {sticker.stickerCode}
+                        </p>
                       </td>
 
                       <td className="py-3.5 px-4 text-xs">
@@ -904,10 +988,13 @@ export default function TracasClient({
                       <td className="py-3.5 px-4 text-xs">
                         {sticker.assignedVehicle ? (
                           <span className="font-bold text-foreground">
-                            {sticker.assignedVehicle.registrationNumber} (Fleet {sticker.assignedVehicle.fleetNumber})
+                            {sticker.assignedVehicle.registrationNumber} (Fleet{" "}
+                            {sticker.assignedVehicle.fleetNumber})
                           </span>
                         ) : (
-                          <span className="text-muted-foreground italic">Unbound</span>
+                          <span className="text-muted-foreground italic">
+                            Unbound
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -920,7 +1007,9 @@ export default function TracasClient({
       )}
 
       {/* MODAL 1: ONBOARD VEHICLE */}
-      <Dialog open={isOnboardVehicleOpen} onOpenChange={setIsOnboardVehicleOpen}>
+      <Dialog
+        open={isOnboardVehicleOpen}
+        onOpenChange={setIsOnboardVehicleOpen}>
         <DialogContent className="max-w-2xl bg-card text-foreground border-border max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl font-bold">
@@ -928,32 +1017,49 @@ export default function TracasClient({
               Onboard TRACAS Vehicle
             </DialogTitle>
             <DialogDescription>
-              Register a vehicle under Transport Company of Anambra State (TRACAS) to issue an official Letter of Authority.
+              Register a vehicle under Transport Company of Anambra State
+              (TRACAS) to issue an official Letter of Authority.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleOnboardVehicle} className="space-y-4 py-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="registrationNumber">Registration Number *</Label>
+                <Label htmlFor="registrationNumber">
+                  Registration Number *
+                </Label>
                 <Input
                   id="registrationNumber"
                   placeholder="e.g. CH123 or AKD 910 YE"
                   value={vehicleForm.registrationNumber}
-                  onChange={(e) => setVehicleForm({ ...vehicleForm, registrationNumber: e.target.value })}
+                  onChange={(e) =>
+                    setVehicleForm({
+                      ...vehicleForm,
+                      registrationNumber: e.target.value,
+                    })
+                  }
                   required
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="fleetNumber">Fleet Number *</Label>
+                <Label htmlFor="fleetNumber">Fleet Number</Label>
                 <Input
+                  disabled
                   id="fleetNumber"
-                  placeholder="e.g. 234RCl or LV00004"
+                  placeholder="Auto-assigned (e.g. LV001)"
                   value={vehicleForm.fleetNumber}
-                  onChange={(e) => setVehicleForm({ ...vehicleForm, fleetNumber: e.target.value })}
-                  required
+                  onChange={(e) =>
+                    setVehicleForm({
+                      ...vehicleForm,
+                      fleetNumber: e.target.value,
+                    })
+                  }
+                  className="bg-muted/30"
                 />
+                <p className="text-[10px] text-muted-foreground">
+                  Auto-generated as LV001, LV002 if left blank.
+                </p>
               </div>
 
               <div className="space-y-1.5 sm:col-span-2">
@@ -962,15 +1068,22 @@ export default function TracasClient({
                 </Label>
                 <Select
                   value={vehicleForm.ownershipType}
-                  onValueChange={(val) => setVehicleForm({ ...vehicleForm, ownershipType: val })}
-                >
+                  onValueChange={(val) =>
+                    setVehicleForm({ ...vehicleForm, ownershipType: val })
+                  }>
                   <SelectTrigger id="ownershipType">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="GOVERNMENT_OWNED">Government Owned (TRACAS State Fleet)</SelectItem>
-                    <SelectItem value="INDIVIDUAL">Individual / Private Owner</SelectItem>
-                    <SelectItem value="COLLABORATIVE">Collaborative / Franchise Partner</SelectItem>
+                    <SelectItem value="GOVERNMENT_OWNED">
+                      Government Owned (TRACAS State Fleet)
+                    </SelectItem>
+                    <SelectItem value="INDIVIDUAL">
+                      Individual / Private Owner
+                    </SelectItem>
+                    <SelectItem value="COLLABORATIVE">
+                      Collaborative / Franchise Partner
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -978,18 +1091,28 @@ export default function TracasClient({
               {vehicleForm.ownershipType !== "GOVERNMENT_OWNED" && (
                 <div className="sm:col-span-2 bg-secondary/40 border border-border p-4 rounded-2xl space-y-3">
                   <p className="text-xs font-bold text-primary uppercase tracking-wider">
-                    Vehicle Owner Details (Required for Private / Collaborative Vehicles)
+                    Vehicle Owner Details (Required for Private / Collaborative
+                    Vehicles)
                   </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label htmlFor="ownerName">Owner Full Name / Company Name *</Label>
+                      <Label htmlFor="ownerName">
+                        Owner Full Name / Company Name *
+                      </Label>
                       <Input
                         id="ownerName"
                         placeholder="e.g. Chief Emeka Okafor"
                         value={vehicleForm.ownerName}
-                        onChange={(e) => setVehicleForm({ ...vehicleForm, ownerName: e.target.value })}
-                        required={vehicleForm.ownershipType !== "GOVERNMENT_OWNED"}
+                        onChange={(e) =>
+                          setVehicleForm({
+                            ...vehicleForm,
+                            ownerName: e.target.value,
+                          })
+                        }
+                        required={
+                          vehicleForm.ownershipType !== "GOVERNMENT_OWNED"
+                        }
                       />
                     </div>
 
@@ -999,18 +1122,32 @@ export default function TracasClient({
                         id="ownerPhone"
                         placeholder="e.g. 08031234567"
                         value={vehicleForm.ownerPhone}
-                        onChange={(e) => setVehicleForm({ ...vehicleForm, ownerPhone: e.target.value })}
-                        required={vehicleForm.ownershipType !== "GOVERNMENT_OWNED"}
+                        onChange={(e) =>
+                          setVehicleForm({
+                            ...vehicleForm,
+                            ownerPhone: e.target.value,
+                          })
+                        }
+                        required={
+                          vehicleForm.ownershipType !== "GOVERNMENT_OWNED"
+                        }
                       />
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label htmlFor="ownerAddress">Owner Residential / Business Address</Label>
+                      <Label htmlFor="ownerAddress">
+                        Owner Residential / Business Address
+                      </Label>
                       <Input
                         id="ownerAddress"
                         placeholder="e.g. 12 Zik Avenue, Awka"
                         value={vehicleForm.ownerAddress}
-                        onChange={(e) => setVehicleForm({ ...vehicleForm, ownerAddress: e.target.value })}
+                        onChange={(e) =>
+                          setVehicleForm({
+                            ...vehicleForm,
+                            ownerAddress: e.target.value,
+                          })
+                        }
                       />
                     </div>
 
@@ -1020,20 +1157,25 @@ export default function TracasClient({
                         id="ownerNIN"
                         placeholder="e.g. 12345678901 or RC-12345"
                         value={vehicleForm.ownerNIN}
-                        onChange={(e) => setVehicleForm({ ...vehicleForm, ownerNIN: e.target.value })}
+                        onChange={(e) =>
+                          setVehicleForm({
+                            ...vehicleForm,
+                            ownerNIN: e.target.value,
+                          })
+                        }
                       />
                     </div>
                   </div>
                 </div>
               )}
 
-
               <div className="space-y-1.5">
                 <Label htmlFor="category">Vehicle Category</Label>
                 <Select
                   value={vehicleForm.category}
-                  onValueChange={(val) => setVehicleForm({ ...vehicleForm, category: val })}
-                >
+                  onValueChange={(val) =>
+                    setVehicleForm({ ...vehicleForm, category: val })
+                  }>
                   <SelectTrigger id="category">
                     <SelectValue />
                   </SelectTrigger>
@@ -1044,7 +1186,9 @@ export default function TracasClient({
                     <SelectItem value="COASTER">Coaster Bus</SelectItem>
                     <SelectItem value="TAXI">Taxi</SelectItem>
                     <SelectItem value="TRUCK">Truck</SelectItem>
-                    <SelectItem value="LIGHT_COMMERCIAL">Light Commercial</SelectItem>
+                    <SelectItem value="LIGHT_COMMERCIAL">
+                      Light Commercial
+                    </SelectItem>
                     <SelectItem value="CAR">Car</SelectItem>
                     <SelectItem value="TRICYCLE">Tricycle (Keke)</SelectItem>
                     <SelectItem value="OTHER">Other Category</SelectItem>
@@ -1062,7 +1206,12 @@ export default function TracasClient({
                   id="customType"
                   placeholder="e.g. 18-Seater Shuttle, Sienna LE, Executive Bus..."
                   value={vehicleForm.customType}
-                  onChange={(e) => setVehicleForm({ ...vehicleForm, customType: e.target.value })}
+                  onChange={(e) =>
+                    setVehicleForm({
+                      ...vehicleForm,
+                      customType: e.target.value,
+                    })
+                  }
                   required={vehicleForm.category === "OTHER"}
                 />
               </div>
@@ -1073,10 +1222,14 @@ export default function TracasClient({
                   id="makeModel"
                   placeholder="e.g. Toyota Hiace Hummer"
                   value={vehicleForm.makeModel}
-                  onChange={(e) => setVehicleForm({ ...vehicleForm, makeModel: e.target.value })}
+                  onChange={(e) =>
+                    setVehicleForm({
+                      ...vehicleForm,
+                      makeModel: e.target.value,
+                    })
+                  }
                 />
               </div>
-
 
               <div className="space-y-1.5">
                 <Label htmlFor="engineNumber">Engine Number</Label>
@@ -1084,7 +1237,12 @@ export default function TracasClient({
                   id="engineNumber"
                   placeholder="e.g. LLMN200"
                   value={vehicleForm.engineNumber}
-                  onChange={(e) => setVehicleForm({ ...vehicleForm, engineNumber: e.target.value })}
+                  onChange={(e) =>
+                    setVehicleForm({
+                      ...vehicleForm,
+                      engineNumber: e.target.value,
+                    })
+                  }
                 />
               </div>
 
@@ -1094,27 +1252,46 @@ export default function TracasClient({
                   id="chassisNumber"
                   placeholder="e.g. 09877662"
                   value={vehicleForm.chassisNumber}
-                  onChange={(e) => setVehicleForm({ ...vehicleForm, chassisNumber: e.target.value })}
+                  onChange={(e) =>
+                    setVehicleForm({
+                      ...vehicleForm,
+                      chassisNumber: e.target.value,
+                    })
+                  }
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="insuranceCertificateNo">Insurance Certificate No.</Label>
+                <Label htmlFor="insuranceCertificateNo">
+                  Insurance Certificate No.
+                </Label>
                 <Input
                   id="insuranceCertificateNo"
                   placeholder="e.g. LLW0003"
                   value={vehicleForm.insuranceCertificateNo}
-                  onChange={(e) => setVehicleForm({ ...vehicleForm, insuranceCertificateNo: e.target.value })}
+                  onChange={(e) =>
+                    setVehicleForm({
+                      ...vehicleForm,
+                      insuranceCertificateNo: e.target.value,
+                    })
+                  }
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="insuranceCommencement">Insurance Commencement</Label>
+                <Label htmlFor="insuranceCommencement">
+                  Insurance Commencement
+                </Label>
                 <Input
                   id="insuranceCommencement"
                   type="date"
                   value={vehicleForm.insuranceCommencement}
-                  onChange={(e) => setVehicleForm({ ...vehicleForm, insuranceCommencement: e.target.value })}
+                  onChange={(e) =>
+                    setVehicleForm({
+                      ...vehicleForm,
+                      insuranceCommencement: e.target.value,
+                    })
+                  }
                 />
               </div>
 
@@ -1124,27 +1301,46 @@ export default function TracasClient({
                   id="insuranceExpiry"
                   type="date"
                   value={vehicleForm.insuranceExpiry}
-                  onChange={(e) => setVehicleForm({ ...vehicleForm, insuranceExpiry: e.target.value })}
+                  onChange={(e) =>
+                    setVehicleForm({
+                      ...vehicleForm,
+                      insuranceExpiry: e.target.value,
+                    })
+                  }
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="particularsIssueDate">Particulars Issue Date</Label>
+                <Label htmlFor="particularsIssueDate">
+                  Particulars Issue Date
+                </Label>
                 <Input
                   id="particularsIssueDate"
                   type="date"
                   value={vehicleForm.particularsIssueDate}
-                  onChange={(e) => setVehicleForm({ ...vehicleForm, particularsIssueDate: e.target.value })}
+                  onChange={(e) =>
+                    setVehicleForm({
+                      ...vehicleForm,
+                      particularsIssueDate: e.target.value,
+                    })
+                  }
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="particularsExpiryDate">Particulars Expiry Date</Label>
+                <Label htmlFor="particularsExpiryDate">
+                  Particulars Expiry Date
+                </Label>
                 <Input
                   id="particularsExpiryDate"
                   type="date"
                   value={vehicleForm.particularsExpiryDate}
-                  onChange={(e) => setVehicleForm({ ...vehicleForm, particularsExpiryDate: e.target.value })}
+                  onChange={(e) =>
+                    setVehicleForm({
+                      ...vehicleForm,
+                      particularsExpiryDate: e.target.value,
+                    })
+                  }
                 />
               </div>
 
@@ -1154,21 +1350,31 @@ export default function TracasClient({
                   id="assignedRoute"
                   placeholder="e.g. Awka - Onitsha Expressway"
                   value={vehicleForm.assignedRoute}
-                  onChange={(e) => setVehicleForm({ ...vehicleForm, assignedRoute: e.target.value })}
+                  onChange={(e) =>
+                    setVehicleForm({
+                      ...vehicleForm,
+                      assignedRoute: e.target.value,
+                    })
+                  }
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="assignedDriverId">Assign Driver (Optional)</Label>
+                <Label htmlFor="assignedDriverId">
+                  Assign Driver (Optional)
+                </Label>
                 <Select
                   value={vehicleForm.assignedDriverId}
-                  onValueChange={(val) => setVehicleForm({ ...vehicleForm, assignedDriverId: val })}
-                >
+                  onValueChange={(val) =>
+                    setVehicleForm({ ...vehicleForm, assignedDriverId: val })
+                  }>
                   <SelectTrigger id="assignedDriverId">
                     <SelectValue placeholder="Select driver..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="NONE">-- No Driver Assigned --</SelectItem>
+                    <SelectItem value="NONE">
+                      -- No Driver Assigned --
+                    </SelectItem>
                     {initialDrivers.map((d) => (
                       <SelectItem key={d.id} value={d.id}>
                         {d.fullName} ({d.phoneNumber})
@@ -1179,16 +1385,21 @@ export default function TracasClient({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="stickerId">Bind Pre-Loaded Sticker (Optional)</Label>
+                <Label htmlFor="stickerId">
+                  Bind Pre-Loaded Sticker (Optional)
+                </Label>
                 <Select
                   value={vehicleForm.stickerId}
-                  onValueChange={(val) => setVehicleForm({ ...vehicleForm, stickerId: val })}
-                >
+                  onValueChange={(val) =>
+                    setVehicleForm({ ...vehicleForm, stickerId: val })
+                  }>
                   <SelectTrigger id="stickerId">
                     <SelectValue placeholder="Select QR sticker..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="NONE">-- No Sticker Selected --</SelectItem>
+                    <SelectItem value="NONE">
+                      -- No Sticker Selected --
+                    </SelectItem>
                     {availableStickers.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.stickerCode || s.stickerUrl}
@@ -1200,11 +1411,19 @@ export default function TracasClient({
             </div>
 
             <DialogFooter className="pt-4">
-              <Button variant="outline" type="button" onClick={() => setIsOnboardVehicleOpen(false)}>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => setIsOnboardVehicleOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting} className="font-semibold">
-                {isSubmitting ? "Onboarding..." : "Onboard Vehicle & Generate Authority"}
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="font-semibold">
+                {isSubmitting
+                  ? "Onboarding..."
+                  : "Onboard Vehicle & Generate Authority"}
               </Button>
             </DialogFooter>
           </form>
@@ -1220,7 +1439,8 @@ export default function TracasClient({
               Driver Enumeration & Bio-Data Registration
             </DialogTitle>
             <DialogDescription>
-              Complete driver bio-data enumeration for TRACAS identification and authority card licensing.
+              Complete driver bio-data enumeration for TRACAS identification and
+              authority card licensing.
             </DialogDescription>
           </DialogHeader>
 
@@ -1238,7 +1458,9 @@ export default function TracasClient({
                   id="fullName"
                   placeholder="e.g. Azubuike Ifeanyi"
                   value={driverForm.fullName}
-                  onChange={(e) => setDriverForm({ ...driverForm, fullName: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({ ...driverForm, fullName: e.target.value })
+                  }
                   required
                 />
               </div>
@@ -1249,13 +1471,20 @@ export default function TracasClient({
                   id="phoneNumber"
                   placeholder="e.g. 08030000000"
                   value={driverForm.phoneNumber}
-                  onChange={(e) => setDriverForm({ ...driverForm, phoneNumber: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({
+                      ...driverForm,
+                      phoneNumber: e.target.value,
+                    })
+                  }
                   required
                 />
               </div>
 
               <div className="space-y-1.5 sm:col-span-3">
-                <Label htmlFor="photo-upload-input" className="flex items-center gap-1.5 font-semibold text-foreground">
+                <Label
+                  htmlFor="photo-upload-input"
+                  className="flex items-center gap-1.5 font-semibold text-foreground">
                   <Camera className="w-4 h-4 text-primary" />
                   Passport Photograph Upload *
                 </Label>
@@ -1281,12 +1510,13 @@ export default function TracasClient({
                     <div className="space-y-2">
                       <div>
                         <p className="text-xs font-bold text-emerald-500 flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Passport Photograph Selected
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Passport
+                          Photograph Selected
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Image ready to be attached to driver&apos;s official Letter of Authority.
+                          Image ready to be attached to driver&apos;s official
+                          Letter of Authority.
                         </p>
-
                       </div>
 
                       <div className="flex items-center gap-2">
@@ -1294,9 +1524,12 @@ export default function TracasClient({
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => document.getElementById("photo-upload-input")?.click()}
-                          className="h-8 text-xs gap-1.5 cursor-pointer font-medium"
-                        >
+                          onClick={() =>
+                            document
+                              .getElementById("photo-upload-input")
+                              ?.click()
+                          }
+                          className="h-8 text-xs gap-1.5 cursor-pointer font-medium">
                           <Upload className="w-3.5 h-3.5" />
                           Change Image
                         </Button>
@@ -1305,9 +1538,10 @@ export default function TracasClient({
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => setDriverForm((prev) => ({ ...prev, photoUrl: "" }))}
-                          className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 gap-1 cursor-pointer"
-                        >
+                          onClick={() =>
+                            setDriverForm((prev) => ({ ...prev, photoUrl: "" }))
+                          }
+                          className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 gap-1 cursor-pointer">
                           <X className="w-3.5 h-3.5" />
                           Remove
                         </Button>
@@ -1316,9 +1550,10 @@ export default function TracasClient({
                   </div>
                 ) : (
                   <div
-                    onClick={() => document.getElementById("photo-upload-input")?.click()}
-                    className="border-2 border-dashed border-border hover:border-primary/60 bg-secondary/20 hover:bg-secondary/40 rounded-2xl p-5 flex flex-col items-center justify-center cursor-pointer transition-all text-center group"
-                  >
+                    onClick={() =>
+                      document.getElementById("photo-upload-input")?.click()
+                    }
+                    className="border-2 border-dashed border-border hover:border-primary/60 bg-secondary/20 hover:bg-secondary/40 rounded-2xl p-5 flex flex-col items-center justify-center cursor-pointer transition-all text-center group">
                     <div className="w-11 h-11 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-2 group-hover:scale-110 transition-transform">
                       <Upload className="w-5 h-5" />
                     </div>
@@ -1326,12 +1561,12 @@ export default function TracasClient({
                       Click to Upload Passport Photograph
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Select PNG, JPG, WEBP or GIF file from your device (Max 5MB)
+                      Select PNG, JPG, WEBP or GIF file from your device (Max
+                      5MB)
                     </p>
                   </div>
                 )}
               </div>
-
 
               <div className="space-y-1.5">
                 <Label htmlFor="nin">NIN (National ID Number)</Label>
@@ -1339,17 +1574,23 @@ export default function TracasClient({
                   id="nin"
                   placeholder="11-digit NIN"
                   value={driverForm.nin}
-                  onChange={(e) => setDriverForm({ ...driverForm, nin: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({ ...driverForm, nin: e.target.value })
+                  }
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="asinNumber">ASIN Number (Anambra State ID)</Label>
+                <Label htmlFor="asinNumber">
+                  ASIN Number (Anambra State ID)
+                </Label>
                 <Input
                   id="asinNumber"
                   placeholder="ASIN Number"
                   value={driverForm.asinNumber}
-                  onChange={(e) => setDriverForm({ ...driverForm, asinNumber: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({ ...driverForm, asinNumber: e.target.value })
+                  }
                 />
               </div>
 
@@ -1360,7 +1601,9 @@ export default function TracasClient({
                   type="email"
                   placeholder="driver@example.com"
                   value={driverForm.email}
-                  onChange={(e) => setDriverForm({ ...driverForm, email: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({ ...driverForm, email: e.target.value })
+                  }
                 />
               </div>
 
@@ -1370,7 +1613,12 @@ export default function TracasClient({
                   id="residentialAddress"
                   placeholder="Full residential address"
                   value={driverForm.residentialAddress}
-                  onChange={(e) => setDriverForm({ ...driverForm, residentialAddress: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({
+                      ...driverForm,
+                      residentialAddress: e.target.value,
+                    })
+                  }
                 />
               </div>
 
@@ -1380,7 +1628,12 @@ export default function TracasClient({
                   id="stateOfOrigin"
                   placeholder="e.g. Anambra"
                   value={driverForm.stateOfOrigin}
-                  onChange={(e) => setDriverForm({ ...driverForm, stateOfOrigin: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({
+                      ...driverForm,
+                      stateOfOrigin: e.target.value,
+                    })
+                  }
                 />
               </div>
 
@@ -1390,7 +1643,9 @@ export default function TracasClient({
                   id="lga"
                   placeholder="e.g. Awka South"
                   value={driverForm.lga}
-                  onChange={(e) => setDriverForm({ ...driverForm, lga: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({ ...driverForm, lga: e.target.value })
+                  }
                 />
               </div>
 
@@ -1400,7 +1655,12 @@ export default function TracasClient({
                   id="dateOfBirth"
                   type="date"
                   value={driverForm.dateOfBirth}
-                  onChange={(e) => setDriverForm({ ...driverForm, dateOfBirth: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({
+                      ...driverForm,
+                      dateOfBirth: e.target.value,
+                    })
+                  }
                 />
               </div>
 
@@ -1408,8 +1668,9 @@ export default function TracasClient({
                 <Label htmlFor="gender">Gender</Label>
                 <Select
                   value={driverForm.gender}
-                  onValueChange={(val) => setDriverForm({ ...driverForm, gender: val })}
-                >
+                  onValueChange={(val) =>
+                    setDriverForm({ ...driverForm, gender: val })
+                  }>
                   <SelectTrigger id="gender">
                     <SelectValue />
                   </SelectTrigger>
@@ -1429,15 +1690,21 @@ export default function TracasClient({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="licenseNumber">Driver&apos;s License Number</Label>
+                <Label htmlFor="licenseNumber">
+                  Driver&apos;s License Number
+                </Label>
                 <Input
                   id="licenseNumber"
                   placeholder="e.g. WHL323"
                   value={driverForm.licenseNumber}
-                  onChange={(e) => setDriverForm({ ...driverForm, licenseNumber: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({
+                      ...driverForm,
+                      licenseNumber: e.target.value,
+                    })
+                  }
                 />
               </div>
-
 
               <div className="space-y-1.5">
                 <Label htmlFor="licenseIssueDate">License Issue Date</Label>
@@ -1445,7 +1712,12 @@ export default function TracasClient({
                   id="licenseIssueDate"
                   type="date"
                   value={driverForm.licenseIssueDate}
-                  onChange={(e) => setDriverForm({ ...driverForm, licenseIssueDate: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({
+                      ...driverForm,
+                      licenseIssueDate: e.target.value,
+                    })
+                  }
                 />
               </div>
 
@@ -1455,7 +1727,12 @@ export default function TracasClient({
                   id="licenseExpiryDate"
                   type="date"
                   value={driverForm.licenseExpiryDate}
-                  onChange={(e) => setDriverForm({ ...driverForm, licenseExpiryDate: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({
+                      ...driverForm,
+                      licenseExpiryDate: e.target.value,
+                    })
+                  }
                 />
               </div>
 
@@ -1465,7 +1742,12 @@ export default function TracasClient({
                   id="nextOfKinName"
                   placeholder="Full name"
                   value={driverForm.nextOfKinName}
-                  onChange={(e) => setDriverForm({ ...driverForm, nextOfKinName: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({
+                      ...driverForm,
+                      nextOfKinName: e.target.value,
+                    })
+                  }
                 />
               </div>
 
@@ -1475,7 +1757,12 @@ export default function TracasClient({
                   id="nextOfKinPhone"
                   placeholder="Phone number"
                   value={driverForm.nextOfKinPhone}
-                  onChange={(e) => setDriverForm({ ...driverForm, nextOfKinPhone: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({
+                      ...driverForm,
+                      nextOfKinPhone: e.target.value,
+                    })
+                  }
                 />
               </div>
 
@@ -1485,7 +1772,12 @@ export default function TracasClient({
                   id="guarantorName"
                   placeholder="Full name"
                   value={driverForm.guarantorName}
-                  onChange={(e) => setDriverForm({ ...driverForm, guarantorName: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({
+                      ...driverForm,
+                      guarantorName: e.target.value,
+                    })
+                  }
                 />
               </div>
 
@@ -1495,7 +1787,12 @@ export default function TracasClient({
                   id="guarantorAddress"
                   placeholder="Address"
                   value={driverForm.guarantorAddress}
-                  onChange={(e) => setDriverForm({ ...driverForm, guarantorAddress: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({
+                      ...driverForm,
+                      guarantorAddress: e.target.value,
+                    })
+                  }
                 />
               </div>
 
@@ -1505,16 +1802,27 @@ export default function TracasClient({
                   id="guarantorPhone"
                   placeholder="Phone number"
                   value={driverForm.guarantorPhone}
-                  onChange={(e) => setDriverForm({ ...driverForm, guarantorPhone: e.target.value })}
+                  onChange={(e) =>
+                    setDriverForm({
+                      ...driverForm,
+                      guarantorPhone: e.target.value,
+                    })
+                  }
                 />
               </div>
             </div>
 
             <DialogFooter className="pt-4">
-              <Button variant="outline" type="button" onClick={() => setIsOnboardDriverOpen(false)}>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => setIsOnboardDriverOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting} className="font-semibold">
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="font-semibold">
                 {isSubmitting ? "Saving..." : "Save Enumeration Data"}
               </Button>
             </DialogFooter>
@@ -1523,7 +1831,9 @@ export default function TracasClient({
       </Dialog>
 
       {/* MODAL 3: REASSIGN DRIVER */}
-      <Dialog open={isReassignDriverOpen} onOpenChange={setIsReassignDriverOpen}>
+      <Dialog
+        open={isReassignDriverOpen}
+        onOpenChange={setIsReassignDriverOpen}>
         <DialogContent className="max-w-md bg-card text-foreground border-border">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 font-bold">
@@ -1531,7 +1841,8 @@ export default function TracasClient({
               Reassign Vehicle Driver
             </DialogTitle>
             <DialogDescription>
-              Assign or change the enumerated driver operating vehicle {selectedVehicle?.registrationNumber}.
+              Assign or change the enumerated driver operating vehicle{" "}
+              {selectedVehicle?.registrationNumber}.
             </DialogDescription>
           </DialogHeader>
 
@@ -1540,8 +1851,9 @@ export default function TracasClient({
               <Label htmlFor="reassignDriverId">Select Driver</Label>
               <Select
                 value={reassignForm.driverId}
-                onValueChange={(val) => setReassignForm({ ...reassignForm, driverId: val })}
-              >
+                onValueChange={(val) =>
+                  setReassignForm({ ...reassignForm, driverId: val })
+                }>
                 <SelectTrigger id="reassignDriverId">
                   <SelectValue />
                 </SelectTrigger>
@@ -1557,7 +1869,10 @@ export default function TracasClient({
             </div>
 
             <DialogFooter className="pt-2">
-              <Button variant="outline" type="button" onClick={() => setIsReassignDriverOpen(false)}>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => setIsReassignDriverOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
@@ -1577,7 +1892,8 @@ export default function TracasClient({
               Bind Physical QR Sticker
             </DialogTitle>
             <DialogDescription>
-              Bind a pre-loaded physical sticker URL to vehicle {selectedVehicle?.registrationNumber}.
+              Bind a pre-loaded physical sticker URL to vehicle{" "}
+              {selectedVehicle?.registrationNumber}.
             </DialogDescription>
           </DialogHeader>
 
@@ -1586,8 +1902,9 @@ export default function TracasClient({
               <Label htmlFor="assignStickerId">Select Available Sticker</Label>
               <Select
                 value={assignStickerForm.stickerId}
-                onValueChange={(val) => setAssignStickerForm({ ...assignStickerForm, stickerId: val })}
-              >
+                onValueChange={(val) =>
+                  setAssignStickerForm({ ...assignStickerForm, stickerId: val })
+                }>
                 <SelectTrigger id="assignStickerId">
                   <SelectValue />
                 </SelectTrigger>
@@ -1603,7 +1920,10 @@ export default function TracasClient({
             </div>
 
             <DialogFooter className="pt-2">
-              <Button variant="outline" type="button" onClick={() => setIsAssignStickerOpen(false)}>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => setIsAssignStickerOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
@@ -1641,7 +1961,10 @@ export default function TracasClient({
             </div>
 
             <DialogFooter className="pt-2">
-              <Button variant="outline" type="button" onClick={() => setIsAddStickersOpen(false)}>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => setIsAddStickersOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>

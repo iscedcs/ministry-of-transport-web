@@ -9,7 +9,7 @@ export default async function VerifyTracasRedirectPage({
   const target = code || id || ref;
 
   if (target) {
-    redirect(`/verify/tracas/${encodeURIComponent(target)}`);
+    redirect(`/v/tracas/${encodeURIComponent(target)}`);
   }
 
   redirect("/tracas");

@@ -47,6 +47,7 @@ const PUBLIC_PREFIXES = [
   "/favicon.ico",
   "/public/",
   "/verify/",
+  "/v/",
   "/icons/",
 ];
 

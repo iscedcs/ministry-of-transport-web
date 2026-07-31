@@ -1479,6 +1479,7 @@ model TracasDriver {
   id                        String       @id @default(cuid())
   fullName                  String
   phoneNumber               String
+  securityCode              String?      @unique
   email                     String?
   photoUrl                  String?      @db.Text
   nin                       String?
@@ -1512,6 +1513,7 @@ model TracasDriver {
 
   @@index([licenseNumber])
   @@index([phoneNumber])
+  @@index([securityCode])
   @@index([status])
 }
 
