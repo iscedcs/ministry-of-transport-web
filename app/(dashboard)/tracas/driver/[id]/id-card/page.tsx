@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { getTracasDriverData } from "@/app/actions/tracas";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/ui/print-button";
 import Image from "next/image";
@@ -10,21 +10,11 @@ export default async function TracasDriverIdCardPage({
 }) {
   const { id } = await params;
 
-  let driver = await db.tracasDriver.findUnique({
-    where: { id },
-  });
+  const res = await getTracasDriverData(id);
+  if (!res.success || !res.driver) notFound();
 
-  if (!driver) notFound();
-
-  // Ensure securityCode exists (4-digit format)
-  let securityCode = driver.securityCode;
-  if (!securityCode) {
-    securityCode = Math.floor(1000 + Math.random() * 9000).toString();
-    driver = await db.tracasDriver.update({
-      where: { id },
-      data: { securityCode },
-    });
-  }
+  const driver = res.driver;
+  const securityCode = driver.securityCode || "0000";
 
   const publicVerificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://mot.anambra.gov.ng"}/verify/tracas-driver/${driver.id}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
