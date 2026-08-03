@@ -15,7 +15,7 @@ export default async function TracasLetterPage({
   }
 
   return (
-    <div className="p-4 sm:p-8 min-h-screen bg-slate-900/5 dark:bg-slate-950 flex flex-col items-center">
+    <div className="p-4 sm:p-8 min-h-screen bg-slate-900/5 dark:bg-slate-950 flex flex-col items-center print:p-0 print:min-h-0">
       <LetterOfAuthorityDocument vehicle={res.vehicle as any} showActions={true} />
     </div>
   );

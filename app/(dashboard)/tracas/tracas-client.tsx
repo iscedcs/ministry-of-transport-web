@@ -57,6 +57,7 @@ import {
   assignStickerToTracasVehicle,
   addStickerUrlsToTracasPool,
 } from "@/app/actions/tracas";
+import { StickerQrScannerModal } from "@/components/tracas/sticker-qr-scanner-modal";
 
 interface VehicleItem {
   id: string;
@@ -73,6 +74,8 @@ interface VehicleItem {
   particularsExpiryDate: Date | null;
   assignedRoute: string | null;
   ownershipType: string;
+  enrollmentType: string;
+  joinedCompanyAt: Date | null;
   ownerName: string | null;
   ownerPhone: string | null;
   ownerAddress: string | null;
@@ -146,6 +149,9 @@ export default function TracasClient({
     "vehicles" | "drivers" | "stickers"
   >("vehicles");
   const [searchQuery, setSearchQuery] = useState("");
+  const [enrollmentFilter, setEnrollmentFilter] = useState<
+    "ALL" | "EXISTING" | "NEW_JOINER"
+  >("ALL");
 
   // Modals
   const [isOnboardVehicleOpen, setIsOnboardVehicleOpen] = useState(false);
@@ -166,6 +172,7 @@ export default function TracasClient({
     category: "BUS",
     customType: "",
     ownershipType: "GOVERNMENT_OWNED",
+    enrollmentType: "EXISTING",
     ownerName: "",
     ownerPhone: "",
     ownerAddress: "",
@@ -222,8 +229,36 @@ export default function TracasClient({
     stickerId: "NONE",
   });
 
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scannerTargetVehicle, setScannerTargetVehicle] = useState<VehicleItem | null>(null);
+
   const [batchStickerUrls, setBatchStickerUrls] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleScannerSuccess = async (scannedCodeOrUrl: string) => {
+    const targetVehicle = scannerTargetVehicle || selectedVehicle;
+    if (!targetVehicle) {
+      toast.error("No vehicle selected for sticker binding.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await assignStickerToTracasVehicle(targetVehicle.id, scannedCodeOrUrl);
+      if (res.success) {
+        toast.success(`Sticker bound successfully to vehicle ${targetVehicle.registrationNumber}!`);
+        setIsAssignStickerOpen(false);
+        setIsScannerOpen(false);
+        router.refresh();
+      } else {
+        toast.error(res.error || "Failed to bind sticker.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "An unexpected error occurred.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -254,16 +289,26 @@ export default function TracasClient({
 
   const availableStickers = initialStickers.filter((s) => !s.isAssigned);
 
-  const filteredVehicles = initialVehicles.filter(
-    (v) =>
-      v.registrationNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.fleetNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.authorityRef.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (v.assignedDriver?.fullName &&
-        v.assignedDriver.fullName
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase())),
-  );
+  const newJoinerCount = initialVehicles.filter(
+    (v) => v.enrollmentType === "NEW_JOINER",
+  ).length;
+
+  const filteredVehicles = initialVehicles.filter((v) => {
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      v.registrationNumber.toLowerCase().includes(q) ||
+      v.fleetNumber.toLowerCase().includes(q) ||
+      v.authorityRef.toLowerCase().includes(q) ||
+      Boolean(v.assignedDriver?.fullName.toLowerCase().includes(q));
+
+    // Legacy rows written before enrollmentType existed read as EXISTING.
+    const enrollment =
+      v.enrollmentType === "NEW_JOINER" ? "NEW_JOINER" : "EXISTING";
+    const matchesEnrollment =
+      enrollmentFilter === "ALL" || enrollment === enrollmentFilter;
+
+    return matchesSearch && matchesEnrollment;
+  });
 
   const filteredDrivers = initialDrivers.filter(
     (d) =>
@@ -309,6 +354,7 @@ export default function TracasClient({
           category: "BUS",
           customType: "",
           ownershipType: "GOVERNMENT_OWNED",
+          enrollmentType: "EXISTING",
           ownerName: "",
           ownerPhone: "",
           ownerAddress: "",
@@ -521,6 +567,12 @@ export default function TracasClient({
               <h3 className="text-2xl font-bold text-foreground mt-1">
                 {initialVehicles.length}
               </h3>
+              <p className="text-[11px] text-muted-foreground mt-1 font-medium">
+                {initialVehicles.length - newJoinerCount} existing ·{" "}
+                <span className="text-amber-500 font-bold">
+                  {newJoinerCount} new
+                </span>
+              </p>
             </div>
             <div className="p-3 bg-primary/10 rounded-2xl">
               <Bus className="w-6 h-6 text-primary" />
@@ -608,14 +660,38 @@ export default function TracasClient({
           </Button>
         </div>
 
-        <div className="relative max-w-xs w-full">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search reg, fleet no, driver..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 bg-background/50 text-xs rounded-xl"
-          />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          {/* Enrolment filter — only meaningful on the vehicles tab */}
+          {activeTab === "vehicles" && (
+            <div className="flex items-center gap-1 p-1 bg-secondary rounded-xl">
+              {(
+                [
+                  { key: "ALL", label: "All" },
+                  { key: "EXISTING", label: "Existing" },
+                  { key: "NEW_JOINER", label: `New (${newJoinerCount})` },
+                ] as const
+              ).map((opt) => (
+                <Button
+                  key={opt.key}
+                  variant={enrollmentFilter === opt.key ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setEnrollmentFilter(opt.key)}
+                  className="rounded-lg cursor-pointer text-xs font-medium px-2.5">
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+          )}
+
+          <div className="relative max-w-xs w-full">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search reg, fleet no, driver..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 bg-background/50 text-xs rounded-xl"
+            />
+          </div>
         </div>
       </div>
 
@@ -684,6 +760,16 @@ export default function TracasClient({
                               : vehicle.ownershipType === "COLLABORATIVE"
                                 ? "Franchise"
                                 : "State Fleet"}
+                          </Badge>
+                          <Badge
+                            className={
+                              vehicle.enrollmentType === "NEW_JOINER"
+                                ? "bg-amber-500/10 text-amber-500 border-amber-500/20 font-bold text-[10px]"
+                                : "bg-slate-500/10 text-slate-400 border-slate-500/20 font-bold text-[10px]"
+                            }>
+                            {vehicle.enrollmentType === "NEW_JOINER"
+                              ? "New Joiner"
+                              : "Existing"}
                           </Badge>
                         </div>
                         <p className="text-muted-foreground">
@@ -1047,7 +1133,11 @@ export default function TracasClient({
                 <Input
                   disabled
                   id="fleetNumber"
-                  placeholder="Auto-assigned (e.g. LV001)"
+                  placeholder={
+                    vehicleForm.ownershipType === "GOVERNMENT_OWNED"
+                      ? "Auto-assigned (e.g. FT001)"
+                      : "Auto-assigned (e.g. LV001)"
+                  }
                   value={vehicleForm.fleetNumber}
                   onChange={(e) =>
                     setVehicleForm({
@@ -1058,8 +1148,58 @@ export default function TracasClient({
                   className="bg-muted/30"
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  Auto-generated as LV001, LV002 if left blank.
+                  {vehicleForm.ownershipType === "GOVERNMENT_OWNED"
+                    ? "Auto-generated as FT001, FT002... for Government Owned fleet."
+                    : "Auto-generated as LV001, LV002... for Individual / Collaborative fleet."}
                 </p>
+              </div>
+
+              {/* Enrolment status — separates vehicles already running under
+                  TRACAS from those joining the company in this round. */}
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label className="font-semibold">Enrolment Status *</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {[
+                    {
+                      value: "EXISTING",
+                      title: "Existing in Company",
+                      hint: "Already operating under TRACAS",
+                    },
+                    {
+                      value: "NEW_JOINER",
+                      title: "Joining Company (New)",
+                      hint: "Newly onboarded to TRACAS",
+                    },
+                  ].map((opt) => {
+                    const isSelected = vehicleForm.enrollmentType === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() =>
+                          setVehicleForm({
+                            ...vehicleForm,
+                            enrollmentType: opt.value,
+                          })
+                        }
+                        className={`text-left px-3.5 py-3 rounded-xl border transition-colors cursor-pointer ${
+                          isSelected
+                            ? "border-primary bg-primary/10 ring-1 ring-primary"
+                            : "border-border bg-background/40 hover:bg-secondary/60"
+                        }`}>
+                        <span
+                          className={`block text-sm font-bold ${
+                            isSelected ? "text-primary" : "text-foreground"
+                          }`}>
+                          {opt.title}
+                        </span>
+                        <span className="block text-[11px] text-muted-foreground mt-0.5">
+                          {opt.hint}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="space-y-1.5 sm:col-span-2">
@@ -1722,10 +1862,13 @@ export default function TracasClient({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="licenseExpiryDate">License Expiry Date</Label>
+                <Label htmlFor="licenseExpiryDate">
+                  License Expiry Date <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   id="licenseExpiryDate"
                   type="date"
+                  required
                   value={driverForm.licenseExpiryDate}
                   onChange={(e) =>
                     setDriverForm({
@@ -1897,7 +2040,36 @@ export default function TracasClient({
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleAssignSticker} className="space-y-4 py-2">
+          <div className="bg-emerald-950/40 border border-emerald-800/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center space-y-2 my-2">
+            <p className="text-xs text-emerald-400 font-semibold uppercase tracking-wider">
+              Fast Live QR Camera Scanner
+            </p>
+            <Button
+              type="button"
+              onClick={() => {
+                setScannerTargetVehicle(selectedVehicle);
+                setIsScannerOpen(true);
+              }}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm w-full py-2.5 rounded-xl gap-2 shadow-lg cursor-pointer transition-all"
+            >
+              <Camera className="w-4 h-4" />
+              Scan Physical QR Sticker with Camera
+            </Button>
+            <p className="text-[11px] text-muted-foreground">
+              Point camera at physical sticker QR code to scan and bind instantly.
+            </p>
+          </div>
+
+          <div className="relative my-3 flex items-center justify-center">
+            <span className="bg-card px-3 text-[11px] text-muted-foreground uppercase font-bold z-10">
+              Or Select From Available Inventory Pool
+            </span>
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border" />
+            </div>
+          </div>
+
+          <form onSubmit={handleAssignSticker} className="space-y-4 py-1">
             <div className="space-y-1.5">
               <Label htmlFor="assignStickerId">Select Available Sticker</Label>
               <Select
@@ -1933,6 +2105,23 @@ export default function TracasClient({
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* MODAL CAMERA SCANNER */}
+      <StickerQrScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanSuccess={handleScannerSuccess}
+        vehicleInfo={
+          scannerTargetVehicle || selectedVehicle
+            ? {
+                registrationNumber:
+                  (scannerTargetVehicle || selectedVehicle)?.registrationNumber || "",
+                fleetNumber:
+                  (scannerTargetVehicle || selectedVehicle)?.fleetNumber || "",
+              }
+            : null
+        }
+      />
 
       {/* MODAL 5: PRE-LOAD STICKERS */}
       <Dialog open={isAddStickersOpen} onOpenChange={setIsAddStickersOpen}>

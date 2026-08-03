@@ -45,10 +45,13 @@ export function LetterOfAuthorityDocument({
 }) {
   const driver = vehicle.assignedDriver;
 
-  const publicVerificationUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/verify/tracas/${vehicle.authorityRef}`
-      : `https://mot.anambra.gov.ng/verify/tracas/${vehicle.authorityRef}`;
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (typeof window !== "undefined" && window.location.origin
+      ? window.location.origin
+      : "http://localhost:8150");
+
+  const publicVerificationUrl = `${baseUrl}/verify/tracas/${vehicle.authorityRef}`;
 
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
     publicVerificationUrl,
@@ -68,26 +71,19 @@ export function LetterOfAuthorityDocument({
     }
   };
 
-  // Expiration rule: Always 31st January of the following year (unless specific valid date provided)
-  const getAuthorityExpiryFormatted = (
-    issueDate: Date | string | null | undefined,
-    expiryDate: Date | string | null | undefined,
-  ) => {
-    if (expiryDate && expiryDate !== "PERPETUAL") {
-      try {
-        const d = new Date(expiryDate);
-        if (!isNaN(d.getTime())) {
-          return format(d, "dd MMMM yyyy");
-        }
-      } catch {
-        // Fallback below
+  // Expiration rule: Based on when the driver's license is expiring
+  const getAuthorityExpiryFormatted = () => {
+    const rawExpiry = driver?.licenseExpiryDate || vehicle.authorityExpiryDate;
+    if (!rawExpiry || rawExpiry === "PERPETUAL") return "N/A";
+    try {
+      const d = new Date(rawExpiry);
+      if (!isNaN(d.getTime())) {
+        return format(d, "dd MMMM yyyy");
       }
+    } catch {
+      // Fallback below
     }
-    const issueD = issueDate ? new Date(issueDate) : new Date();
-    const issueYear = isNaN(issueD.getTime())
-      ? new Date().getFullYear()
-      : issueD.getFullYear();
-    return `31st January ${issueYear + 1}`;
+    return String(rawExpiry);
   };
 
   const handlePrint = () => {
@@ -100,13 +96,133 @@ export function LetterOfAuthorityDocument({
     vehicle.authorityIssueDate,
     format(new Date(), "dd MMM yyyy"),
   );
-  const expiryDateFormatted = getAuthorityExpiryFormatted(
-    vehicle.authorityIssueDate,
-    vehicle.authorityExpiryDate,
-  );
+  const expiryDateFormatted = getAuthorityExpiryFormatted();
 
   return (
-    <div className="flex flex-col items-center">
+    <div id="letter-print-root" className="flex flex-col items-center">
+      {/* Print rules — force the whole letter onto a single A4 page.
+          Everything outside #letter-of-authority-sheet is hidden, layout
+          wrappers are reset, and vertical rhythm is compacted so the
+          signature block and footer never spill onto page 2. */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+          @media print {
+            @page { size: A4 portrait; margin: 8mm; }
+
+            /* Hide app chrome and everything that is not the letter */
+            aside, header, nav, .no-print { display: none !important; }
+            body * { visibility: hidden !important; }
+            #letter-of-authority-sheet,
+            #letter-of-authority-sheet * { visibility: visible !important; }
+
+            /* Reset Next.js layout containers so nothing forces extra height.
+               Hidden-but-present ancestors still occupy space and would emit
+               blank pages, so every wrapper around the letter is collapsed. */
+            html, body, body > div, main, #letter-print-root,
+            div:has(> #letter-print-root),
+            div:has(#letter-print-root) {
+              height: auto !important;
+              min-height: 0 !important;
+              overflow: visible !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #fff !important;
+            }
+
+            /* The sheet becomes the page.
+               min-height fills the printable area (A4 297mm less the 8mm
+               margins, minus a 7mm safety gutter so rounding can never tip
+               into a second page) — this is what lets the flex column push
+               the signature block down to the foot of the letter. */
+            #letter-of-authority-sheet {
+              position: absolute !important;
+              top: 0 !important;
+              left: 0 !important;
+              width: 100% !important;
+              max-width: none !important;
+              min-height: 274mm !important;
+              height: auto !important;
+              display: flex !important;
+              flex-direction: column !important;
+              justify-content: space-between !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              border: none !important;
+              box-shadow: none !important;
+              box-sizing: border-box !important;
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+              font-size: 11.5pt !important;
+              line-height: 1.35 !important;
+            }
+
+            /* ── Vertical compaction ─────────────────────────────────── */
+            #letter-of-authority-sheet [data-lp="header"] {
+              padding-bottom: 6px !important;
+              margin-bottom: 6px !important;
+            }
+            #letter-of-authority-sheet [data-lp="header"] img {
+              width: 52px !important;
+              height: 52px !important;
+            }
+            #letter-of-authority-sheet [data-lp="ref-row"] {
+              margin-top: 6px !important;
+              margin-bottom: 6px !important;
+            }
+            #letter-of-authority-sheet [data-lp="qr"] {
+              width: 84px !important;
+              height: 84px !important;
+            }
+            #letter-of-authority-sheet [data-lp="photo"] {
+              width: 84px !important;
+              height: 100px !important;
+            }
+            #letter-of-authority-sheet [data-lp="title"] {
+              margin-top: 6px !important;
+              margin-bottom: 6px !important;
+            }
+            #letter-of-authority-sheet [data-lp="title"] h2 {
+              font-size: 15pt !important;
+            }
+            #letter-of-authority-sheet [data-lp="body"] > * + * {
+              margin-top: 6px !important;
+            }
+            #letter-of-authority-sheet [data-lp="particulars"] > * + * {
+              margin-top: 3px !important;
+            }
+            #letter-of-authority-sheet [data-lp="particulars"] {
+              padding-top: 2px !important;
+              padding-bottom: 2px !important;
+            }
+            /* Signatures sit at the foot of the page — mt:auto absorbs the
+               slack so the block lands just above the footer bar, with a
+               generous rule for a real pen signature. */
+            #letter-of-authority-sheet [data-lp="signatures"] {
+              margin-top: auto !important;
+              padding-top: 28px !important;
+            }
+            #letter-of-authority-sheet [data-lp="signatures"] [data-lp="sig-line"] {
+              height: 64px !important;
+              width: 200px !important;
+            }
+            #letter-of-authority-sheet [data-lp="footer"] {
+              margin: 10px 0 0 0 !important;
+              padding: 6px 12px !important;
+            }
+
+            /* Keep the emerald footer bar and coloured headings in the PDF */
+            #letter-of-authority-sheet [data-lp="footer"],
+            #letter-of-authority-sheet [data-lp="header"] h1,
+            #letter-of-authority-sheet [data-lp="header"] h2 {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+          }
+        `,
+        }}
+      />
+
       {/* Top Action Bar (hidden when printing) */}
       {showActions && (
         <div className="w-full max-w-4xl mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden bg-card p-4 rounded-xl border border-border shadow-sm">
@@ -137,7 +253,9 @@ export function LetterOfAuthorityDocument({
         {/* Main Upper Content Wrapper */}
         <div className="flex-1 flex flex-col justify-start">
           {/* Header Block */}
-          <div className="flex items-start justify-between border-b-2 border-slate-900 pb-3 mb-4">
+          <div
+            data-lp="header"
+            className="flex items-start justify-between border-b-2 border-slate-900 pb-3 mb-4">
             <div className="flex items-center gap-3">
               <img
                 src="/anambra_mot_logo.png"
@@ -167,7 +285,7 @@ export function LetterOfAuthorityDocument({
           </div>
 
           {/* Reference Numbers, QR Code & TRACAS Logo + Driver Passport Photo Row */}
-          <div className="flex items-start justify-between my-4 px-2">
+          <div data-lp="ref-row" className="flex items-start justify-between my-4 px-2">
             {/* Left Column: Our Ref / Your Ref & QR Code */}
             <div className="flex flex-col items-start space-y-4">
               <div className="text-xs sm:text-sm font-sans">
@@ -183,7 +301,9 @@ export function LetterOfAuthorityDocument({
               </div>
 
               <div className="flex flex-col items-center">
-                <div className="w-28 h-28 border border-slate-900 p-1 bg-white shadow-xs">
+                <div
+                  data-lp="qr"
+                  className="w-28 h-28 border border-slate-900 p-1 bg-white shadow-xs">
                   <img
                     src={qrImageUrl}
                     alt="Verification QR Code"
@@ -207,7 +327,9 @@ export function LetterOfAuthorityDocument({
               </div>
 
               <div className="flex flex-col items-center">
-                <div className="w-28 h-32 border border-slate-900 bg-slate-100 flex items-center justify-center overflow-hidden relative shadow-xs">
+                <div
+                  data-lp="photo"
+                  className="w-28 h-32 border border-slate-900 bg-slate-100 flex items-center justify-center overflow-hidden relative shadow-xs">
                   {driver?.photoUrl ? (
                     <img
                       src={driver.photoUrl}
@@ -230,14 +352,16 @@ export function LetterOfAuthorityDocument({
           </div>
 
           {/* Title */}
-          <div className="text-center my-5">
+          <div data-lp="title" className="text-center my-5">
             <h2 className="text-xl sm:text-2xl font-bold uppercase tracking-wider underline decoration-2 underline-offset-4 text-slate-950">
               TO WHOM IT MAY CONCERN
             </h2>
           </div>
 
           {/* Legal Text & Particulars Body */}
-          <div className="space-y-4 text-sm sm:text-base leading-relaxed text-slate-900 font-serif">
+          <div
+            data-lp="body"
+            className="space-y-4 text-sm sm:text-base leading-relaxed text-slate-900 font-serif">
             <p className="text-justify">
               This is to certify that the vehicle with Registration Number{" "}
               <span className="font-bold text-slate-950 underline">
@@ -252,7 +376,7 @@ export function LetterOfAuthorityDocument({
               / particulars of the said vehicle remain with the above authority.
             </p>
 
-            <div className="space-y-2 py-2 font-serif">
+            <div data-lp="particulars" className="space-y-2 py-2 font-serif">
               <p>
                 <span className="font-semibold">Driver&apos;s Name:</span>{" "}
                 <span className="font-bold text-slate-950">
@@ -372,10 +496,14 @@ export function LetterOfAuthorityDocument({
         </div>
 
         {/* Dual Signature Block (Positioned at the end end) */}
-        <div className="grid grid-cols-2 gap-8 mt-auto pt-10 font-sans text-xs sm:text-sm">
+        <div
+          data-lp="signatures"
+          className="grid grid-cols-2 gap-8 mt-auto pt-10 font-sans text-xs sm:text-sm">
           {/* Left Signatory: Ministry / SSG */}
           <div className="flex flex-col items-start">
-            <div className="h-12 w-36 border-b border-dashed border-slate-400 flex items-end justify-center mb-2">
+            <div
+              data-lp="sig-line"
+              className="h-12 w-36 border-b border-dashed border-slate-400 flex items-end justify-center mb-2">
               <span className="text-slate-400 font-mono text-[10px] italic mb-1">
                 [DIGITAL SIGNATURE]
               </span>
@@ -391,7 +519,9 @@ export function LetterOfAuthorityDocument({
 
           {/* Right Signatory: TRACAS MD/CEO */}
           <div className="flex flex-col items-end text-right">
-            <div className="h-12 w-36 border-b border-dashed border-slate-400 flex items-end justify-center mb-2">
+            <div
+              data-lp="sig-line"
+              className="h-12 w-36 border-b border-dashed border-slate-400 flex items-end justify-center mb-2">
               <span className="text-slate-400 font-mono text-[10px] italic mb-1">
                 [DIGITAL SIGNATURE]
               </span>
@@ -405,7 +535,9 @@ export function LetterOfAuthorityDocument({
         </div>
 
         {/* Bottom Bar Accent */}
-        <div className="mt-8 -mx-8 sm:-mx-12 -mb-8 sm:-mb-12 bg-emerald-800 text-white text-center py-2.5 px-4 font-sans text-xs font-semibold tracking-wide print:-mx-0 print:-mb-0">
+        <div
+          data-lp="footer"
+          className="mt-8 -mx-8 sm:-mx-12 -mb-8 sm:-mb-12 bg-emerald-800 text-white text-center py-2.5 px-4 font-sans text-xs font-semibold tracking-wide print:-mx-0 print:-mb-0">
           All replies to be addressed to the Secretary to the State Government
         </div>
       </div>

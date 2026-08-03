@@ -45,7 +45,8 @@ export async function onboardParkStaff(data: {
     });
 
     // Update with actual profile URL
-    const profileUrl = `${process.env.NEXT_PUBLIC_APP_URL}/verify/park-staff/${staff.id}`;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:8150";
+    const profileUrl = `${baseUrl}/verify/park-staff/${staff.id}`;
     
     // Simple QR generation using an external service for now (or standard lib)
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(profileUrl)}`;

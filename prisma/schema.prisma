@@ -1452,6 +1452,11 @@ model TracasVehicle {
   particularsExpiryDate   DateTime?
   assignedRoute           String?
   ownershipType           String       @default("GOVERNMENT_OWNED") @db.VarChar(50)
+  // Distinguishes vehicles already operating under TRACAS at enrolment time
+  // from those joining the company as part of this onboarding round.
+  // "EXISTING" | "NEW_JOINER" — pre-existing rows default to EXISTING.
+  enrollmentType          String       @default("EXISTING") @db.VarChar(30)
+  joinedCompanyAt         DateTime?
   ownerName               String?
   ownerPhone              String?
   ownerAddress            String?      @db.Text
@@ -1474,6 +1479,7 @@ model TracasVehicle {
   @@index([authorityRef])
   @@index([assignedDriverId])
   @@index([status])
+  @@index([enrollmentType])
 }
 
 model TracasDriver {
