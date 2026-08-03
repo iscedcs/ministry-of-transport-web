@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,8 +68,11 @@ export function StickerQrScannerModal({
       // Stop any running instance
       await stopCamera();
 
+      // Restricting to QR only keeps each decode pass cheap — the library
+      // otherwise tries every barcode symbology on every frame.
       const html5QrCode = new Html5Qrcode(readerDivId, {
         verbose: false,
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
       });
       html5QrCodeRef.current = html5QrCode;
 
@@ -97,16 +100,25 @@ export function StickerQrScannerModal({
       await html5QrCode.start(
         cameraConfig,
         {
-          fps: 15,
+          fps: 10,
+          // NOTE: `aspectRatio` is deliberately NOT set. html5-qrcode decodes a
+          // canvas cropped from the video using
+          // videoWidth/clientWidth  and  videoHeight/clientHeight.
+          // Forcing a 1:1 aspect ratio that the camera cannot actually produce
+          // makes those ratios disagree with what is rendered, so the decoder
+          // ends up reading the wrong slice of the frame — the preview looks
+          // fine but nothing ever scans.
           qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+            // Clamp to the viewfinder. A qrbox larger than the video makes the
+            // library discard the shaded region and silently mis-crop.
             const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-            const size = Math.floor(minEdge * 0.75);
+            const size = Math.max(Math.floor(minEdge * 0.7), 150);
             return {
-              width: Math.max(size, 180),
-              height: Math.max(size, 180),
+              width: Math.min(size, viewfinderWidth),
+              height: Math.min(size, viewfinderHeight),
             };
           },
-          aspectRatio: 1.0,
+          disableFlip: false,
         },
         async (decodedText) => {
           if (isProcessingRef.current) return;
@@ -227,9 +239,14 @@ export function StickerQrScannerModal({
                 </Button>
               </div>
             ) : (
+              /* A definite width/height matters: html5-qrcode derives its
+                 crop ratio from the video element's clientWidth/clientHeight.
+                 `h-full` against an auto-height flex parent resolves to auto,
+                 which makes that ratio unreliable. */
               <div
                 id={readerDivId}
-                className="w-full h-full rounded-xl overflow-hidden text-slate-900"
+                className="w-full rounded-xl overflow-hidden text-slate-900"
+                style={{ minHeight: 300 }}
               />
             )}
 
