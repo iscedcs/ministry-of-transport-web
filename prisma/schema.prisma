@@ -36,6 +36,7 @@ enum UserRole {
   EXTERNAL_APPLICANT // Public user: park owners, transit companies, driving schools
   PARK_MONITOR // Field staff who monitor parks and transit operations
   SYSTEM_ADMIN // Platform administration (internal)
+  ICT_OFFICER // ICT Officer — Printing Center (ID cards, letters of authority, permits)
 }
 
 enum ApplicationStatus {

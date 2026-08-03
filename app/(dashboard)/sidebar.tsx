@@ -88,6 +88,19 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
 
+  // ── ICT & Printing Center Module ──
+  {
+    label: "Printing Center",
+    href: "/ict-printing",
+    icon: "🖨️",
+    allowedRoles: [
+      "COMMISSIONER",
+      "PERMANENT_SECRETARY",
+      "ICT_OFFICER",
+      "SYSTEM_ADMIN",
+    ],
+  },
+
   // ── TRACAS Module ──
   {
     label: "TRACAS Transport",
@@ -102,8 +115,6 @@ const NAV_ITEMS: NavItem[] = [
       "SYSTEM_ADMIN",
     ],
   },
-
-
 
   // ── Revalidation Module ──
   {
@@ -188,7 +199,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Staff & Users",
     href: "/admin/users",
     icon: "👥",
-    allowedRoles: ["PERMANENT_SECRETARY","COMMISSIONER", "SYSTEM_ADMIN"],
+    allowedRoles: ["PERMANENT_SECRETARY", "COMMISSIONER", "SYSTEM_ADMIN"],
   },
   {
     label: "Audit Trail",
@@ -249,6 +260,9 @@ export function DashboardSidebar({
   const { isOpen, close } = useMobileMenu();
 
   const visibleItems = NAV_ITEMS.filter((item) => {
+    if (role === "ICT_OFFICER" && item.href === "/dashboard") {
+      return false;
+    }
     if (item.allowedRoles !== "ALL" && !item.allowedRoles.includes(role)) {
       return false;
     }
@@ -285,9 +299,10 @@ export function DashboardSidebar({
         className={cn(
           "w-(--sidebar-width,260px) h-full bg-card border-r border-border/50 flex flex-col overflow-y-auto overflow-x-hidden flex-shrink-0 transition-transform duration-300 ease-in-out z-50",
           "fixed inset-y-0 left-0 md:static md:translate-x-0",
-          isOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full md:shadow-none"
-        )}
-      >
+          isOpen
+            ? "translate-x-0 shadow-2xl"
+            : "-translate-x-full md:shadow-none",
+        )}>
         {/* Brand */}
         <div className="px-5 pt-5 pb-4 border-b border-border/50 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -307,7 +322,9 @@ export function DashboardSidebar({
                 style={{ fontFamily: "var(--font-display)" }}>
                 MOT Platform
               </p>
-              <p className="text-xs text-muted-foreground">{ROLE_LABELS[role]}</p>
+              <p className="text-xs text-muted-foreground">
+                {ROLE_LABELS[role]}
+              </p>
             </div>
           </div>
 
@@ -315,51 +332,50 @@ export function DashboardSidebar({
           <button
             onClick={close}
             className="md:hidden p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-            aria-label="Close navigation menu"
-          >
+            aria-label="Close navigation menu">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-      {/* Nav */}
-      <nav aria-label="Main navigation" className="p-3 flex-1">
-        <ul className="flex flex-col gap-0.5 list-none m-0 p-0">
-          {visibleItems.map((item) => {
-            const isActive =
-              item.href === "/dashboard"
-                ? pathname === "/dashboard"
-                : pathname.startsWith(item.href);
+        {/* Nav */}
+        <nav aria-label="Main navigation" className="p-3 flex-1">
+          <ul className="flex flex-col gap-0.5 list-none m-0 p-0">
+            {visibleItems.map((item) => {
+              const isActive =
+                item.href === "/dashboard"
+                  ? pathname === "/dashboard"
+                  : pathname.startsWith(item.href);
 
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  onClick={close}
-                  aria-current={isActive ? "page" : undefined}
-                  className={cn(
-                    "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                  )}>
-                  <span aria-hidden="true" className="text-base leading-none">
-                    {item.icon}
-                  </span>
-                  <span>{item.label}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onClick={close}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(
+                      "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                    )}>
+                    <span aria-hidden="true" className="text-base leading-none">
+                      {item.icon}
+                    </span>
+                    <span>{item.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
 
-      {/* Bottom: version */}
-      <div className="px-5 py-4 border-t border-border/50">
-        <p className="text-xs text-muted-foreground">
-          ISCE Digital Concept · v0.1
-        </p>
-      </div>
-    </aside>
+        {/* Bottom: version */}
+        <div className="px-5 py-4 border-t border-border/50">
+          <p className="text-xs text-muted-foreground">
+            ISCE Digital Concept · v0.1
+          </p>
+        </div>
+      </aside>
     </>
   );
 }

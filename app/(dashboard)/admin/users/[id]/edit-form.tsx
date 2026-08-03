@@ -23,18 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { StaffUser } from "@/app/actions/admin";
 
-const STAFF_ROLES = [
-  { value: "COMMISSIONER", label: "Commissioner" },
-  { value: "PERMANENT_SECRETARY", label: "Permanent Secretary" },
-  { value: "HOD_PARKS", label: "HOD — Parks" },
-  { value: "HOD_VIS", label: "HOD — VIS" },
-  { value: "HOD_TRANSPORT_OPS", label: "HOD — Transport Operations" },
-  { value: "HOD_PARKS_REVALIDATION", label: "HOD — Parks Revalidation" },
-  { value: "FIELD_INSPECTOR", label: "Field Inspector" },
-  { value: "FINANCE_OFFICER", label: "Finance Officer" },
-  { value: "VEHICLE_INSPECTION_OFFICER", label: "Vehicle Inspection Officer" },
-  { value: "SYSTEM_ADMIN", label: "System Administrator" },
-];
+import { STAFF_ROLE_OPTIONS as STAFF_ROLES } from "@/lib/utils/labels";
 
 const DEPARTMENTS = [
   { value: "parks", label: "Parks Department" },

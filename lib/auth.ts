@@ -14,25 +14,16 @@
 import "server-only";
 
 import { redirect } from "next/navigation";
-import type { UserRole } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 import { getSessionFromCookie, type SessionPayload } from "./session";
 
 // ==================== ROLE GROUPS ====================
 // Reference: docs/ROLES_AND_DUTIES.md
 
-/** All Ministry staff roles (internal users provisioned by PS) */
-export const MINISTRY_ROLES: UserRole[] = [
-  "COMMISSIONER",
-  "PERMANENT_SECRETARY",
-  "HOD_PARKS",
-  "HOD_VIS",
-  "HOD_TRANSPORT_OPS",
-  "HOD_PARKS_REVALIDATION",
-  "FIELD_INSPECTOR",
-  "FINANCE_OFFICER",
-  "VEHICLE_INSPECTION_OFFICER",
-  "SYSTEM_ADMIN",
-];
+/** All Ministry staff roles (internal users provisioned by PS / Admin) */
+export const MINISTRY_ROLES: UserRole[] = (Object.keys(UserRole) as UserRole[]).filter(
+  (r) => r !== "EXTERNAL_APPLICANT"
+);
 
 /** Roles with executive approval authority (Commissioner + PS) */
 export const EXECUTIVE_ROLES: UserRole[] = [

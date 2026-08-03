@@ -13,7 +13,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import type { ActionResult } from "@/lib/server-actions-pattern";
-import type { UserRole } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -146,18 +146,7 @@ const updateStaffSchema = z.object({
   firstName: z.string().min(2).trim(),
   lastName: z.string().min(2).trim(),
   phone: z.string().optional().or(z.literal("")),
-  role: z.enum([
-    "COMMISSIONER",
-    "PERMANENT_SECRETARY",
-    "HOD_PARKS",
-    "HOD_VIS",
-    "HOD_TRANSPORT_OPS",
-    "HOD_PARKS_REVALIDATION",
-    "FIELD_INSPECTOR",
-    "FINANCE_OFFICER",
-    "VEHICLE_INSPECTION_OFFICER",
-    "SYSTEM_ADMIN",
-  ] as const),
+  role: z.nativeEnum(UserRole),
   designation: z.string().optional().or(z.literal("")),
   departmentId: z.string().optional().or(z.literal("")),
   stationLocation: z.string().optional().or(z.literal("")),

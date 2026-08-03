@@ -41,6 +41,7 @@ export const userCreateSchema = z.object({
     "FINANCE_OFFICER",
     "VEHICLE_INSPECTION_OFFICER",
     "EXTERNAL_APPLICANT",
+    "ICT_OFFICER",
   ]),
   asinNumber: z.string().regex(ASIN_REGEX, "Invalid ASIN format").optional(),
   departmentId: z.string().optional(),

@@ -22,6 +22,7 @@ import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { UserRole } from "@prisma/client";
 import { createSession, deleteSession } from "@/lib/session";
 import { requireAuth, requireRole } from "@/lib/auth";
 import type { ActionResult } from "@/lib/server-actions-pattern";
@@ -77,26 +78,15 @@ const externalRegisterSchema = z.object({
  * Reference: docs/ROLES_AND_DUTIES.md — PS manages all staff accounts
  */
 const provisionStaffSchema = z.object({
-  firstName: z.string().min(2).trim(),
-  lastName: z.string().min(2).trim(),
-  email: z.string().email().trim().toLowerCase(),
+  firstName: z.string().min(2, "First name must be at least 2 characters").trim(),
+  lastName: z.string().min(2, "Last name must be at least 2 characters").trim(),
+  email: z.string().email("Invalid email address").toLowerCase().trim(),
   phone: z
     .string()
     .regex(/^(\+234|0)[0-9]{10}$/)
     .optional()
     .or(z.literal("")),
-  role: z.enum([
-    "COMMISSIONER",
-    "PERMANENT_SECRETARY",
-    "HOD_PARKS",
-    "HOD_VIS",
-    "HOD_TRANSPORT_OPS",
-    "HOD_PARKS_REVALIDATION",
-    "FIELD_INSPECTOR",
-    "FINANCE_OFFICER",
-    "VEHICLE_INSPECTION_OFFICER",
-    "SYSTEM_ADMIN",
-  ]),
+  role: z.nativeEnum(UserRole),
   departmentId: z.string().optional(),
   designation: z.string().optional(),
   stationLocation: z.string().optional(),
@@ -512,7 +502,9 @@ export async function provisionStaffAccount(
     temporaryPassword,
   } = validated.data;
 
-  // 3. Check duplicate email
+  const cleanPhone = phone && phone.trim() !== "" ? phone.trim() : null;
+
+  // 3. Check duplicate email & phone
   const existing = await db.user.findUnique({
     where: { email },
     select: { id: true },
@@ -521,25 +513,39 @@ export async function provisionStaffAccount(
     return { success: false, error: "A user with this email already exists" };
   }
 
+  if (cleanPhone) {
+    const existingPhone = await db.user.findUnique({
+      where: { phone: cleanPhone },
+      select: { id: true },
+    });
+    if (existingPhone) {
+      return {
+        success: false,
+        error: "A user account with this phone number already exists",
+      };
+    }
+  }
+
   // 4. Hash the temporary password
   const passwordHash = await bcrypt.hash(temporaryPassword, 12);
 
   // 5. Create staff user
-  const user = await db.user.create({
-    data: {
-      firstName,
-      lastName,
-      email,
-      phone: phone || null,
-      passwordHash,
-      role,
-      departmentId: departmentId || null,
-      designation: designation || null,
-      stationLocation: stationLocation || null,
-      isActive: true,
-    },
-    select: { id: true, email: true },
-  });
+  try {
+    const user = await db.user.create({
+      data: {
+        firstName,
+        lastName,
+        email,
+        phone: cleanPhone,
+        passwordHash,
+        role,
+        departmentId: departmentId || null,
+        designation: designation || null,
+        stationLocation: stationLocation || null,
+        isActive: true,
+      },
+      select: { id: true, email: true },
+    });
 
   // 6. Audit log
   await db.auditLog.create({
@@ -552,7 +558,20 @@ export async function provisionStaffAccount(
     },
   });
 
-  return { success: true, data: { userId: user.id, email: user.email } };
+    return { success: true, data: { userId: user.id, email: user.email } };
+  } catch (err: any) {
+    if (err?.code === "P2002") {
+      const field = err?.meta?.target?.[0] || "email or phone";
+      return {
+        success: false,
+        error: `A user account with this ${field} already exists.`,
+      };
+    }
+    return {
+      success: false,
+      error: err?.message || "Failed to create user account.",
+    };
+  }
 }
 
 // ==================== CHANGE PASSWORD ====================
