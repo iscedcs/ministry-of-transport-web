@@ -49,7 +49,7 @@ export function LetterOfAuthorityDocument({
     process.env.NEXT_PUBLIC_APP_URL ||
     (typeof window !== "undefined" && window.location.origin
       ? window.location.origin
-      : "http://localhost:8150");
+      : "https://ministry-of-transport-web.vercel.app");
 
   const publicVerificationUrl = `${baseUrl}/verify/tracas/${vehicle.authorityRef}`;
 
@@ -249,7 +249,6 @@ export function LetterOfAuthorityDocument({
         id="letter-of-authority-sheet"
         className="w-full max-w-[800px] min-h-[1050px] bg-white text-slate-900 font-serif border border-slate-300 p-8 sm:p-12 shadow-2xl relative flex flex-col justify-between print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-none print:w-full print:min-h-0"
         style={{ fontFamily: "'Times New Roman', Times, serif" }}>
-        
         {/* Main Upper Content Wrapper */}
         <div className="flex-1 flex flex-col justify-start">
           {/* Header Block */}
@@ -285,7 +284,9 @@ export function LetterOfAuthorityDocument({
           </div>
 
           {/* Reference Numbers, QR Code & TRACAS Logo + Driver Passport Photo Row */}
-          <div data-lp="ref-row" className="flex items-start justify-between my-4 px-2">
+          <div
+            data-lp="ref-row"
+            className="flex items-start justify-between my-4 px-2">
             {/* Left Column: Our Ref / Your Ref & QR Code */}
             <div className="flex flex-col items-start space-y-4">
               <div className="text-xs sm:text-sm font-sans">
@@ -372,8 +373,9 @@ export function LetterOfAuthorityDocument({
                 {vehicle.fleetNumber}
               </span>{" "}
               is managed by Anambra State Government under the authority of
-              Transport Company of Anambra State (TRACAS). All relevant documents
-              / particulars of the said vehicle remain with the above authority.
+              Transport Company of Anambra State (TRACAS). All relevant
+              documents / particulars of the said vehicle remain with the above
+              authority.
             </p>
 
             <div data-lp="particulars" className="space-y-2 py-2 font-serif">
@@ -423,7 +425,9 @@ export function LetterOfAuthorityDocument({
 
               <p>
                 <span className="font-semibold">Engine No</span>{" "}
-                <span className="font-mono">{vehicle.engineNumber || "N/A"}</span>{" "}
+                <span className="font-mono">
+                  {vehicle.engineNumber || "N/A"}
+                </span>{" "}
                 <span className="font-semibold">Chassis No / VIN</span>{" "}
                 <span className="font-mono">
                   {vehicle.chassisNumber || "N/A"}
@@ -473,8 +477,8 @@ export function LetterOfAuthorityDocument({
             </div>
 
             <p className="text-justify pt-2">
-              The bearer, who must show his identity card (TRACAS) is empowered to
-              ply route assigned to him by the company.
+              The bearer, who must show his identity card (TRACAS) is empowered
+              to ply route assigned to him by the company.
             </p>
 
             <p className="text-justify font-medium">
