@@ -246,14 +246,14 @@ export default async function PublicTracasStickerViewPage({
                       )}
                       {driver.securityCode && (
                         <span>
-                          Sec Code:{" "}
+                          Security Code:{" "}
                           <span className="font-mono font-bold text-primary">
                             {driver.securityCode}
                           </span>{" "}
                           •{" "}
                         </span>
                       )}
-                      <span>{driver.phoneNumber}</span>
+                      {/* <span>{driver.phoneNumber}</span> */}
                     </div>
                   </div>
                 </div>

@@ -1,20 +1,32 @@
 // ── Label & Option Maps — Ministry of Transport Platform ──────────────────────
 // Centralised display labels, select options, and badge class helpers.
 
+import { UserRole } from "@prisma/client";
+
 /** Human-readable Ministry staff role labels. */
-export const ROLE_LABELS: Record<string, string> = {
+export const ROLE_LABELS: Record<UserRole, string> = {
   COMMISSIONER: "Commissioner",
   PERMANENT_SECRETARY: "Permanent Secretary",
   HOD_PARKS: "HOD — Parks",
   HOD_VIS: "HOD — VIS",
-  HOD_TRANSPORT_OPS: "HOD — T.Ops",
-  HOD_PARKS_REVALIDATION: "HOD — PRS",
+  HOD_TRANSPORT_OPS: "HOD — Transport Operations",
+  HOD_PARKS_REVALIDATION: "HOD — Parks Revalidation",
   FIELD_INSPECTOR: "Field Inspector",
   FINANCE_OFFICER: "Finance Officer",
-  VEHICLE_INSPECTION_OFFICER: "VIO",
-  SYSTEM_ADMIN: "System Admin",
-  EXTERNAL_APPLICANT: "Applicant",
+  VEHICLE_INSPECTION_OFFICER: "Vehicle Inspection Officer (VIO)",
+  SYSTEM_ADMIN: "System Administrator",
+  ICT_OFFICER: "ICT Officer (Printing Center)",
+  PARK_MONITOR: "Park Monitor",
+  EXTERNAL_APPLICANT: "External Applicant",
 };
+
+/** Dynamic select options generated from Prisma UserRole enum */
+export const STAFF_ROLE_OPTIONS = (Object.keys(UserRole) as UserRole[])
+  .filter((role) => role !== "EXTERNAL_APPLICANT")
+  .map((role) => ({
+    value: role,
+    label: ROLE_LABELS[role] || role,
+  }));
 
 /** Application status options for filter selects. */
 export const APPLICATION_STATUS_OPTIONS = [
@@ -55,9 +67,6 @@ export const CHECKLIST_ENTITY_LABELS: Record<string, string> = {
 
 /**
  * Returns a Tailwind class string for audit log action badge colouring.
- *   - Red for destructive actions (deactivate, revoke, reject)
- *   - Green for positive actions (create, approve)
- *   - Blue for neutral mutations (update, assign)
  */
 export function getActionBadgeClass(action: string): string {
   const a = action.toUpperCase();
