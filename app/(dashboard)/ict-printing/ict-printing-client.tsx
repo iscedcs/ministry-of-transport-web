@@ -37,7 +37,11 @@ export function IctPrintingClient({
   };
 }) {
   const [activeTab, setActiveTab] = useState<
-    "ALL" | "DRIVER_ID_CARD" | "LETTER_OF_AUTHORITY" | "PARK_STAFF_ID_CARD" | "BOAT_PERMIT"
+    | "ALL"
+    | "DRIVER_ID_CARD"
+    | "LETTER_OF_AUTHORITY"
+    | "PARK_STAFF_ID_CARD"
+    | "BOAT_PERMIT"
   >("ALL");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -45,8 +49,10 @@ export function IctPrintingClient({
     let source: PrintingItem[] = [];
     if (activeTab === "ALL") source = initialData.items;
     else if (activeTab === "DRIVER_ID_CARD") source = initialData.driverItems;
-    else if (activeTab === "LETTER_OF_AUTHORITY") source = initialData.vehicleItems;
-    else if (activeTab === "PARK_STAFF_ID_CARD") source = initialData.parkStaffItems;
+    else if (activeTab === "LETTER_OF_AUTHORITY")
+      source = initialData.vehicleItems;
+    else if (activeTab === "PARK_STAFF_ID_CARD")
+      source = initialData.parkStaffItems;
     else if (activeTab === "BOAT_PERMIT") source = initialData.boatItems;
 
     if (!searchQuery.trim()) return source;
@@ -55,7 +61,7 @@ export function IctPrintingClient({
       (item) =>
         item.title.toLowerCase().includes(q) ||
         item.subtitle.toLowerCase().includes(q) ||
-        item.refOrCode.toLowerCase().includes(q)
+        item.refOrCode.toLowerCase().includes(q),
     );
   };
 
@@ -80,7 +86,9 @@ export function IctPrintingClient({
             ICT Printing & Document Center
           </h1>
           <p className="text-sm text-slate-300 max-w-2xl">
-            Manage, verify, and print official Ministry documents: Commercial Driver ID Cards, TRACAS Letters of Authority, Motor Park Staff Badges, and Boat Permits.
+            Manage, verify, and print official Ministry documents: Commercial
+            Driver ID Cards, TRACAS Letters of Authority, Motor Park Staff
+            Badges, and Boat Permits.
           </p>
         </div>
 
@@ -89,7 +97,9 @@ export function IctPrintingClient({
             <span className="text-2xl font-extrabold text-emerald-400">
               {initialData.stats.totalToPrint}
             </span>
-            <p className="text-[10px] uppercase font-bold text-emerald-200">Total Printable Items</p>
+            <p className="text-[10px] uppercase font-bold text-emerald-200">
+              Total Printable Items
+            </p>
           </div>
         </div>
       </div>
@@ -110,7 +120,9 @@ export function IctPrintingClient({
             </Badge>
           </div>
           <p className="font-bold text-base mt-2">Driver ID Cards</p>
-          <p className="text-xs text-muted-foreground">Commercial Driver Badges</p>
+          <p className="text-xs text-muted-foreground">
+            Commercial Driver Badges
+          </p>
         </button>
 
         <button
@@ -127,7 +139,9 @@ export function IctPrintingClient({
             </Badge>
           </div>
           <p className="font-bold text-base mt-2">Letters of Authority</p>
-          <p className="text-xs text-muted-foreground">TRACAS Vehicle Authority</p>
+          <p className="text-xs text-muted-foreground">
+            TRACAS Vehicle Authority
+          </p>
         </button>
 
         <button
@@ -161,7 +175,9 @@ export function IctPrintingClient({
             </Badge>
           </div>
           <p className="font-bold text-base mt-2">Maritime Permits</p>
-          <p className="text-xs text-muted-foreground">Boat Operating Permits</p>
+          <p className="text-xs text-muted-foreground">
+            Boat Operating Permits
+          </p>
         </button>
       </div>
 
@@ -240,7 +256,8 @@ export function IctPrintingClient({
                     variant="secondary"
                     className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5">
                     {item.category === "DRIVER_ID_CARD" && "🪪 Driver ID Card"}
-                    {item.category === "LETTER_OF_AUTHORITY" && "📜 Letter of Authority"}
+                    {item.category === "LETTER_OF_AUTHORITY" &&
+                      "📜 Letter of Authority"}
                     {item.category === "PARK_STAFF_ID_CARD" && "👮 Staff Badge"}
                     {item.category === "BOAT_PERMIT" && "🚤 Boat Permit"}
                   </Badge>
@@ -302,7 +319,8 @@ export function IctPrintingClient({
           <Filter className="w-10 h-10 text-muted-foreground mx-auto opacity-50" />
           <h3 className="font-bold text-base">No Printable Items Found</h3>
           <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-            No document requests match your selected tab or search query ({searchQuery}).
+            No document requests match your selected tab or search query (
+            {searchQuery}).
           </p>
         </div>
       )}

@@ -1,0 +1,330 @@
+/* eslint-disable @next/next/no-img-element */
+"use client";
+
+import React from "react";
+import { format } from "date-fns";
+
+export interface DriverIdCardData {
+  id: string;
+  fullName: string;
+  securityCode?: string | null;
+  photoUrl?: string | null;
+  phoneNumber?: string | null;
+  licenseNumber?: string | null;
+  licenseIssueDate?: Date | string | null;
+  licenseExpiryDate?: Date | string | null;
+  operatorAssociation?: string | null;
+  nin?: string | null;
+  dateOfBirth?: Date | string | null;
+  gender?: string | null;
+  bloodGroup?: string | null;
+  stateOfOrigin?: string | null;
+  lga?: string | null;
+  residentialAddress?: string | null;
+  nextOfKinName?: string | null;
+  nextOfKinPhone?: string | null;
+  emergencyContactName?: string | null;
+  emergencyContactPhone?: string | null;
+  status?: string | null;
+  createdAt?: Date | string | null;
+  vehicles?: {
+    id: string;
+    registrationNumber: string;
+    fleetNumber: string;
+  }[];
+}
+
+const fmt = (date: Date | string | null | undefined, fallback = "—") => {
+  if (!date) return fallback;
+  const d = new Date(date);
+  return isNaN(d.getTime()) ? String(date) : format(d, "dd MMM yyyy");
+};
+
+/** One label/value line on the reverse. Values fall back to an em dash. */
+function BackRow({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2 leading-tight">
+      <span className="text-[8px] font-bold uppercase tracking-wide text-gray-500 flex-shrink-0">
+        {label}
+      </span>
+      <span className="text-[9px] font-semibold text-slate-900 text-right truncate">
+        {value || "—"}
+      </span>
+    </div>
+  );
+}
+
+export function DriverIdCard({ driver }: { driver: DriverIdCardData }) {
+  const securityCode = driver.securityCode || "0000";
+  const now = new Date();
+
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (typeof window !== "undefined" && window.location.origin
+      ? window.location.origin
+      : "https://ministry-of-transport-web.vercel.app");
+
+  const publicVerificationUrl = `${baseUrl}/verify/tracas-driver/${driver.id}`;
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(
+    publicVerificationUrl,
+  )}`;
+
+  const issueDateStr = fmt(driver.createdAt, format(now, "dd MMM yyyy"));
+  const expiryDateStr = driver.licenseExpiryDate
+    ? fmt(driver.licenseExpiryDate)
+    : `31 Jan ${now.getFullYear() + 1}`;
+
+  const origin = [driver.lga, driver.stateOfOrigin].filter(Boolean).join(", ");
+  const assignedVehicle = driver.vehicles?.[0];
+  const emergencyName =
+    driver.emergencyContactName || driver.nextOfKinName || null;
+  const emergencyPhone =
+    driver.emergencyContactPhone || driver.nextOfKinPhone || null;
+
+  return (
+    <div id="id-card-print-root" className="flex flex-col items-center">
+      {/* Print rules — both faces on a single sheet, app chrome hidden. */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+          @media print {
+            @page { size: A4 portrait; margin: 12mm; }
+
+            aside, header, nav, .no-print { display: none !important; }
+            body * { visibility: hidden !important; }
+            #id-card-sheet, #id-card-sheet * { visibility: visible !important; }
+
+            html, body, body > div, main, #id-card-print-root,
+            div:has(#id-card-print-root) {
+              height: auto !important;
+              min-height: 0 !important;
+              overflow: visible !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #fff !important;
+            }
+
+            #id-card-sheet {
+              position: absolute !important;
+              top: 0 !important;
+              left: 0 !important;
+              width: 100% !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              gap: 12mm !important;
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+            }
+
+            /* Cards keep their exact pixel geometry so the printed card
+               matches the on-screen proof and laminate pouch. */
+            #id-card-sheet [data-face] {
+              box-shadow: none !important;
+              break-inside: avoid !important;
+              page-break-inside: avoid !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+          }
+        `,
+        }}
+      />
+
+      {/* Both faces — side by side on screen and on paper */}
+      <div
+        id="id-card-sheet"
+        className="flex flex-wrap items-start justify-center gap-8">
+        {/* ══════════════════ FRONT ══════════════════ */}
+        <div
+          data-face="front"
+          className="w-[320px] h-[490px] border-2 border-primary rounded-2xl overflow-hidden shadow-xl bg-white text-black flex flex-col"
+          style={{
+            WebkitPrintColorAdjust: "exact",
+            printColorAdjust: "exact",
+          }}>
+          {/* Header Banner */}
+          <div className="bg-primary text-primary-foreground px-3 py-2.5 text-center relative flex-shrink-0">
+            <h2 className="font-bold uppercase text-xs leading-tight tracking-wide">
+              Ministry of Transport
+            </h2>
+            <p className="text-[10px] uppercase opacity-90 font-medium">
+              Anambra State
+            </p>
+            <span className="absolute top-2.5 right-3 bg-emerald-500 text-white text-[9px] font-bold uppercase px-1.5 py-0.5 rounded shadow-xs">
+              {driver.status === "ACTIVE" || !driver.status
+                ? "Active"
+                : driver.status}
+            </span>
+          </div>
+
+          {/* Card Body */}
+          <div className="flex-1 flex flex-col items-center px-5 pt-5 pb-4">
+            {/* Driver Photo — the dominant element on the front */}
+            <div className="w-[132px] h-[156px] rounded-xl overflow-hidden bg-gray-100 border-[3px] border-primary shadow-sm flex items-center justify-center flex-shrink-0">
+              {driver.photoUrl ? (
+                <img
+                  src={driver.photoUrl}
+                  className="w-full h-full object-cover"
+                  alt={driver.fullName}
+                />
+              ) : (
+                <div className="w-full h-full bg-gray-200 flex items-center justify-center text-4xl font-bold text-gray-500">
+                  {driver.fullName[0]}
+                </div>
+              )}
+            </div>
+
+            {/* Identity */}
+            <h3 className="font-bold text-lg uppercase text-center leading-tight text-slate-900 mt-4 px-1">
+              {driver.fullName}
+            </h3>
+            <p className="text-[11px] text-primary font-bold uppercase tracking-wider text-center mt-1">
+              Commercial Driver
+            </p>
+            <p className="text-[9px] text-gray-600 font-semibold text-center mt-0.5 truncate max-w-[260px]">
+              {driver.operatorAssociation ||
+                "Transport Company Of Anambra State"}
+            </p>
+
+            {/* Credentials */}
+            <div className="w-full bg-gray-50 px-3 py-2.5 rounded-xl mt-4 space-y-2 border border-gray-200">
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] text-gray-500 font-bold uppercase">
+                  Driver ID / Code
+                </span>
+                <span className="font-mono font-bold text-primary text-sm tracking-wider">
+                  {securityCode}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] text-gray-500 font-bold uppercase">
+                  License Number
+                </span>
+                <span className="font-mono font-semibold text-slate-900 text-[11px]">
+                  {driver.licenseNumber || "N/A"}
+                </span>
+              </div>
+            </div>
+
+            {/* Validity band pinned to the foot of the card */}
+            <div className="mt-auto w-full flex justify-between items-center bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
+              <div className="text-left">
+                <p className="text-[8px] uppercase font-bold text-gray-500 leading-none">
+                  Issued
+                </p>
+                <p className="text-[10px] font-bold text-slate-900 mt-0.5">
+                  {issueDateStr}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[8px] uppercase font-bold text-gray-500 leading-none">
+                  Expires
+                </p>
+                <p className="text-[10px] font-bold text-slate-900 mt-0.5">
+                  {expiryDateStr}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ══════════════════ BACK ══════════════════ */}
+        <div
+          data-face="back"
+          className="w-[320px] h-[490px] border-2 border-primary rounded-2xl overflow-hidden shadow-xl bg-white text-black flex flex-col"
+          style={{
+            WebkitPrintColorAdjust: "exact",
+            printColorAdjust: "exact",
+          }}>
+          {/* Slim header */}
+          <div className="bg-primary text-primary-foreground px-3 py-1.5 text-center flex-shrink-0">
+            <p className="text-[10px] font-bold uppercase tracking-wider">
+              Driver Identity Card · Reverse
+            </p>
+          </div>
+
+          <div className="flex-1 flex flex-col px-4 pt-3 pb-3">
+            {/* QR verification block */}
+            <div className="flex items-center gap-3 pb-3 border-b border-gray-200">
+              <img
+                src={qrImageUrl}
+                className="w-[92px] h-[92px] rounded border border-gray-300 flex-shrink-0"
+                alt="Verification QR code"
+              />
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase text-slate-900 leading-tight">
+                  Scan to verify
+                </p>
+                <p className="text-[8px] text-gray-600 leading-snug mt-1">
+                  Confirms this card against the Ministry of Transport register
+                  in real time.
+                </p>
+                <p className="text-[8px] font-mono text-gray-500 mt-1.5">
+                  REF: <span className="font-bold">{securityCode}</span>
+                  {driver.nin ? ` · NIN ****${driver.nin.slice(-4)}` : ""}
+                </p>
+              </div>
+            </div>
+
+            {/* Holder particulars */}
+            <div className="pt-2.5 space-y-1.5">
+              <BackRow label="Date of Birth" value={fmt(driver.dateOfBirth)} />
+              <BackRow label="Gender" value={driver.gender} />
+              <BackRow label="Blood Group" value={driver.bloodGroup} />
+              <BackRow label="Phone" value={driver.phoneNumber} />
+              <BackRow label="Origin" value={origin} />
+              <BackRow label="Address" value={driver.residentialAddress} />
+              {/* <BackRow
+                label="Assigned Vehicle"
+                value={
+                  assignedVehicle
+                    ? `${assignedVehicle.registrationNumber} · ${assignedVehicle.fleetNumber}`
+                    : null
+                }
+              /> */}
+            </div>
+
+            {/* Emergency contact */}
+            <div className="mt-2.5 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
+              <p className="text-[8px] font-bold uppercase text-red-700 tracking-wide">
+                In case of emergency
+              </p>
+              <div className="flex items-baseline justify-between gap-2 mt-0.5">
+                <span className="text-[9px] font-semibold text-slate-900 truncate">
+                  {emergencyName || "—"}
+                </span>
+                <span className="text-[9px] font-mono font-bold text-slate-900 flex-shrink-0">
+                  {emergencyPhone || "—"}
+                </span>
+              </div>
+            </div>
+
+            {/* Holder signature */}
+            <div className="mt-3">
+              <div className="border-b border-dashed border-gray-400 h-7" />
+              <p className="text-[8px] uppercase font-bold text-gray-500 mt-1">
+                Holder&apos;s Signature
+              </p>
+            </div>
+
+            {/* Conditions of use */}
+            <p className="text-[7.5px] text-gray-600 leading-snug mt-auto pt-3">
+              This card remains the property of the Anambra State Ministry of
+              Transport and must be surrendered on demand. It is
+              non-transferable and valid only with a subsisting driver&apos;s
+              licence. If found, return to the Ministry of Transport, Government
+              House, P.M.B. 5036, Awka.
+            </p>
+          </div>
+
+          {/* Footer band */}
+          <div className="bg-primary text-primary-foreground text-center py-1.5 px-2 flex-shrink-0">
+            <p className="text-[8px] font-bold uppercase tracking-wide">
+              ✓ Verified by Anambra State Ministry of Transport
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

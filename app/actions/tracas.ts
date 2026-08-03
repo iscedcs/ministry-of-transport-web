@@ -17,6 +17,9 @@ export interface OnboardTracasVehicleInput {
   particularsExpiryDate?: string;
   assignedRoute?: string;
   ownershipType?: string;
+  /** "EXISTING" (already operating under TRACAS) | "NEW_JOINER" (joining now) */
+  enrollmentType?: string;
+  joinedCompanyAt?: string;
   ownerName?: string;
   ownerPhone?: string;
   ownerAddress?: string;
@@ -124,15 +127,18 @@ export async function getTracasStickersList() {
 
 // ─── Auto Generators ───────────────────────────────────────────────────────
 
-async function generateNextFleetNumber(): Promise<string> {
+async function generateNextFleetNumber(ownershipType?: string): Promise<string> {
+  const isGov = ownershipType === "GOVERNMENT_OWNED";
+  const prefix = isGov ? "FT" : "LV";
+
   const vehicles = await db.tracasVehicle.findMany({
     select: { fleetNumber: true },
   });
 
   let maxNum = 0;
   for (const v of vehicles) {
-    if (v.fleetNumber && v.fleetNumber.toUpperCase().startsWith("LV")) {
-      const numPart = parseInt(v.fleetNumber.toUpperCase().replace("LV", ""), 10);
+    if (v.fleetNumber && v.fleetNumber.toUpperCase().startsWith(prefix)) {
+      const numPart = parseInt(v.fleetNumber.toUpperCase().replace(prefix, ""), 10);
       if (!isNaN(numPart) && numPart > maxNum) {
         maxNum = numPart;
       }
@@ -140,7 +146,7 @@ async function generateNextFleetNumber(): Promise<string> {
   }
 
   const nextNum = maxNum + 1;
-  return `LV${nextNum.toString().padStart(3, "0")}`;
+  return `${prefix}${nextNum.toString().padStart(3, "0")}`;
 }
 
 async function generateDriverSecurityCode(): Promise<string> {
@@ -175,7 +181,10 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
     }
 
     const regNo = input.registrationNumber.trim();
-    const fleetNo = input.fleetNumber?.trim() || (await generateNextFleetNumber());
+    const ownershipType = input.ownershipType || "GOVERNMENT_OWNED";
+    const enrollmentType =
+      input.enrollmentType === "NEW_JOINER" ? "NEW_JOINER" : "EXISTING";
+    const fleetNo = input.fleetNumber?.trim() || (await generateNextFleetNumber(ownershipType));
 
     const existingReg = await db.tracasVehicle.findUnique({ where: { registrationNumber: regNo } });
     if (existingReg) {
@@ -189,7 +198,6 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
 
     const authorityRef = input.authorityRef?.trim() || (await generateUniqueAuthorityRef());
 
-    const ownershipType = input.ownershipType || "GOVERNMENT_OWNED";
     if (ownershipType !== "GOVERNMENT_OWNED") {
       if (!input.ownerName?.trim()) {
         return { success: false, error: "Vehicle Owner Name is required for private/collaborative vehicles." };
@@ -214,6 +222,14 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
         particularsExpiryDate: input.particularsExpiryDate ? new Date(input.particularsExpiryDate) : null,
         assignedRoute: input.assignedRoute || null,
         ownershipType: ownershipType,
+        enrollmentType: enrollmentType,
+        // Only new joiners carry a join date; existing vehicles predate enrolment.
+        joinedCompanyAt:
+          enrollmentType === "NEW_JOINER"
+            ? input.joinedCompanyAt
+              ? new Date(input.joinedCompanyAt)
+              : new Date()
+            : null,
         ownerName: input.ownerName?.trim() || null,
         ownerPhone: input.ownerPhone?.trim() || null,
         ownerAddress: input.ownerAddress?.trim() || null,
@@ -245,9 +261,15 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
   }
 }
 
-export async function assignStickerToTracasVehicle(vehicleId: string, stickerId: string | null) {
+export async function assignStickerToTracasVehicle(
+  vehicleId: string,
+  stickerIdentifier: string | null
+) {
   try {
-    const existingVehicleSticker = await db.tracasSticker.findUnique({ where: { assignedVehicleId: vehicleId } });
+    // Unassign existing sticker on this vehicle if any
+    const existingVehicleSticker = await db.tracasSticker.findUnique({
+      where: { assignedVehicleId: vehicleId },
+    });
     if (existingVehicleSticker) {
       await db.tracasSticker.update({
         where: { id: existingVehicleSticker.id },
@@ -255,18 +277,64 @@ export async function assignStickerToTracasVehicle(vehicleId: string, stickerId:
       });
     }
 
-    if (stickerId) {
-      await db.tracasSticker.update({
-        where: { id: stickerId },
-        data: { isAssigned: true, assignedVehicleId: vehicleId, assignedAt: new Date() },
+    if (stickerIdentifier && stickerIdentifier.trim() !== "") {
+      const rawInput = stickerIdentifier.trim();
+
+      // Extract sticker code if input is a URL (e.g. https://.../v/tracas/TRAC-58958-AN)
+      let extractedCode = rawInput;
+      if (rawInput.includes("/v/tracas/")) {
+        extractedCode = rawInput.split("/v/tracas/").pop() || rawInput;
+      } else if (rawInput.includes("/verify/tracas/")) {
+        extractedCode = rawInput.split("/verify/tracas/").pop() || rawInput;
+      }
+
+      // Find sticker by ID, code, or URL
+      let sticker = await db.tracasSticker.findFirst({
+        where: {
+          OR: [
+            { id: rawInput },
+            { stickerCode: extractedCode },
+            { stickerUrl: rawInput },
+          ],
+        },
       });
+
+      // If sticker does not exist in pool, create it dynamically
+      if (!sticker) {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:8150";
+        const stickerUrl = rawInput.startsWith("http")
+          ? rawInput
+          : `${baseUrl}/v/tracas/${extractedCode}`;
+
+        sticker = await db.tracasSticker.create({
+          data: {
+            stickerCode: extractedCode,
+            stickerUrl: stickerUrl,
+            isAssigned: true,
+            assignedVehicleId: vehicleId,
+            assignedAt: new Date(),
+          },
+        });
+      } else {
+        await db.tracasSticker.update({
+          where: { id: sticker.id },
+          data: {
+            isAssigned: true,
+            assignedVehicleId: vehicleId,
+            assignedAt: new Date(),
+          },
+        });
+      }
     }
 
     revalidatePath("/tracas");
     return { success: true };
   } catch (error: any) {
     console.error("Error assigning sticker to vehicle:", error);
-    return { success: false, error: error?.message || "Failed to assign sticker." };
+    return {
+      success: false,
+      error: error?.message || "Failed to assign sticker.",
+    };
   }
 }
 
@@ -293,6 +361,9 @@ export async function onboardTracasDriver(input: OnboardTracasDriverInput) {
     }
     if (!input.phoneNumber?.trim()) {
       return { success: false, error: "Phone Number is required." };
+    }
+    if (!input.licenseExpiryDate) {
+      return { success: false, error: "License Expiry Date is compulsory." };
     }
 
     if (input.licenseNumber?.trim()) {

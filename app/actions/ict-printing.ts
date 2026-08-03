@@ -5,7 +5,11 @@ import { getSessionFromCookie } from "@/lib/session";
 
 export interface PrintingItem {
   id: string;
-  category: "DRIVER_ID_CARD" | "LETTER_OF_AUTHORITY" | "PARK_STAFF_ID_CARD" | "BOAT_PERMIT";
+  category:
+    | "DRIVER_ID_CARD"
+    | "LETTER_OF_AUTHORITY"
+    | "PARK_STAFF_ID_CARD"
+    | "BOAT_PERMIT";
   title: string;
   subtitle: string;
   refOrCode: string;
@@ -70,7 +74,7 @@ export async function getIctPrintingQueues(searchQuery = "") {
     id: d.id,
     category: "DRIVER_ID_CARD",
     title: d.fullName,
-    subtitle: `Commercial Driver (${d.operatorAssociation || "TRACAS Union"})`,
+    subtitle: `Commercial Driver (${d.operatorAssociation || "Transport Company Of Anambra State"})`,
     refOrCode: `Code: ${d.securityCode || "N/A"}`,
     issueDate: d.createdAt,
     status: d.status,
@@ -95,7 +99,10 @@ export async function getIctPrintingQueues(searchQuery = "") {
     return {
       id: m.id,
       category: "PARK_STAFF_ID_CARD",
-      title: rawM.fullName || rawM.firstName ? `${rawM.firstName || ""} ${rawM.lastName || ""}` : "Park Staff Monitor",
+      title:
+        rawM.fullName || rawM.firstName
+          ? `${rawM.firstName || ""} ${rawM.lastName || ""}`
+          : "Park Staff Monitor",
       subtitle: `Park: ${rawM.parkName || rawM.preferredLocation || "Anambra State Park"}`,
       refOrCode: `ID: PM-${m.id.slice(0, 6).toUpperCase()}`,
       issueDate: m.createdAt,
@@ -117,7 +124,12 @@ export async function getIctPrintingQueues(searchQuery = "") {
     photoUrl: null,
   }));
 
-  const allItems = [...driverItems, ...vehicleItems, ...parkStaffItems, ...boatItems];
+  const allItems = [
+    ...driverItems,
+    ...vehicleItems,
+    ...parkStaffItems,
+    ...boatItems,
+  ];
 
   const filterFn = (i: PrintingItem) =>
     !q ||
