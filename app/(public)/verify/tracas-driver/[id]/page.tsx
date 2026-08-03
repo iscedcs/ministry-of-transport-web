@@ -1,9 +1,10 @@
 /* eslint-disable @next/next/no-img-element */
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/lib/db";
-import { CheckCircle2, ShieldCheck, User, Phone, IdCard, Bus } from "lucide-react";
+import { CheckCircle2, ShieldCheck, User, Phone, IdCard, Bus, Calendar, Building2 } from "lucide-react";
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { format } from "date-fns";
 
 export default async function VerifyTracasDriverPage({
   params,
@@ -33,6 +34,17 @@ export default async function VerifyTracasDriverPage({
   });
 
   if (!driver) notFound();
+
+  const now = new Date();
+  const issueDateStr = driver.createdAt
+    ? format(new Date(driver.createdAt), "dd MMM yyyy")
+    : format(now, "dd MMM yyyy");
+  
+  const expiryDateStr = driver.licenseExpiryDate
+    ? format(new Date(driver.licenseExpiryDate), "dd MMM yyyy")
+    : `31 Jan ${now.getFullYear() + 1}`;
+
+  const qrTimestamp = format(now, "dd/MM/yyyy HH:mm");
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col items-center justify-center p-4 py-8 text-foreground selection:bg-primary/20">
@@ -78,55 +90,69 @@ export default async function VerifyTracasDriverPage({
           </div>
           <div className="mt-3 bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-gold)] shadow-xl rounded-full px-4 py-1.5 flex items-center gap-2 text-xs font-mono font-bold">
             <ShieldCheck className="w-4 h-4 text-primary" />
-            <span>Sec Code: {driver.securityCode || "N/A"}</span>
+            <span>Driver ID / Code: {driver.securityCode || "N/A"}</span>
           </div>
         </div>
 
         {/* Card Body */}
-        <div className="p-6 pt-4 space-y-5 relative z-10">
+        <div className="p-6 pt-4 space-y-4 relative z-10">
+          {/* Driver Verification Status */}
           <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
-              <div>
-                <p className="text-xs text-muted-foreground font-medium">Driver Status</p>
-                <p className="text-sm font-bold text-emerald-500">ACTIVE & AUTHORIZED</p>
-              </div>
+            <div className="flex items-center space-x-2 text-foreground font-semibold text-sm">
+              <span className="w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse shadow-sm shadow-emerald-400/50" />
+              <span>Driver Status</span>
             </div>
-            <IdCard className="w-5 h-5 text-emerald-500" />
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
+              ACTIVE & AUTHORIZED
+            </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1">
-              <span className="text-muted-foreground text-[10px] uppercase font-semibold block flex items-center gap-1">
-                <Phone className="w-3 h-3" /> Phone Number
+          {/* Driver Particulars Summary Card */}
+          <div className="space-y-3 bg-secondary/40 p-4 rounded-2xl border border-border text-sm">
+            <div className="flex justify-between items-center py-1.5 border-b border-border/60">
+              <span className="text-muted-foreground flex items-center text-xs">
+                <Phone className="w-3.5 h-3.5 mr-1.5 text-primary" /> Phone Number
               </span>
-              <p className="font-bold text-foreground truncate">{driver.phoneNumber}</p>
+              <span className="font-bold text-foreground">
+                {driver.phoneNumber}
+              </span>
             </div>
 
-            <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1">
-              <span className="text-muted-foreground text-[10px] uppercase font-semibold block">
-                License Number
+            <div className="flex justify-between items-center py-1.5 border-b border-border/60">
+              <span className="text-muted-foreground flex items-center text-xs">
+                <IdCard className="w-3.5 h-3.5 mr-1.5 text-primary" /> License Number
               </span>
-              <p className="font-mono font-bold text-foreground truncate">{driver.licenseNumber || "N/A"}</p>
+              <span className="font-mono font-bold text-foreground">
+                {driver.licenseNumber || "N/A"}
+              </span>
             </div>
 
-            {driver.nin && (
-              <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1">
-                <span className="text-muted-foreground text-[10px] uppercase font-semibold block">
-                  NIN
-                </span>
-                <p className="font-mono font-semibold text-foreground truncate">{driver.nin}</p>
-              </div>
-            )}
+            <div className="flex justify-between items-center py-1.5 border-b border-border/60">
+              <span className="text-muted-foreground flex items-center text-xs">
+                <Building2 className="w-3.5 h-3.5 mr-1.5 text-primary" /> Transport Union / Company
+              </span>
+              <span className="font-medium text-foreground text-right max-w-[200px] truncate">
+                {driver.operatorAssociation || "TRACAS Transport Union"}
+              </span>
+            </div>
 
-            {driver.stateOfOrigin && (
-              <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1">
-                <span className="text-muted-foreground text-[10px] uppercase font-semibold block">
-                  State of Origin
-                </span>
-                <p className="font-semibold text-foreground truncate">{driver.stateOfOrigin}</p>
-              </div>
-            )}
+            <div className="flex justify-between items-center py-1.5 border-b border-border/60">
+              <span className="text-muted-foreground flex items-center text-xs">
+                <Calendar className="w-3.5 h-3.5 mr-1.5 text-primary" /> Issue Date
+              </span>
+              <span className="font-medium text-foreground">
+                {issueDateStr}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center py-1.5">
+              <span className="text-muted-foreground flex items-center text-xs">
+                <Calendar className="w-3.5 h-3.5 mr-1.5 text-primary" /> Expiry Date
+              </span>
+              <span className="font-medium text-foreground">
+                {expiryDateStr}
+              </span>
+            </div>
           </div>
 
           {/* Assigned Vehicles Section */}
@@ -149,12 +175,15 @@ export default async function VerifyTracasDriverPage({
             )}
           </div>
 
-          {/* Footer Official Notice */}
+          {/* Verification Timestamp & Notice */}
           <div className="pt-2 text-center border-t border-border/40 text-[11px] text-muted-foreground space-y-1">
-            <p className="font-semibold text-foreground">
-              Anambra State Government · Ministry of Transport
+            <p className="font-semibold text-emerald-400">
+              ✓ Verified by Anambra State Ministry of Transport
             </p>
-            <p>Transport Company of Anambra State (TRACAS)</p>
+            <p className="font-mono text-[10px] text-muted-foreground">
+              Verification Timestamp: {qrTimestamp}
+            </p>
+            <p className="pt-1 text-[10px]">Transport Company of Anambra State (TRACAS)</p>
           </div>
         </div>
       </div>
