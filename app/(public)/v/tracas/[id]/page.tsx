@@ -1,11 +1,21 @@
 /* eslint-disable @next/next/no-img-element */
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/lib/db";
-
-import { CheckCircle2, ShieldCheck, User, Bus, Phone } from "lucide-react";
+import {
+  Bus,
+  CheckCircle2,
+  Info,
+  ShieldCheck,
+  User,
+  MapPin,
+  Car,
+  FileText,
+  Calendar,
+} from "lucide-react";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
+import ShareRideButton from "./share-ride-button";
 
 export default async function PublicTracasStickerViewPage({
   params,
@@ -36,15 +46,20 @@ export default async function PublicTracasStickerViewPage({
   if (!vehicle) notFound();
 
   const driver = vehicle.assignedDriver;
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL || "https://mot.anambra.gov.ng";
+  const publicUrl = `${baseUrl}/v/tracas/${encodeURIComponent(vehicle.registrationNumber || vehicle.id)}`;
 
   const formatDate = (date: Date | null) => {
-    if (!date) return "N/A";
+    if (!date) return null;
     try {
       return format(new Date(date), "dd MMM yyyy");
     } catch {
-      return "N/A";
+      return null;
     }
   };
+
+  const formattedInsuranceExpiry = formatDate(vehicle.insuranceExpiry);
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col items-center justify-center p-4 py-8 text-foreground selection:bg-primary/20">
@@ -70,8 +85,7 @@ export default async function PublicTracasStickerViewPage({
           </Badge>
           <h1
             className="text-2xl font-bold tracking-tight text-slate-950"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
+            style={{ fontFamily: "var(--font-display)" }}>
             {vehicle.registrationNumber}
           </h1>
           <p className="text-xs font-semibold text-slate-950/80 mt-1">
@@ -79,126 +93,201 @@ export default async function PublicTracasStickerViewPage({
           </p>
         </div>
 
-        {/* Floating Authority Reference Code Pill */}
-        <div className="-mt-8 relative z-20 flex justify-center px-6">
-          <div className="bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-gold)] shadow-2xl rounded-full px-5 py-2 flex items-center gap-2 text-xs font-mono font-bold tracking-wider">
-            <ShieldCheck className="w-4 h-4 text-primary" />
-            <span>Ref: {vehicle.authorityRef}</span>
+        {/* Content Card Body */}
+        <div className="px-6 pb-6 pt-0 flex flex-col items-center relative z-10">
+          {/* Security / Authority Ref Badge Pill Floating */}
+          <div className="-mt-7 z-20 bg-[var(--bg-elevated)] text-foreground px-6 py-2.5 rounded-full shadow-2xl border border-[var(--border-gold)] flex items-center space-x-2.5">
+            <ShieldCheck className="w-5 h-5 text-primary" />
+            <span className="font-mono text-sm font-bold tracking-wider text-primary">
+              {vehicle.authorityRef}
+            </span>
           </div>
-        </div>
 
-        {/* Card Body */}
-        <div className="p-6 pt-6 space-y-6 relative z-10">
-          {/* Status Badge */}
-          <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
-              <div>
-                <p className="text-xs text-muted-foreground font-medium">Permit Status</p>
-                <p className="text-sm font-bold text-emerald-500">AUTHORIZED TO PLY ROUTE</p>
+          <div className="w-full space-y-4 mt-6">
+            {/* Status Indicator */}
+            <div className="flex items-center justify-between p-3.5 bg-secondary/80 rounded-xl border border-border">
+              <div className="flex items-center space-x-2 text-foreground font-semibold text-sm">
+                <span className="w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse shadow-sm shadow-emerald-400/50" />
+                <span>Verification Status</span>
               </div>
-            </div>
-            <Bus className="w-5 h-5 text-emerald-500" />
-          </div>
-
-          {/* Assigned Driver Enumeration Card */}
-          <div className="bg-card border border-border/80 rounded-2xl p-4 shadow-sm space-y-3">
-            <div className="flex items-center justify-between border-b border-border/60 pb-3">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5" /> Assigned Driver
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
+                {vehicle.status}
               </span>
-              {driver?.photoUrl && (
-                <span className="text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                  Enumerated
+            </div>
+
+            {/* Vehicle Specifications */}
+            <div className="space-y-3 bg-secondary/40 p-4 rounded-2xl border border-border text-sm">
+              <div className="flex justify-between items-center py-1.5 border-b border-border/60">
+                <span className="text-muted-foreground flex items-center text-xs">
+                  <Bus className="w-3.5 h-3.5 mr-1.5 text-primary" />{" "}
+                  Registration No.
                 </span>
+                <span className="font-mono font-bold text-foreground">
+                  {vehicle.registrationNumber}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center py-1.5 border-b border-border/60">
+                <span className="text-muted-foreground flex items-center text-xs">
+                  <Info className="w-3.5 h-3.5 mr-1.5 text-primary" /> Vehicle
+                  Category
+                </span>
+                <span className="font-medium text-foreground">
+                  {vehicle.category}
+                </span>
+              </div>
+
+              {vehicle.makeModel && (
+                <div className="flex justify-between items-center py-1.5 border-b border-border/60">
+                  <span className="text-muted-foreground flex items-center text-xs">
+                    <Car className="w-3.5 h-3.5 mr-1.5 text-primary" /> Make /
+                    Model
+                  </span>
+                  <span className="font-medium text-foreground">
+                    {vehicle.makeModel}
+                  </span>
+                </div>
+              )}
+
+              {vehicle.assignedRoute && (
+                <div className="flex justify-between items-center py-1.5 border-b border-border/60">
+                  <span className="text-muted-foreground flex items-center text-xs">
+                    <MapPin className="w-3.5 h-3.5 mr-1.5 text-primary" />{" "}
+                    Assigned Route
+                  </span>
+                  <span className="font-medium text-foreground text-right max-w-[200px] truncate">
+                    {vehicle.assignedRoute}
+                  </span>
+                </div>
+              )}
+
+              {vehicle.engineNumber && (
+                <div className="flex justify-between items-center py-1.5 border-b border-border/60">
+                  <span className="text-muted-foreground flex items-center text-xs">
+                    <FileText className="w-3.5 h-3.5 mr-1.5 text-primary" />{" "}
+                    Engine Number
+                  </span>
+                  <span className="font-mono font-bold text-foreground">
+                    {vehicle.engineNumber}
+                  </span>
+                </div>
+              )}
+
+              {vehicle.chassisNumber && (
+                <div className="flex justify-between items-center py-1.5 border-b border-border/60">
+                  <span className="text-muted-foreground flex items-center text-xs">
+                    <FileText className="w-3.5 h-3.5 mr-1.5 text-primary" />{" "}
+                    Chassis / VIN
+                  </span>
+                  <span className="font-mono font-bold text-foreground">
+                    {vehicle.chassisNumber}
+                  </span>
+                </div>
+              )}
+
+              {vehicle.insuranceCertificateNo && (
+                <div className="flex justify-between items-center py-1.5 border-b border-border/60">
+                  <span className="text-muted-foreground flex items-center text-xs">
+                    <ShieldCheck className="w-3.5 h-3.5 mr-1.5 text-primary" />{" "}
+                    Insurance No.
+                  </span>
+                  <span className="font-mono font-bold text-foreground">
+                    {vehicle.insuranceCertificateNo}
+                  </span>
+                </div>
+              )}
+
+              {formattedInsuranceExpiry && (
+                <div className="flex justify-between items-center py-1.5">
+                  <span className="text-muted-foreground flex items-center text-xs">
+                    <Calendar className="w-3.5 h-3.5 mr-1.5 text-primary" />{" "}
+                    Insurance Expiry
+                  </span>
+                  <span className="font-medium text-foreground">
+                    {formattedInsuranceExpiry}
+                  </span>
+                </div>
               )}
             </div>
 
-            <div className="flex items-center gap-4 pt-1">
-              <div className="w-16 h-16 rounded-xl bg-muted border border-border overflow-hidden flex-shrink-0 flex items-center justify-center">
-                {driver?.photoUrl ? (
-                  <img src={driver.photoUrl} alt={driver.fullName} className="w-full h-full object-cover" />
-                ) : (
-                  <User className="w-8 h-8 text-muted-foreground" />
-                )}
+            {/* Assigned Commercial Driver Information */}
+            <div className="p-4 bg-secondary/40 rounded-2xl border border-border">
+              <div className="text-xs font-semibold text-primary uppercase tracking-wider mb-2 flex items-center">
+                <User className="w-3.5 h-3.5 mr-1.5" /> Licensed Commercial
+                Driver
               </div>
 
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-base text-foreground truncate">
-                  {driver?.fullName || "No Driver Assigned"}
+              {driver ? (
+                <div className="flex items-center space-x-3 mt-1">
+                  <div className="w-11 h-11 bg-primary text-[var(--text-inverse)] rounded-full flex items-center justify-center font-bold text-lg shadow-md overflow-hidden flex-shrink-0">
+                    {driver.photoUrl ? (
+                      <img
+                        src={driver.photoUrl}
+                        alt={driver.fullName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      driver.fullName[0]
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold text-foreground truncate">
+                      {driver.fullName}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {driver.licenseNumber && (
+                        <span>
+                          License:{" "}
+                          <span className="font-mono text-foreground">
+                            {driver.licenseNumber}
+                          </span>{" "}
+                          •{" "}
+                        </span>
+                      )}
+                      {driver.securityCode && (
+                        <span>
+                          Sec Code:{" "}
+                          <span className="font-mono font-bold text-primary">
+                            {driver.securityCode}
+                          </span>{" "}
+                          •{" "}
+                        </span>
+                      )}
+                      <span>{driver.phoneNumber}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-amber-400 italic mt-1">
+                  No assigned driver recorded for this vehicle.
                 </p>
-                {driver?.phoneNumber && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                    <Phone className="w-3 h-3 text-muted-foreground" /> {driver.phoneNumber}
-                  </p>
-                )}
-                {driver?.licenseNumber && (
-                  <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                    License: <span className="font-semibold text-foreground">{driver.licenseNumber}</span>
-                  </p>
-                )}
+              )}
+            </div>
+
+            {/* QR Sticker Verification Tag */}
+            {vehicle.sticker && (
+              <div className="text-center text-xs text-muted-foreground font-mono">
+                Sticker ID: {vehicle.sticker.stickerCode || vehicle.sticker.id}
               </div>
-            </div>
-          </div>
+            )}
 
-          {/* Vehicle Particulars Summary Grid */}
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1">
-              <span className="text-muted-foreground text-[10px] uppercase font-semibold block">
-                Vehicle Category
-              </span>
-              <p className="font-bold text-foreground">{vehicle.category}</p>
-            </div>
+            {/* Share Ride Details for Passenger Safety */}
+            <ShareRideButton
+              makeModel={vehicle.makeModel || undefined}
+              registrationNumber={vehicle.registrationNumber}
+              fleetNumber={vehicle.fleetNumber}
+              driverName={driver?.fullName || "Official TRACAS Driver"}
+              driverPhone={driver?.phoneNumber || "N/A"}
+              driverSecurityCode={driver?.securityCode || undefined}
+              assignedRoute={vehicle.assignedRoute || undefined}
+              verificationUrl={publicUrl}
+            />
 
-            <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1">
-              <span className="text-muted-foreground text-[10px] uppercase font-semibold block">
-                Make / Model
-              </span>
-              <p className="font-bold text-foreground truncate">{vehicle.makeModel || "N/A"}</p>
+            <div className="text-center pt-2">
+              <p className="text-[11px] text-muted-foreground">
+                Official Verification Portal • State Government of Anambra
+              </p>
             </div>
-
-            <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1">
-              <span className="text-muted-foreground text-[10px] uppercase font-semibold block">
-                Engine Number
-              </span>
-              <p className="font-mono font-semibold text-foreground truncate">{vehicle.engineNumber || "N/A"}</p>
-            </div>
-
-            <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1">
-              <span className="text-muted-foreground text-[10px] uppercase font-semibold block">
-                Chassis / VIN
-              </span>
-              <p className="font-mono font-semibold text-foreground truncate">{vehicle.chassisNumber || "N/A"}</p>
-            </div>
-
-            <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1 col-span-2">
-              <span className="text-muted-foreground text-[10px] uppercase font-semibold block">
-                Assigned Route
-              </span>
-              <p className="font-bold text-foreground">{vehicle.assignedRoute || "Statewide Operations"}</p>
-            </div>
-
-            <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1">
-              <span className="text-muted-foreground text-[10px] uppercase font-semibold block">
-                Insurance No.
-              </span>
-              <p className="font-mono font-semibold text-foreground truncate">{vehicle.insuranceCertificateNo || "N/A"}</p>
-            </div>
-
-            <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1">
-              <span className="text-muted-foreground text-[10px] uppercase font-semibold block">
-                Insurance Expiry
-              </span>
-              <p className="font-semibold text-foreground">{formatDate(vehicle.insuranceExpiry)}</p>
-            </div>
-          </div>
-
-          {/* Footer Official Authority Notice */}
-          <div className="pt-2 text-center border-t border-border/40 text-[11px] text-muted-foreground space-y-1">
-            <p className="font-semibold text-foreground">
-              Anambra State Government · Ministry of Transport
-            </p>
-            <p>Transport Company of Anambra State (TRACAS)</p>
           </div>
         </div>
       </div>
