@@ -317,10 +317,10 @@ model MotorPark {
   updatedAt              DateTime  @updatedAt
 
   // Relations
-  applicant     User           @relation("ApplicationContact", fields: [contactUserId], references: [id])
+  applicant     User                      @relation("ApplicationContact", fields: [contactUserId], references: [id])
   inspections   Inspection[]
   fees          MotorParkFee[]
-  payments      Payment[]      @relation("MotorParkPayment")
+  payments      Payment[]                 @relation("MotorParkPayment")
   notifications Notification[]            @relation("MotorParkNotification")
   parkStaff     ParkStaff[]
   revalidations RevalidationApplication[] @relation("MotorParkRevalidation")
@@ -341,7 +341,7 @@ enum ParkStaffStatus {
 model ParkStaff {
   id               String          @id @default(cuid())
   motorParkId      String
-  parkSerialNumber Int             // Sequential number scoped to park e.g. 1, 2, 3
+  parkSerialNumber Int // Sequential number scoped to park e.g. 1, 2, 3
   securityCode     String          @unique // e.g. MOT-[PARKNAME]-[NUMBER]
   profileUrl       String
   qrCodeUrl        String?         @db.VarChar(500)
@@ -349,11 +349,11 @@ model ParkStaff {
   role             String
   photoUrl         String?         @db.VarChar(500)
   status           ParkStaffStatus @default(ACTIVE)
-  
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
 
-  motorPark        MotorPark       @relation(fields: [motorParkId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  motorPark MotorPark @relation(fields: [motorParkId], references: [id], onDelete: Cascade)
 
   @@unique([motorParkId, parkSerialNumber])
   @@index([securityCode])
@@ -374,7 +374,7 @@ model Inspection {
   status             InspectionStatus @default(PENDING_PS_APPROVAL)
   psApprovedAt       DateTime?
   psApprovedByUserId String?
-  psRejectionReason  String?   @db.Text
+  psRejectionReason  String?          @db.Text
 
   // Inspector assignment
   assignedToUserId         String
@@ -563,7 +563,7 @@ model MassTransitCompany {
   payments              Payment[]                  @relation("MassTransitPayment")
   notifications         Notification[]             @relation("MassTransitNotification")
   vehicleSubmissionReqs VehicleSubmissionRequest[]
-  revalidations         RevalidationApplication[] @relation("MassTransitRevalidation")
+  revalidations         RevalidationApplication[]  @relation("MassTransitRevalidation")
 
   @@index([applicationStatus])
   @@index([permitStatus])
@@ -1290,12 +1290,12 @@ model RevalidationApplication {
   massTransitCompanyId String?
 
   // SECTION C: MOTOR PARK INFORMATION
-  parkName              String
-  facilityType          String   @db.VarChar(50)
-  facilitySubTypes      Json?
-  physicalLocation      String   @db.Text
-  townCommunity         String
-  lga                   String
+  parkName         String
+  facilityType     String @db.VarChar(50)
+  facilitySubTypes Json?
+  physicalLocation String @db.Text
+  townCommunity    String
+  lga              String
 
   // SECTION D: OPERATIONAL INFORMATION
   yearEstablished    String
@@ -1316,12 +1316,12 @@ model RevalidationApplication {
   sanctionDetails     String? @db.Text
 
   // SECTION G: EMPLOYMENT & SECURITY DATA
-  managementStaffCount  Int      @default(0)
-  adminStaffCount       Int      @default(0)
-  securityStaffCount    Int      @default(0)
-  otherStaffCount       Int      @default(0)
-  otherStaffDetails     String?  @db.VarChar(100)
-  securityArrangement   String   @db.VarChar(50)
+  managementStaffCount Int     @default(0)
+  adminStaffCount      Int     @default(0)
+  securityStaffCount   Int     @default(0)
+  otherStaffCount      Int     @default(0)
+  otherStaffDetails    String? @db.VarChar(100)
+  securityArrangement  String  @db.VarChar(50)
 
   // SECTION H: REVENUE INFORMATION
   estimatedDailyRevenue   Int
@@ -1337,17 +1337,17 @@ model RevalidationApplication {
   status          ApplicationStatus @default(SUBMITTED)
 
   // INSPECTION & APPROVAL (Official Use)
-  inspectionDate         DateTime?
-  inspectionOfficerId    String?
-  findings               String?   @db.Text
-  recommendation         String?   @db.VarChar(50)
-  
+  inspectionDate      DateTime?
+  inspectionOfficerId String?
+  findings            String?   @db.Text
+  recommendation      String?   @db.VarChar(50)
+
   hodApprovedAt          DateTime?
   commissionerApprovedAt DateTime?
   psApprovedAt           DateTime?
 
-  validUntil             DateTime?
-  approvedAt             DateTime?
+  validUntil DateTime?
+  approvedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1438,34 +1438,34 @@ model TracasSticker {
 }
 
 model TracasVehicle {
-  id                      String       @id @default(cuid())
-  registrationNumber      String       @unique
-  fleetNumber             String       @unique
-  category                String       @default("BUS") @db.VarChar(50)
-  makeModel               String?
-  engineNumber            String?
-  chassisNumber           String?
-  insuranceCertificateNo  String?
-  insuranceCommencement   DateTime?
-  insuranceExpiry         DateTime?
-  particularsIssueDate    DateTime?
-  particularsExpiryDate   DateTime?
-  assignedRoute           String?
-  ownershipType           String       @default("GOVERNMENT_OWNED") @db.VarChar(50)
+  id                     String    @id @default(cuid())
+  registrationNumber     String    @unique
+  fleetNumber            String    @unique
+  category               String    @default("BUS") @db.VarChar(50)
+  makeModel              String?
+  engineNumber           String?
+  chassisNumber          String?
+  insuranceCertificateNo String?
+  insuranceCommencement  DateTime?
+  insuranceExpiry        DateTime?
+  particularsIssueDate   DateTime?
+  particularsExpiryDate  DateTime?
+  assignedRoute          String?
+  ownershipType          String    @default("GOVERNMENT_OWNED") @db.VarChar(50)
   // Distinguishes vehicles already operating under TRACAS at enrolment time
   // from those joining the company as part of this onboarding round.
   // "EXISTING" | "NEW_JOINER" — pre-existing rows default to EXISTING.
-  enrollmentType          String       @default("EXISTING") @db.VarChar(30)
-  joinedCompanyAt         DateTime?
-  ownerName               String?
-  ownerPhone              String?
-  ownerAddress            String?      @db.Text
-  ownerNIN                String?
-  authorityRef            String       @unique
+  enrollmentType         String    @default("EXISTING") @db.VarChar(30)
+  joinedCompanyAt        DateTime?
+  ownerName              String?
+  ownerPhone             String?
+  ownerAddress           String?   @db.Text
+  ownerNIN               String?
+  authorityRef           String    @unique
 
-  authorityIssueDate      DateTime?    @default(now())
-  authorityExpiryDate     DateTime?
-  status                  PermitStatus @default(ACTIVE)
+  authorityIssueDate  DateTime?    @default(now())
+  authorityExpiryDate DateTime?
+  status              PermitStatus @default(ACTIVE)
 
   assignedDriverId String?
   createdAt        DateTime @default(now())
@@ -1483,35 +1483,35 @@ model TracasVehicle {
 }
 
 model TracasDriver {
-  id                        String       @id @default(cuid())
-  fullName                  String
-  phoneNumber               String
-  securityCode              String?      @unique
-  email                     String?
-  photoUrl                  String?      @db.Text
-  nin                       String?
-  asinNumber                String?
-  residentialAddress        String?      @db.Text
-  stateOfOrigin             String?
-  lga                       String?
-  dateOfBirth               DateTime?
-  gender                    String?
-  bloodGroup                String?
-  maritalStatus             String?
-  educationalQualification  String?
-  nextOfKinName             String?
-  nextOfKinPhone            String?
-  emergencyContactName      String?
-  emergencyContactPhone     String?
-  guarantorName             String?
-  guarantorPhone            String?
-  guarantorAddress          String?      @db.Text
-  licenseNumber             String?      @unique
-  licenseIssueDate          DateTime?
-  licenseExpiryDate         DateTime?
-  operatorAssociation       String?
-  notes                     String?      @db.Text
-  status                    PermitStatus @default(ACTIVE)
+  id                       String       @id @default(cuid())
+  fullName                 String
+  phoneNumber              String
+  securityCode             String?      @unique
+  email                    String?
+  photoUrl                 String?      @db.Text
+  nin                      String?
+  asinNumber               String?
+  residentialAddress       String?      @db.Text
+  stateOfOrigin            String?
+  lga                      String?
+  dateOfBirth              DateTime?
+  gender                   String?
+  bloodGroup               String?
+  maritalStatus            String?
+  educationalQualification String?
+  nextOfKinName            String?
+  nextOfKinPhone           String?
+  emergencyContactName     String?
+  emergencyContactPhone    String?
+  guarantorName            String?
+  guarantorPhone           String?
+  guarantorAddress         String?      @db.Text
+  licenseNumber            String?      @unique
+  licenseIssueDate         DateTime?
+  licenseExpiryDate        DateTime?
+  operatorAssociation      String?
+  notes                    String?      @db.Text
+  status                   PermitStatus @default(ACTIVE)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1523,5 +1523,3 @@ model TracasDriver {
   @@index([securityCode])
   @@index([status])
 }
-
-
