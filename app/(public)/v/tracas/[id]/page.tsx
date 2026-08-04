@@ -47,7 +47,8 @@ export default async function PublicTracasStickerViewPage({
 
   const driver = vehicle.assignedDriver;
   const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL || "https://mot.anambra.gov.ng";
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "https://ministry-of-transport-web.vercel.app";
   const publicUrl = `${baseUrl}/v/tracas/${encodeURIComponent(vehicle.registrationNumber || vehicle.id)}`;
 
   const formatDate = (date: Date | null) => {

@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { extractStickerCode } from "@/lib/tracas-sticker";
 
 export interface OnboardTracasVehicleInput {
   registrationNumber: string;
@@ -72,8 +73,9 @@ export async function addStickerUrlsToTracasPool(inputUrls: string[]) {
 
     let addedCount = 0;
     for (const url of urls) {
-      const urlParts = url.split("/");
-      const stickerCode = urlParts[urlParts.length - 1] || `TRAC-STK-${Math.floor(1000 + Math.random() * 9000)}`;
+      const stickerCode =
+        extractStickerCode(url) ||
+        `TRAC-STK-${Math.floor(1000 + Math.random() * 9000)}`;
 
       await db.tracasSticker.upsert({
         where: { stickerUrl: url },
@@ -280,13 +282,10 @@ export async function assignStickerToTracasVehicle(
     if (stickerIdentifier && stickerIdentifier.trim() !== "") {
       const rawInput = stickerIdentifier.trim();
 
-      // Extract sticker code if input is a URL (e.g. https://.../v/tracas/TRAC-58958-AN)
-      let extractedCode = rawInput;
-      if (rawInput.includes("/v/tracas/")) {
-        extractedCode = rawInput.split("/v/tracas/").pop() || rawInput;
-      } else if (rawInput.includes("/verify/tracas/")) {
-        extractedCode = rawInput.split("/verify/tracas/").pop() || rawInput;
-      }
+      // Reduce a scanned URL to its bare code. Handles every issuing host,
+      // including transpaytms — the old inline check only matched
+      // "/v/tracas/" and so stored whole URLs in stickerCode.
+      const extractedCode = extractStickerCode(rawInput);
 
       // Find sticker by ID, code, or URL
       let sticker = await db.tracasSticker.findFirst({
