@@ -29,6 +29,25 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      // Physical TRACAS stickers encode transpaytms URLs of the form
+      // /v/status<id> and /v/status/<id>. Once transpaytms began redirecting
+      // here, the slashed form landed on /v/status/<id> — a path this app has
+      // no route for, so it 404'd before reaching the lookup. The stickers are
+      // already printed and in the field, so the path is absorbed here.
+      {
+        source: "/v/status/:id",
+        destination: "/v/tracas/:id",
+        permanent: false,
+      },
+      {
+        source: "/verify/status/:id",
+        destination: "/verify/tracas/:id",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
