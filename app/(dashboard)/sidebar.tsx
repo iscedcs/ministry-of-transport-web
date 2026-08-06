@@ -49,6 +49,14 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
 
+  // ── TRACAS Staff (MD provisions her own printing officers) ──
+  {
+    label: "TRACAS Staff",
+    href: "/tracas-staff",
+    icon: "👥",
+    allowedRoles: ["TRACAS_MD", "SYSTEM_ADMIN", "COMMISSIONER"],
+  },
+
   // ── Enumeration Module ──
   {
     label: "Enumeration",
@@ -127,6 +135,7 @@ const NAV_ITEMS: NavItem[] = [
       "COMMISSIONER",
       "PERMANENT_SECRETARY",
       "ICT_OFFICER",
+      "ICT_OFFICER_TRACAS",
       "SYSTEM_ADMIN",
     ],
   },
@@ -292,7 +301,10 @@ export function DashboardSidebar({
   const { isOpen, close } = useMobileMenu();
 
   const visibleItems = NAV_ITEMS.filter((item) => {
-    if (role === "ICT_OFFICER" && item.href === "/dashboard") {
+    if (
+      (role === "ICT_OFFICER" || role === "ICT_OFFICER_TRACAS") &&
+      item.href === "/dashboard"
+    ) {
       return false;
     }
     // Enumerators land on /enumerator instead of the generic dashboard.

@@ -22,6 +22,7 @@ export function IctPrintingClient({
   initialData,
 }: {
   initialData: {
+    scope?: "ALL" | "TRACAS";
     stats: {
       totalToPrint: number;
       driverIdCardsCount: number;
@@ -36,6 +37,13 @@ export function IctPrintingClient({
     boatItems: PrintingItem[];
   };
 }) {
+  /**
+   * A TRACAS-scoped ICT officer only handles driver ID cards and letters of
+   * authority; the park-staff and maritime queues are not theirs to print.
+   * The server already withholds that data — this hides the empty controls.
+   */
+  const isTracasScoped = initialData.scope === "TRACAS";
+
   const [activeTab, setActiveTab] = useState<
     | "ALL"
     | "DRIVER_ID_CARD"
@@ -80,15 +88,20 @@ export function IctPrintingClient({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-900 p-6 rounded-3xl text-white shadow-xl border border-emerald-800/40">
         <div className="space-y-1">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold uppercase tracking-wider border border-emerald-500/30">
-            <Printer className="w-3.5 h-3.5" /> ICT Officer Dispatch Portal
+            <Printer className="w-3.5 h-3.5" />
+            {isTracasScoped
+              ? "TRACAS Dispatch Portal"
+              : "ICT Officer Dispatch Portal"}
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            ICT Printing & Document Center
+            {isTracasScoped
+              ? "TRACAS Printing Center"
+              : "ICT Printing & Document Center"}
           </h1>
           <p className="text-sm text-slate-300 max-w-2xl">
-            Manage, verify, and print official Ministry documents: Commercial
-            Driver ID Cards, TRACAS Letters of Authority, Motor Park Staff
-            Badges, and Boat Permits.
+            {isTracasScoped
+              ? "Print TRACAS documents: Commercial Driver ID Cards and Letters of Authority approved by the Ag. MD/CEO and the Commissioner."
+              : "Manage, verify, and print official Ministry documents: Commercial Driver ID Cards, TRACAS Letters of Authority, Motor Park Staff Badges, and Boat Permits."}
           </p>
         </div>
 
@@ -144,6 +157,7 @@ export function IctPrintingClient({
           </p>
         </button>
 
+        {!isTracasScoped && (
         <button
           onClick={() => setActiveTab("PARK_STAFF_ID_CARD")}
           className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
@@ -160,7 +174,9 @@ export function IctPrintingClient({
           <p className="font-bold text-base mt-2">Park Staff Cards</p>
           <p className="text-xs text-muted-foreground">Park Monitor Badges</p>
         </button>
+        )}
 
+        {!isTracasScoped && (
         <button
           onClick={() => setActiveTab("BOAT_PERMIT")}
           className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
@@ -179,6 +195,7 @@ export function IctPrintingClient({
             Boat Operating Permits
           </p>
         </button>
+        )}
       </div>
 
       {/* Search and Navigation Bar */}
@@ -211,24 +228,28 @@ export function IctPrintingClient({
             }`}>
             Letters ({initialData.stats.lettersCount})
           </button>
-          <button
-            onClick={() => setActiveTab("PARK_STAFF_ID_CARD")}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-              activeTab === "PARK_STAFF_ID_CARD"
-                ? "bg-primary text-primary-foreground shadow-xs"
-                : "bg-muted text-muted-foreground hover:text-foreground"
-            }`}>
-            Park Staff ({initialData.stats.parkStaffCount})
-          </button>
-          <button
-            onClick={() => setActiveTab("BOAT_PERMIT")}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-              activeTab === "BOAT_PERMIT"
-                ? "bg-primary text-primary-foreground shadow-xs"
-                : "bg-muted text-muted-foreground hover:text-foreground"
-            }`}>
-            Boats ({initialData.stats.boatPermitsCount})
-          </button>
+          {!isTracasScoped && (
+            <>
+              <button
+                onClick={() => setActiveTab("PARK_STAFF_ID_CARD")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                  activeTab === "PARK_STAFF_ID_CARD"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}>
+                Park Staff ({initialData.stats.parkStaffCount})
+              </button>
+              <button
+                onClick={() => setActiveTab("BOAT_PERMIT")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                  activeTab === "BOAT_PERMIT"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}>
+                Boats ({initialData.stats.boatPermitsCount})
+              </button>
+            </>
+          )}
         </div>
 
         <div className="relative min-w-[240px]">
