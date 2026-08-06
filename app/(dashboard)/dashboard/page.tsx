@@ -23,7 +23,7 @@ export default async function DashboardPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  if (session.role === "ICT_OFFICER") {
+  if (session.role === "ICT_OFFICER" || session.role === "ICT_OFFICER_TRACAS") {
     redirect("/ict-printing");
   }
 

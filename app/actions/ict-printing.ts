@@ -19,13 +19,24 @@ export interface PrintingItem {
   photoUrl?: string | null;
 }
 
-/** Who may see the printing queue. */
+/**
+ * Who may see the printing queue.
+ *
+ * ICT_OFFICER is the Ministry printing centre and sees every queue.
+ * ICT_OFFICER_TRACAS is dedicated to TRACAS: driver ID cards and letters of
+ * authority only. The scoping is applied at query time, not just in the UI,
+ * so a TRACAS printer never receives park-monitor or maritime records at all.
+ */
 const PRINTING_ROLES = [
   "ICT_OFFICER",
+  "ICT_OFFICER_TRACAS",
   "COMMISSIONER",
   "PERMANENT_SECRETARY",
   "SYSTEM_ADMIN",
 ] as const;
+
+/** Queue scope derived from the viewer's role. */
+export type PrintingScope = "ALL" | "TRACAS";
 
 export async function getIctPrintingQueues(searchQuery = "") {
   // Previously the session was read and discarded, leaving this open to any
@@ -35,6 +46,7 @@ export async function getIctPrintingQueues(searchQuery = "") {
     return {
       success: false as const,
       error: authz.error,
+      scope: "ALL" as PrintingScope,
       stats: {
         totalToPrint: 0,
         driverIdCardsCount: 0,
@@ -49,6 +61,10 @@ export async function getIctPrintingQueues(searchQuery = "") {
       boatItems: [],
     };
   }
+
+  const scope: PrintingScope =
+    authz.session.role === "ICT_OFFICER_TRACAS" ? "TRACAS" : "ALL";
+  const includeMinistryQueues = scope === "ALL";
 
   const q = searchQuery.trim().toLowerCase();
 
@@ -84,22 +100,26 @@ export async function getIctPrintingQueues(searchQuery = "") {
     },
   });
 
-  // 3. Fetch Park Staff ID Cards
-  const parkMonitors = await db.parkMonitorApplication.findMany({
-    take: 100,
-    orderBy: { createdAt: "desc" },
-  });
+  // 3. Fetch Park Staff ID Cards — Ministry queue only.
+  const parkMonitors = includeMinistryQueues
+    ? await db.parkMonitorApplication.findMany({
+        take: 100,
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
 
-  // 4. Fetch Boat Permits
-  const boats = await db.boat.findMany({
-    take: 100,
-    orderBy: { createdAt: "desc" },
-    include: {
-      assignedRider: {
-        select: { fullName: true },
-      },
-    },
-  });
+  // 4. Fetch Boat Permits — Ministry queue only.
+  const boats = includeMinistryQueues
+    ? await db.boat.findMany({
+        take: 100,
+        orderBy: { createdAt: "desc" },
+        include: {
+          assignedRider: {
+            select: { fullName: true },
+          },
+        },
+      })
+    : [];
 
   // Filter & Format Data
   const driverItems: PrintingItem[] = drivers.map((d) => ({
@@ -171,6 +191,7 @@ export async function getIctPrintingQueues(searchQuery = "") {
 
   return {
     success: true,
+    scope,
     stats: {
       totalToPrint: allItems.length,
       driverIdCardsCount: driverItems.length,

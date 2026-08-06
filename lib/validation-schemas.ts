@@ -42,6 +42,7 @@ export const userCreateSchema = z.object({
     "VEHICLE_INSPECTION_OFFICER",
     "EXTERNAL_APPLICANT",
     "ICT_OFFICER",
+    "ICT_OFFICER_TRACAS",
     "ENUMERATOR",
     "TRACAS_MD",
   ]),

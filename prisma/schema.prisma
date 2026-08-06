@@ -36,7 +36,8 @@ enum UserRole {
   EXTERNAL_APPLICANT // Public user: park owners, transit companies, driving schools
   PARK_MONITOR // Field staff who monitor parks and transit operations
   SYSTEM_ADMIN // Platform administration (internal)
-  ICT_OFFICER // ICT Officer — Printing Center (ID cards, letters of authority, permits)
+  ICT_OFFICER // ICT Officer — Ministry Printing Center (sees every queue)
+  ICT_OFFICER_TRACAS // ICT Officer scoped to TRACAS only (driver IDs + letters of authority)
   ENUMERATOR // Field enumeration — onboards vehicles & drivers across all modules
   TRACAS_MD // Ag. MD/CEO, Transport Company of Anambra State — first-stage letter approval
 }

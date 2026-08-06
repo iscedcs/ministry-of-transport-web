@@ -73,6 +73,7 @@ const MINISTRY_ROLES = [
   "VEHICLE_INSPECTION_OFFICER",
   "SYSTEM_ADMIN",
   "ICT_OFFICER",
+  "ICT_OFFICER_TRACAS",
   "ENUMERATOR",
   "TRACAS_MD",
 ];
@@ -91,6 +92,26 @@ const ENUMERATOR_DENIED_PREFIXES = [
   "/payment/",
   "/inspections/",
 ];
+
+/**
+ * Per-role ceilings on top of the Ministry-only guard, which otherwise admits
+ * every staff role. The TRACAS MD runs the transport company, not the
+ * Ministry — she provisions her own TRACAS staff via /tracas-staff and has no
+ * business in Ministry administration or revenue.
+ */
+const ROLE_DENIED_PREFIXES: Record<string, string[]> = {
+  ENUMERATOR: ENUMERATOR_DENIED_PREFIXES,
+  TRACAS_MD: ["/admin/", "/payments/", "/payment/", "/inspections/"],
+  ICT_OFFICER_TRACAS: [
+    "/admin/",
+    "/payments/",
+    "/payment/",
+    "/inspections/",
+    "/motor-parks/",
+    "/fleet-operators/",
+    "/boats",
+  ],
+};
 
 // ==================== MIDDLEWARE ====================
 
@@ -140,11 +161,9 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // 7. Role guards — Enumerator ceiling
-  if (
-    session.role === "ENUMERATOR" &&
-    ENUMERATOR_DENIED_PREFIXES.some((prefix) => pathname.startsWith(prefix))
-  ) {
+  // 7. Role guards — per-role ceilings
+  const deniedForRole = ROLE_DENIED_PREFIXES[session.role];
+  if (deniedForRole?.some((prefix) => pathname.startsWith(prefix))) {
     return NextResponse.redirect(new URL("/unauthorized", request.url));
   }
 
