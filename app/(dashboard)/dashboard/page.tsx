@@ -27,6 +27,14 @@ export default async function DashboardPage() {
     redirect("/ict-printing");
   }
 
+  if (session.role === "ENUMERATOR") {
+    redirect("/enumerator");
+  }
+
+  if (session.role === "TRACAS_MD") {
+    redirect("/tracas-approvals");
+  }
+
   const summary = await getParkStatusSummary();
   const stats = summary.success ? summary.data! : null;
 

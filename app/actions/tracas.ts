@@ -3,6 +3,8 @@
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { extractStickerCode } from "@/lib/tracas-sticker";
+import { authorize, FLEET_WRITE_ROLES } from "@/lib/auth";
+import { recordAudit } from "@/lib/audit";
 
 export interface OnboardTracasVehicleInput {
   registrationNumber: string;
@@ -66,6 +68,12 @@ export interface OnboardTracasDriverInput {
 
 export async function addStickerUrlsToTracasPool(inputUrls: string[]) {
   try {
+    // Loading the sticker inventory is a System Admin action.
+    const authz = await authorize(["SYSTEM_ADMIN"]);
+    if (!authz.ok) {
+      return { success: false, error: authz.error };
+    }
+
     const urls = inputUrls.map((u) => u.trim()).filter((u) => u.length > 0);
     if (urls.length === 0) {
       return { success: false, error: "No valid sticker URLs provided." };
@@ -88,6 +96,14 @@ export async function addStickerUrlsToTracasPool(inputUrls: string[]) {
       });
       addedCount++;
     }
+
+    await recordAudit({
+      action: "TRACAS_STICKER_POOL_IMPORTED",
+      entityType: "TRACAS_STICKER",
+      entityId: "pool",
+      changeDescription: `Pre-loaded ${addedCount} sticker(s) into the TRACAS inventory pool`,
+      newValues: { count: addedCount },
+    });
 
     revalidatePath("/tracas");
     return { success: true, count: addedCount };
@@ -178,6 +194,10 @@ async function generateUniqueAuthorityRef(): Promise<string> {
 
 export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
   try {
+    // Onboarding is the Enumerator's job; other staff are read-only.
+    const authz = await authorize(FLEET_WRITE_ROLES);
+    if (!authz.ok) return { success: false, error: authz.error };
+
     if (!input.registrationNumber?.trim()) {
       return { success: false, error: "Registration Number is required." };
     }
@@ -196,6 +216,20 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
     const existingFleet = await db.tracasVehicle.findUnique({ where: { fleetNumber: fleetNo } });
     if (existingFleet) {
       return { success: false, error: `Vehicle with fleet number '${fleetNo}' already exists.` };
+    }
+
+    // A driver already operating a vehicle cannot be attached to another.
+    if (input.assignedDriverId) {
+      const driverConflict = await db.tracasVehicle.findFirst({
+        where: { assignedDriverId: input.assignedDriverId },
+        select: { registrationNumber: true, fleetNumber: true },
+      });
+      if (driverConflict) {
+        return {
+          success: false,
+          error: `That driver is already assigned to ${driverConflict.registrationNumber} (${driverConflict.fleetNumber}). Choose an unassigned driver.`,
+        };
+      }
     }
 
     const authorityRef = input.authorityRef?.trim() || (await generateUniqueAuthorityRef());
@@ -255,6 +289,21 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
       });
     }
 
+    await recordAudit({
+      action: "TRACAS_VEHICLE_ONBOARDED",
+      entityType: "TRACAS_VEHICLE",
+      entityId: vehicle.id,
+      changeDescription: `Onboarded ${vehicle.registrationNumber} (${vehicle.fleetNumber}) as ${enrollmentType} / ${ownershipType}`,
+      newValues: {
+        registrationNumber: vehicle.registrationNumber,
+        fleetNumber: vehicle.fleetNumber,
+        ownershipType,
+        enrollmentType,
+        authorityRef: vehicle.authorityRef,
+        assignedDriverId: vehicle.assignedDriverId,
+      },
+    });
+
     revalidatePath("/tracas");
     return { success: true, data: vehicle };
   } catch (error: any) {
@@ -268,10 +317,15 @@ export async function assignStickerToTracasVehicle(
   stickerIdentifier: string | null
 ) {
   try {
+    // Sticker binding is part of onboarding.
+    const authz = await authorize(FLEET_WRITE_ROLES);
+    if (!authz.ok) return { success: false, error: authz.error };
+
     // Unassign existing sticker on this vehicle if any
     const existingVehicleSticker = await db.tracasSticker.findUnique({
       where: { assignedVehicleId: vehicleId },
     });
+    const previousStickerCode = existingVehicleSticker?.stickerCode ?? null;
     if (existingVehicleSticker) {
       await db.tracasSticker.update({
         where: { id: existingVehicleSticker.id },
@@ -326,6 +380,17 @@ export async function assignStickerToTracasVehicle(
       }
     }
 
+    await recordAudit({
+      action: stickerIdentifier ? "TRACAS_STICKER_BOUND" : "TRACAS_STICKER_UNBOUND",
+      entityType: "TRACAS_VEHICLE",
+      entityId: vehicleId,
+      changeDescription: stickerIdentifier
+        ? `Bound sticker to vehicle ${vehicleId}`
+        : `Unbound sticker from vehicle ${vehicleId}`,
+      oldValues: previousStickerCode ? { stickerCode: previousStickerCode } : undefined,
+      newValues: stickerIdentifier ? { scanned: stickerIdentifier } : null,
+    });
+
     revalidatePath("/tracas");
     return { success: true };
   } catch (error: any) {
@@ -339,10 +404,73 @@ export async function assignStickerToTracasVehicle(
 
 export async function reassignTracasDriver(vehicleId: string, driverId: string | null) {
   try {
+    // Two different operations share this action:
+    //
+    //   * Initial assignment — the vehicle has no driver yet. This is part of
+    //     onboarding, so it follows the same write roles as onboarding itself.
+    //   * Reassignment or removal — the vehicle already has a driver. This
+    //     moves a driver between vehicles and invalidates an issued Letter of
+    //     Authority, so it stays System Admin only.
+    const current = await db.tracasVehicle.findUnique({
+      where: { id: vehicleId },
+      select: { assignedDriverId: true, registrationNumber: true },
+    });
+    if (!current) {
+      return { success: false, error: "Vehicle not found." };
+    }
+
+    const isInitialAssignment = !current.assignedDriverId && !!driverId;
+
+    const authz = await authorize(
+      isInitialAssignment ? FLEET_WRITE_ROLES : ["SYSTEM_ADMIN"],
+    );
+    if (!authz.ok) {
+      return {
+        success: false,
+        error: isInitialAssignment
+          ? authz.error
+          : "Only a System Admin can reassign or remove a vehicle driver.",
+      };
+    }
+
+    // A driver may only hold one vehicle at a time.
+    if (driverId) {
+      const conflict = await db.tracasVehicle.findFirst({
+        where: { assignedDriverId: driverId, id: { not: vehicleId } },
+        select: { registrationNumber: true, fleetNumber: true },
+      });
+      if (conflict) {
+        return {
+          success: false,
+          error: `That driver is already assigned to ${conflict.registrationNumber} (${conflict.fleetNumber}). Unassign them there first.`,
+        };
+      }
+    }
+
     const updated = await db.tracasVehicle.update({
       where: { id: vehicleId },
       data: { assignedDriverId: driverId },
     });
+
+    await recordAudit({
+      action: !driverId
+        ? "TRACAS_DRIVER_UNASSIGNED"
+        : isInitialAssignment
+          ? "TRACAS_DRIVER_ASSIGNED"
+          : "TRACAS_DRIVER_REASSIGNED",
+      entityType: "TRACAS_VEHICLE",
+      entityId: vehicleId,
+      changeDescription: `Driver ${
+        !driverId
+          ? "removed from"
+          : isInitialAssignment
+            ? "assigned to"
+            : "reassigned on"
+      } ${current.registrationNumber}`,
+      oldValues: { assignedDriverId: current.assignedDriverId },
+      newValues: { assignedDriverId: driverId },
+    });
+
     revalidatePath("/tracas");
     return { success: true, data: updated };
   } catch (error: any) {
@@ -355,6 +483,10 @@ export async function reassignTracasDriver(vehicleId: string, driverId: string |
 
 export async function onboardTracasDriver(input: OnboardTracasDriverInput) {
   try {
+    // Driver enumeration is the Enumerator's job.
+    const authz = await authorize(FLEET_WRITE_ROLES);
+    if (!authz.ok) return { success: false, error: authz.error };
+
     if (!input.fullName?.trim()) {
       return { success: false, error: "Full Name is required." };
     }
@@ -405,6 +537,19 @@ export async function onboardTracasDriver(input: OnboardTracasDriverInput) {
         licenseExpiryDate: input.licenseExpiryDate ? new Date(input.licenseExpiryDate) : null,
         operatorAssociation: input.operatorAssociation || null,
         notes: input.notes || null,
+      },
+    });
+
+    await recordAudit({
+      action: "TRACAS_DRIVER_ONBOARDED",
+      entityType: "TRACAS_DRIVER",
+      entityId: driver.id,
+      changeDescription: `Enumerated TRACAS driver ${driver.fullName}`,
+      newValues: {
+        fullName: driver.fullName,
+        phoneNumber: driver.phoneNumber,
+        licenseNumber: driver.licenseNumber,
+        securityCode: driver.securityCode,
       },
     });
 
@@ -525,4 +670,139 @@ export async function getTracasAuthorityLetterData(identifier: string) {
 
 export async function getPublicTracasVerification(identifier: string) {
   return getTracasAuthorityLetterData(identifier);
+}
+
+/**
+ * Edit an enumerated TRACAS driver's profile, including their passport photo.
+ *
+ * System Admin only. Enumerators capture drivers at onboarding; correcting a
+ * record afterwards changes what is printed on an issued ID card and named on
+ * a Letter of Authority, so it is deliberately a narrower permission.
+ */
+export async function updateTracasDriver(
+  driverId: string,
+  input: Partial<OnboardTracasDriverInput> & { status?: string },
+) {
+  try {
+    const authz = await authorize(["SYSTEM_ADMIN"]);
+    if (!authz.ok) {
+      return {
+        success: false,
+        error: "Only a System Admin can edit a driver's profile.",
+      };
+    }
+
+    const existing = await db.tracasDriver.findUnique({
+      where: { id: driverId },
+    });
+    if (!existing) {
+      return { success: false, error: "Driver not found." };
+    }
+
+    if (input.fullName !== undefined && !input.fullName.trim()) {
+      return { success: false, error: "Full name cannot be empty." };
+    }
+    if (input.phoneNumber !== undefined && !input.phoneNumber.trim()) {
+      return { success: false, error: "Phone number cannot be empty." };
+    }
+
+    // Licence numbers are unique — reject a clash before Prisma throws.
+    const nextLicense = input.licenseNumber?.trim().toUpperCase() || null;
+    if (nextLicense && nextLicense !== existing.licenseNumber) {
+      const clash = await db.tracasDriver.findFirst({
+        where: { licenseNumber: nextLicense, id: { not: driverId } },
+        select: { fullName: true },
+      });
+      if (clash) {
+        return {
+          success: false,
+          error: `Licence number '${nextLicense}' already belongs to ${clash.fullName}.`,
+        };
+      }
+    }
+
+    const str = (v: string | undefined) =>
+      v === undefined ? undefined : v.trim() || null;
+    const date = (v: string | undefined) =>
+      v === undefined ? undefined : v ? new Date(v) : null;
+
+    const data = {
+      fullName: input.fullName?.trim(),
+      phoneNumber: input.phoneNumber?.trim(),
+      email: str(input.email),
+      photoUrl: str(input.photoUrl),
+      nin: str(input.nin),
+      asinNumber: str(input.asinNumber),
+      residentialAddress: str(input.residentialAddress),
+      stateOfOrigin: str(input.stateOfOrigin),
+      lga: str(input.lga),
+      dateOfBirth: date(input.dateOfBirth),
+      gender: str(input.gender),
+      bloodGroup: str(input.bloodGroup),
+      maritalStatus: str(input.maritalStatus),
+      educationalQualification: str(input.educationalQualification),
+      nextOfKinName: str(input.nextOfKinName),
+      nextOfKinPhone: str(input.nextOfKinPhone),
+      emergencyContactName: str(input.emergencyContactName),
+      emergencyContactPhone: str(input.emergencyContactPhone),
+      guarantorName: str(input.guarantorName),
+      guarantorPhone: str(input.guarantorPhone),
+      guarantorAddress: str(input.guarantorAddress),
+      licenseNumber: nextLicense ?? undefined,
+      licenseIssueDate: date(input.licenseIssueDate),
+      licenseExpiryDate: date(input.licenseExpiryDate),
+      operatorAssociation: str(input.operatorAssociation),
+      notes: str(input.notes),
+      ...(input.status === "ACTIVE" ||
+      input.status === "SUSPENDED" ||
+      input.status === "REVOKED" ||
+      input.status === "EXPIRED"
+        ? { status: input.status }
+        : {}),
+    };
+
+    // Drop untouched keys so a partial edit never blanks a field.
+    const cleaned = Object.fromEntries(
+      Object.entries(data).filter(([, v]) => v !== undefined),
+    );
+
+    const driver = await db.tracasDriver.update({
+      where: { id: driverId },
+      data: cleaned,
+    });
+
+    // Record which fields actually moved, rather than the whole row —
+    // driver photos are base64 data URIs and would bloat the audit log.
+    const changed = Object.keys(cleaned).filter((k) => {
+      const before = (existing as Record<string, unknown>)[k];
+      const after = (cleaned as Record<string, unknown>)[k];
+      const norm = (v: unknown) =>
+        v instanceof Date ? v.toISOString() : (v ?? null);
+      return norm(before) !== norm(after);
+    });
+
+    await recordAudit({
+      action: "TRACAS_DRIVER_UPDATED",
+      entityType: "TRACAS_DRIVER",
+      entityId: driverId,
+      changeDescription: changed.length
+        ? `Updated ${driver.fullName}: ${changed.join(", ")}`
+        : `No effective change to ${driver.fullName}`,
+      oldValues: { fields: changed },
+      newValues: {
+        fields: changed,
+        photoReplaced: changed.includes("photoUrl"),
+      },
+    });
+
+    revalidatePath("/tracas");
+    revalidatePath(`/tracas/driver/${driverId}/id-card`);
+    return { success: true, data: driver };
+  } catch (error: any) {
+    console.error("Error updating TRACAS driver:", error);
+    return {
+      success: false,
+      error: error?.message || "Failed to update driver.",
+    };
+  }
 }

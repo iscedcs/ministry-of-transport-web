@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { getSessionFromCookie } from "@/lib/session";
+import { authorize } from "@/lib/auth";
 
 export interface PrintingItem {
   id: string;
@@ -19,8 +19,36 @@ export interface PrintingItem {
   photoUrl?: string | null;
 }
 
+/** Who may see the printing queue. */
+const PRINTING_ROLES = [
+  "ICT_OFFICER",
+  "COMMISSIONER",
+  "PERMANENT_SECRETARY",
+  "SYSTEM_ADMIN",
+] as const;
+
 export async function getIctPrintingQueues(searchQuery = "") {
-  await getSessionFromCookie();
+  // Previously the session was read and discarded, leaving this open to any
+  // authenticated user — including external applicants.
+  const authz = await authorize([...PRINTING_ROLES]);
+  if (!authz.ok) {
+    return {
+      success: false as const,
+      error: authz.error,
+      stats: {
+        totalToPrint: 0,
+        driverIdCardsCount: 0,
+        lettersCount: 0,
+        parkStaffCount: 0,
+        boatPermitsCount: 0,
+      },
+      items: [],
+      driverItems: [],
+      vehicleItems: [],
+      parkStaffItems: [],
+      boatItems: [],
+    };
+  }
 
   const q = searchQuery.trim().toLowerCase();
 
@@ -41,10 +69,14 @@ export async function getIctPrintingQueues(searchQuery = "") {
     },
   });
 
-  // 2. Fetch TRACAS Letters of Authority
+  // 2. Fetch TRACAS Letters of Authority.
+  // Only fully-approved letters reach the printing queue: both the TRACAS MD
+  // and the Commissioner must have signed. Anything earlier in the chain is
+  // still a draft and must not be printed.
   const vehicles = await db.tracasVehicle.findMany({
+    where: { letterStatus: "APPROVED" },
     take: 100,
-    orderBy: { createdAt: "desc" },
+    orderBy: { commissionerApprovedAt: "desc" },
     include: {
       assignedDriver: {
         select: { fullName: true, photoUrl: true },

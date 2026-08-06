@@ -33,6 +33,7 @@ import {
   QrCode,
   UserCheck,
   UserPlus,
+  Pencil,
   RefreshCw,
   Search,
   ExternalLink,
@@ -54,10 +55,12 @@ import {
   onboardTracasVehicle,
   onboardTracasDriver,
   reassignTracasDriver,
+  updateTracasDriver,
   assignStickerToTracasVehicle,
   addStickerUrlsToTracasPool,
 } from "@/app/actions/tracas";
 import { StickerQrScannerModal } from "@/components/tracas/sticker-qr-scanner-modal";
+import { canWriteFleet } from "@/lib/fleet-roles";
 
 interface VehicleItem {
   id: string;
@@ -137,13 +140,27 @@ interface TracasClientProps {
   initialVehicles: VehicleItem[];
   initialDrivers: DriverItem[];
   initialStickers: StickerItem[];
+  currentUserRole: string | null;
 }
 
 export default function TracasClient({
   initialVehicles,
   initialDrivers,
   initialStickers,
+  currentUserRole,
 }: TracasClientProps) {
+  /** Sticker inventory loading is System Admin only. */
+  const isSystemAdmin = currentUserRole === "SYSTEM_ADMIN";
+  /** Changing or removing an existing driver stays System Admin only. */
+  const canReassignDriver = isSystemAdmin;
+  /**
+   * Creating or modifying fleet records is the Enumerator's job. Everyone
+   * else with TRACAS visibility — PS, the HODs, the MD, inspectors — is
+   * read-only, so no write control is rendered for them at all.
+   */
+  const canWrite = canWriteFleet(currentUserRole);
+  /** Attaching a driver to a vehicle that has none is part of onboarding. */
+  const canAssignDriver = canWrite;
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
     "vehicles" | "drivers" | "stickers"
@@ -158,6 +175,8 @@ export default function TracasClient({
   const [isOnboardDriverOpen, setIsOnboardDriverOpen] = useState(false);
   const [isReassignDriverOpen, setIsReassignDriverOpen] = useState(false);
   const [isAssignStickerOpen, setIsAssignStickerOpen] = useState(false);
+  const [isReplaceStickerConfirmOpen, setIsReplaceStickerConfirmOpen] =
+    useState(false);
   const [isAddStickersOpen, setIsAddStickersOpen] = useState(false);
 
   // Selected Target Objects for Modals
@@ -260,6 +279,97 @@ export default function TracasClient({
     }
   };
 
+  // ── Driver profile editing (System Admin only) ──
+  const [isEditDriverOpen, setIsEditDriverOpen] = useState(false);
+  const [editingDriver, setEditingDriver] = useState<DriverItem | null>(null);
+  const [editDriverForm, setEditDriverForm] = useState({
+    fullName: "",
+    phoneNumber: "",
+    email: "",
+    photoUrl: "",
+    nin: "",
+    asinNumber: "",
+    residentialAddress: "",
+    stateOfOrigin: "",
+    lga: "",
+    licenseNumber: "",
+    licenseIssueDate: "",
+    licenseExpiryDate: "",
+    operatorAssociation: "",
+    status: "ACTIVE",
+  });
+
+  const asDateInput = (d: Date | string | null | undefined) => {
+    if (!d) return "";
+    const parsed = new Date(d);
+    return isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
+  };
+
+  const openEditDriver = (driver: DriverItem) => {
+    setEditingDriver(driver);
+    setEditDriverForm({
+      fullName: driver.fullName ?? "",
+      phoneNumber: driver.phoneNumber ?? "",
+      email: driver.email ?? "",
+      photoUrl: driver.photoUrl ?? "",
+      nin: driver.nin ?? "",
+      asinNumber: driver.asinNumber ?? "",
+      residentialAddress: driver.residentialAddress ?? "",
+      stateOfOrigin: driver.stateOfOrigin ?? "",
+      lga: driver.lga ?? "",
+      licenseNumber: driver.licenseNumber ?? "",
+      licenseIssueDate: asDateInput(driver.licenseIssueDate),
+      licenseExpiryDate: asDateInput(driver.licenseExpiryDate),
+      operatorAssociation: "",
+      status: driver.status ?? "ACTIVE",
+    });
+    setIsEditDriverOpen(true);
+  };
+
+  /** Photo replacement inside the edit modal, same 5 MB / image-only rule. */
+  const handleEditPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file (PNG, JPG, WEBP).");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image file size must be less than 5MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        setEditDriverForm((prev) => ({ ...prev, photoUrl: result }));
+        toast.success("New passport photograph loaded.");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUpdateDriver = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDriver) return;
+    setIsSubmitting(true);
+    try {
+      const res = await updateTracasDriver(editingDriver.id, editDriverForm);
+      if (res.success) {
+        toast.success("Driver profile updated.");
+        setIsEditDriverOpen(false);
+        setEditingDriver(null);
+        router.refresh();
+      } else {
+        toast.error(res.error || "Failed to update driver.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "An error occurred.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -292,6 +402,32 @@ export default function TracasClient({
   const newJoinerCount = initialVehicles.filter(
     (v) => v.enrollmentType === "NEW_JOINER",
   ).length;
+
+  /**
+   * Drivers with no vehicle attached. A driver may only operate one vehicle,
+   * so anyone already holding one is not offered for a new assignment.
+   */
+  const availableDrivers = initialDrivers.filter(
+    (d) => !d.vehicles || d.vehicles.length === 0,
+  );
+
+  /**
+   * Options for the reassign modal: the unassigned pool, plus whichever
+   * driver currently holds THIS vehicle so the active selection still renders.
+   */
+  const vehicleCurrentDriverId =
+    initialVehicles.find((v) => v.id === reassignForm.vehicleId)
+      ?.assignedDriverId ?? null;
+
+  const reassignDriverOptions = (() => {
+    const current = initialDrivers.find(
+      (d) => d.id === vehicleCurrentDriverId,
+    );
+    if (!current || availableDrivers.some((d) => d.id === current.id)) {
+      return availableDrivers;
+    }
+    return [current, ...availableDrivers];
+  })();
 
   const filteredVehicles = initialVehicles.filter((v) => {
     const q = searchQuery.toLowerCase();
@@ -531,28 +667,40 @@ export default function TracasClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <Button
-            variant="outline"
-            onClick={() => setIsAddStickersOpen(true)}
-            className="gap-2 cursor-pointer">
-            <Tag className="w-4 h-4 text-primary" />
-            Pre-Load QR Stickers
-          </Button>
+          {isSystemAdmin && (
+            <Button
+              variant="outline"
+              onClick={() => setIsAddStickersOpen(true)}
+              className="gap-2 cursor-pointer">
+              <Tag className="w-4 h-4 text-primary" />
+              Pre-Load QR Stickers
+            </Button>
+          )}
 
-          <Button
-            variant="outline"
-            onClick={() => setIsOnboardDriverOpen(true)}
-            className="gap-2 cursor-pointer">
-            <UserPlus className="w-4 h-4 text-primary" />
-            Enumerate Driver
-          </Button>
+          {canWrite && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setIsOnboardDriverOpen(true)}
+                className="gap-2 cursor-pointer">
+                <UserPlus className="w-4 h-4 text-primary" />
+                Enumerate Driver
+              </Button>
 
-          <Button
-            onClick={() => setIsOnboardVehicleOpen(true)}
-            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-md cursor-pointer font-semibold">
-            <Plus className="w-4 h-4" />
-            Onboard Vehicle
-          </Button>
+              <Button
+                onClick={() => setIsOnboardVehicleOpen(true)}
+                className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-md cursor-pointer font-semibold">
+                <Plus className="w-4 h-4" />
+                Onboard Vehicle
+              </Button>
+            </>
+          )}
+
+          {!canWrite && (
+            <span className="text-xs text-muted-foreground font-medium px-3 py-2 rounded-lg bg-secondary">
+              View-only access
+            </span>
+          )}
         </div>
       </div>
 
@@ -843,35 +991,66 @@ export default function TracasClient({
                             Letter
                           </Link>
 
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedVehicle(vehicle);
-                              setAssignStickerForm({
-                                vehicleId: vehicle.id,
-                                stickerId: vehicle.sticker?.id || "NONE",
-                              });
-                              setIsAssignStickerOpen(true);
-                            }}
-                            className="h-8 px-2 text-xs gap-1 cursor-pointer">
-                            <QrCode className="w-3.5 h-3.5" /> Sticker
-                          </Button>
+                          {/* A vehicle that already carries a sticker must be
+                              confirmed through the replace prompt first. */}
+                          {canWrite && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedVehicle(vehicle);
+                                setAssignStickerForm({
+                                  vehicleId: vehicle.id,
+                                  stickerId: vehicle.sticker?.id || "NONE",
+                                });
+                                if (vehicle.sticker) {
+                                  setIsReplaceStickerConfirmOpen(true);
+                                } else {
+                                  setIsAssignStickerOpen(true);
+                                }
+                              }}
+                              className="h-8 px-2 text-xs gap-1 cursor-pointer">
+                              {vehicle.sticker ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5" /> Replace
+                                  Sticker
+                                </>
+                              ) : (
+                                <>
+                                  <QrCode className="w-3.5 h-3.5" /> Bind
+                                  Sticker
+                                </>
+                              )}
+                            </Button>
+                          )}
 
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedVehicle(vehicle);
-                              setReassignForm({
-                                vehicleId: vehicle.id,
-                                driverId: vehicle.assignedDriverId || "NONE",
-                              });
-                              setIsReassignDriverOpen(true);
-                            }}
-                            className="h-8 px-2 text-xs gap-1 cursor-pointer">
-                            <RefreshCw className="w-3.5 h-3.5" /> Driver
-                          </Button>
+                          {(vehicle.assignedDriverId
+                            ? canReassignDriver
+                            : canAssignDriver) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedVehicle(vehicle);
+                                setReassignForm({
+                                  vehicleId: vehicle.id,
+                                  driverId: vehicle.assignedDriverId || "NONE",
+                                });
+                                setIsReassignDriverOpen(true);
+                              }}
+                              className="h-8 px-2 text-xs gap-1 cursor-pointer">
+                              {vehicle.assignedDriverId ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5" /> Reassign
+                                </>
+                              ) : (
+                                <>
+                                  <UserPlus className="w-3.5 h-3.5" /> Assign
+                                  Driver
+                                </>
+                              )}
+                            </Button>
+                          )}
 
                           <Link
                             href={`/verify/tracas/${vehicle.authorityRef}`}
@@ -1003,17 +1182,30 @@ export default function TracasClient({
                       </td>
 
                       <td className="py-3.5 px-4 text-xs text-right">
-                        <Button
-                          asChild
-                          size="sm"
-                          variant="outline"
-                          className="h-8 gap-1 text-xs">
-                          <Link
-                            href={`/tracas/driver/${driver.id}/id-card`}
-                            target="_blank">
-                            <IdCard className="w-3.5 h-3.5" /> View ID Card
-                          </Link>
-                        </Button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Editing a driver changes what is printed on an
+                              issued ID card — System Admin only. */}
+                          {isSystemAdmin && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openEditDriver(driver)}
+                              className="h-8 gap-1 text-xs cursor-pointer">
+                              <Pencil className="w-3.5 h-3.5" /> Edit
+                            </Button>
+                          )}
+                          <Button
+                            asChild
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-1 text-xs">
+                            <Link
+                              href={`/tracas/driver/${driver.id}/id-card`}
+                              target="_blank">
+                              <IdCard className="w-3.5 h-3.5" /> View ID Card
+                            </Link>
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -1515,11 +1707,18 @@ export default function TracasClient({
                     <SelectItem value="NONE">
                       -- No Driver Assigned --
                     </SelectItem>
-                    {initialDrivers.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.fullName} ({d.phoneNumber})
-                      </SelectItem>
-                    ))}
+                    {availableDrivers.length === 0 ? (
+                      <div className="px-2 py-3 text-xs text-muted-foreground text-center">
+                        All enumerated drivers are already assigned to a
+                        vehicle.
+                      </div>
+                    ) : (
+                      availableDrivers.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.fullName} ({d.phoneNumber})
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -1981,11 +2180,14 @@ export default function TracasClient({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 font-bold">
               <RefreshCw className="w-5 h-5 text-primary" />
-              Reassign Vehicle Driver
+              {vehicleCurrentDriverId
+                ? "Reassign Vehicle Driver"
+                : "Assign Vehicle Driver"}
             </DialogTitle>
             <DialogDescription>
-              Assign or change the enumerated driver operating vehicle{" "}
-              {selectedVehicle?.registrationNumber}.
+              {vehicleCurrentDriverId
+                ? `Change the enumerated driver operating vehicle ${selectedVehicle?.registrationNumber ?? ""}.`
+                : `Attach an enumerated driver to vehicle ${selectedVehicle?.registrationNumber ?? ""}.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -2001,12 +2203,18 @@ export default function TracasClient({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="NONE">-- Unassign Driver --</SelectItem>
-                  {initialDrivers.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.fullName} ({d.phoneNumber})
-                    </SelectItem>
-                  ))}
+                  {canReassignDriver ? (
+                    <SelectItem value="NONE">-- Unassign Driver --</SelectItem>
+                  ) : null}
+                  {reassignDriverOptions.map((d) => {
+                    const isCurrent = d.id === vehicleCurrentDriverId;
+                    return (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.fullName} ({d.phoneNumber})
+                        {isCurrent ? " — current" : ""}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -2023,6 +2231,62 @@ export default function TracasClient({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 3b: CONFIRM STICKER REPLACEMENT
+          Gate in front of the binding modal — a vehicle already carrying a
+          sticker has that code printed and in circulation, so replacing it
+          retires the physical sticker on the vehicle. */}
+      <Dialog
+        open={isReplaceStickerConfirmOpen}
+        onOpenChange={setIsReplaceStickerConfirmOpen}>
+        <DialogContent className="max-w-md bg-card text-foreground border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-bold">
+              <RefreshCw className="w-5 h-5 text-amber-500" />
+              Replace Vehicle Sticker?
+            </DialogTitle>
+            <DialogDescription>
+              Vehicle {selectedVehicle?.registrationNumber} already has a
+              sticker bound.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-3.5 my-1 space-y-1.5">
+            <p className="text-xs font-bold uppercase tracking-wide text-amber-500">
+              Currently bound
+            </p>
+            <p className="text-sm font-mono font-semibold text-foreground break-all">
+              {selectedVehicle?.sticker?.stickerCode ||
+                selectedVehicle?.sticker?.stickerUrl ||
+                "—"}
+            </p>
+            <p className="text-xs text-muted-foreground pt-1">
+              Replacing releases this sticker back to the inventory pool. The
+              physical sticker on the vehicle will no longer resolve to it when
+              scanned.
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsReplaceStickerConfirmOpen(false)}
+              className="cursor-pointer">
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setIsReplaceStickerConfirmOpen(false);
+                setIsAssignStickerOpen(true);
+              }}
+              className="cursor-pointer">
+              Yes, replace sticker
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -2107,6 +2371,195 @@ export default function TracasClient({
       </Dialog>
 
       {/* MODAL CAMERA SCANNER */}
+      {/* MODAL: EDIT DRIVER PROFILE (System Admin only) */}
+      <Dialog open={isEditDriverOpen} onOpenChange={setIsEditDriverOpen}>
+        <DialogContent className="max-w-2xl bg-card text-foreground border-border max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-bold">
+              <Pencil className="w-5 h-5 text-primary" />
+              Edit Driver Profile
+            </DialogTitle>
+            <DialogDescription>
+              Update {editingDriver?.fullName}&apos;s record. Changes are
+              reflected on their ID card and any Letter of Authority naming
+              them.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdateDriver} className="space-y-4 py-1">
+            {/* Passport photograph */}
+            <div className="flex items-start gap-4">
+              <div className="w-24 h-28 rounded-xl border border-border bg-secondary overflow-hidden flex items-center justify-center flex-shrink-0">
+                {editDriverForm.photoUrl ? (
+                   
+                  <img
+                    src={editDriverForm.photoUrl}
+                    alt={editDriverForm.fullName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-[10px] text-muted-foreground text-center px-2">
+                    No photo
+                  </span>
+                )}
+              </div>
+              <div className="flex-1 space-y-1.5">
+                <Label htmlFor="editDriverPhoto">Passport Photograph</Label>
+                <Input
+                  id="editDriverPhoto"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleEditPhotoChange}
+                  className="cursor-pointer"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  PNG, JPG or WEBP, under 5 MB. Replaces the photo printed on
+                  the ID card.
+                </p>
+                {editDriverForm.photoUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setEditDriverForm((prev) => ({ ...prev, photoUrl: "" }))
+                    }
+                    className="h-7 text-xs text-red-500 hover:text-red-500 cursor-pointer px-0">
+                    Remove photo
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field
+                id="editFullName"
+                label="Full Name *"
+                value={editDriverForm.fullName}
+                onChange={(v) =>
+                  setEditDriverForm((p) => ({ ...p, fullName: v }))
+                }
+                required
+              />
+              <Field
+                id="editPhone"
+                label="Phone Number *"
+                value={editDriverForm.phoneNumber}
+                onChange={(v) =>
+                  setEditDriverForm((p) => ({ ...p, phoneNumber: v }))
+                }
+                required
+              />
+              <Field
+                id="editEmail"
+                label="Email"
+                value={editDriverForm.email}
+                onChange={(v) => setEditDriverForm((p) => ({ ...p, email: v }))}
+              />
+              <Field
+                id="editNin"
+                label="NIN"
+                value={editDriverForm.nin}
+                onChange={(v) => setEditDriverForm((p) => ({ ...p, nin: v }))}
+              />
+              <Field
+                id="editAsin"
+                label="ASIN Number"
+                value={editDriverForm.asinNumber}
+                onChange={(v) =>
+                  setEditDriverForm((p) => ({ ...p, asinNumber: v }))
+                }
+              />
+              <Field
+                id="editLicense"
+                label="Licence Number"
+                value={editDriverForm.licenseNumber}
+                onChange={(v) =>
+                  setEditDriverForm((p) => ({ ...p, licenseNumber: v }))
+                }
+              />
+              <Field
+                id="editLicenseIssue"
+                label="Licence Issue Date"
+                type="date"
+                value={editDriverForm.licenseIssueDate}
+                onChange={(v) =>
+                  setEditDriverForm((p) => ({ ...p, licenseIssueDate: v }))
+                }
+              />
+              <Field
+                id="editLicenseExpiry"
+                label="Licence Expiry Date"
+                type="date"
+                value={editDriverForm.licenseExpiryDate}
+                onChange={(v) =>
+                  setEditDriverForm((p) => ({ ...p, licenseExpiryDate: v }))
+                }
+              />
+              <Field
+                id="editState"
+                label="State of Origin"
+                value={editDriverForm.stateOfOrigin}
+                onChange={(v) =>
+                  setEditDriverForm((p) => ({ ...p, stateOfOrigin: v }))
+                }
+              />
+              <Field
+                id="editLga"
+                label="LGA"
+                value={editDriverForm.lga}
+                onChange={(v) => setEditDriverForm((p) => ({ ...p, lga: v }))}
+              />
+              <div className="sm:col-span-2">
+                <Field
+                  id="editAddress"
+                  label="Residential Address"
+                  value={editDriverForm.residentialAddress}
+                  onChange={(v) =>
+                    setEditDriverForm((p) => ({ ...p, residentialAddress: v }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="editStatus">Status</Label>
+                <Select
+                  value={editDriverForm.status}
+                  onValueChange={(v) =>
+                    setEditDriverForm((p) => ({ ...p, status: v }))
+                  }>
+                  <SelectTrigger id="editStatus">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ACTIVE">Active</SelectItem>
+                    <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                    <SelectItem value="REVOKED">Revoked</SelectItem>
+                    <SelectItem value="EXPIRED">Expired</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditDriverOpen(false)}
+                className="cursor-pointer">
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="cursor-pointer">
+                {isSubmitting ? "Saving..." : "Save changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <StickerQrScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
@@ -2163,6 +2616,36 @@ export default function TracasClient({
           </form>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/** Labelled text/date input used by the driver edit form. */
+function Field({
+  id,
+  label,
+  value,
+  onChange,
+  type = "text",
+  required = false,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  required?: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type={type}
+        value={value}
+        required={required}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </div>
   );
 }

@@ -36,6 +36,33 @@ const NAV_ITEMS: NavItem[] = [
   },
 
   // ── Motor Park Module ──
+  // ── TRACAS Letter Approvals (MD + Commissioner) ──
+  {
+    label: "Letter Approvals",
+    href: "/tracas-approvals",
+    icon: "🖊️",
+    allowedRoles: [
+      "TRACAS_MD",
+      "COMMISSIONER",
+      "SYSTEM_ADMIN",
+      "PERMANENT_SECRETARY",
+    ],
+  },
+
+  // ── Enumeration Module ──
+  {
+    label: "Enumeration",
+    href: "/enumerator",
+    icon: "📋",
+    allowedRoles: [
+      "ENUMERATOR",
+      "SYSTEM_ADMIN",
+      "COMMISSIONER",
+      "PERMANENT_SECRETARY",
+      "HOD_TRANSPORT_OPS",
+    ],
+  },
+
   {
     label: "Motor Parks",
     href: "/motor-parks",
@@ -51,6 +78,7 @@ const NAV_ITEMS: NavItem[] = [
       "FINANCE_OFFICER",
       "EXTERNAL_APPLICANT",
       "SYSTEM_ADMIN",
+      "ENUMERATOR",
     ],
   },
 
@@ -70,6 +98,7 @@ const NAV_ITEMS: NavItem[] = [
       "FINANCE_OFFICER",
       "EXTERNAL_APPLICANT",
       "SYSTEM_ADMIN",
+      "ENUMERATOR",
     ],
   },
 
@@ -85,6 +114,7 @@ const NAV_ITEMS: NavItem[] = [
       "HOD_PARKS",
       "FIELD_INSPECTOR",
       "SYSTEM_ADMIN",
+      "ENUMERATOR",
     ],
   },
 
@@ -113,6 +143,8 @@ const NAV_ITEMS: NavItem[] = [
       "HOD_PARKS",
       "FIELD_INSPECTOR",
       "SYSTEM_ADMIN",
+      "TRACAS_MD",
+      "ENUMERATOR",
     ],
   },
 
@@ -261,6 +293,14 @@ export function DashboardSidebar({
 
   const visibleItems = NAV_ITEMS.filter((item) => {
     if (role === "ICT_OFFICER" && item.href === "/dashboard") {
+      return false;
+    }
+    // Enumerators land on /enumerator instead of the generic dashboard.
+    if (role === "ENUMERATOR" && item.href === "/dashboard") {
+      return false;
+    }
+    // The TRACAS MD lands on her approvals dashboard.
+    if (role === "TRACAS_MD" && item.href === "/dashboard") {
       return false;
     }
     if (item.allowedRoles !== "ALL" && !item.allowedRoles.includes(role)) {

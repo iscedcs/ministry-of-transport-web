@@ -109,6 +109,46 @@ export async function requireHodOrAbove(): Promise<SessionPayload> {
   return requireRole([...EXECUTIVE_ROLES, ...HOD_ROLES, "SYSTEM_ADMIN"]);
 }
 
+// ==================== FLEET (TRACAS / BOATS) PERMISSIONS ====================
+// Defined in lib/fleet-roles.ts so the client dashboards can share them —
+// this module is server-only. Re-exported here for server-side callers.
+
+export {
+  FLEET_WRITE_ROLES,
+  FLEET_VIEW_ROLES,
+  canWriteFleet,
+} from "./fleet-roles";
+
+// ==================== NON-REDIRECTING AUTHORIZATION ====================
+
+export type AuthzResult =
+  | { ok: true; session: SessionPayload }
+  | { ok: false; error: string };
+
+/**
+ * Role check that RETURNS a failure instead of redirecting.
+ *
+ * requireRole() calls redirect(), which is right for pages but wrong for
+ * server actions invoked from a modal — the user gets thrown to /unauthorized
+ * mid-flow instead of seeing a toast. Actions that return
+ * { success, error } shapes should use this.
+ */
+export async function authorize(
+  allowedRoles: UserRole[],
+): Promise<AuthzResult> {
+  const session = await getSessionFromCookie();
+  if (!session) {
+    return { ok: false, error: "You must be signed in to perform this action." };
+  }
+  if (!allowedRoles.includes(session.role)) {
+    return {
+      ok: false,
+      error: "You do not have permission to perform this action.",
+    };
+  }
+  return { ok: true, session };
+}
+
 // ==================== PERMISSION CHECKS ====================
 
 /**
