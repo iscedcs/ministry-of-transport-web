@@ -31,6 +31,7 @@ import {
   addStickerUrlsToPool,
 } from "@/app/actions/boats";
 import { toast } from "sonner";
+import { canWriteFleet } from "@/lib/fleet-roles";
 import {
   Anchor,
   Plus,
@@ -95,6 +96,7 @@ interface BoatsClientProps {
   initialRiders: RiderItem[];
   initialAvailableStickers: StickerItem[];
   initialAllStickers: StickerItem[];
+  currentUserRole: string | null;
 }
 
 export default function BoatsClient({
@@ -102,7 +104,17 @@ export default function BoatsClient({
   initialRiders,
   initialAvailableStickers,
   initialAllStickers,
+  currentUserRole,
 }: BoatsClientProps) {
+  /** Rider reassignment and sticker inventory loading are System Admin only. */
+  const isSystemAdmin = currentUserRole === "SYSTEM_ADMIN";
+  /**
+   * Creating or modifying fleet records is the Enumerator's job; everyone
+   * else with visibility is read-only. Changing or removing an existing rider
+   * remains System Admin only.
+   */
+  const canWrite = canWriteFleet(currentUserRole);
+  const canAssignRider = canWrite;
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"boats" | "stickers" | "riders">(
     "boats",
@@ -114,6 +126,8 @@ export default function BoatsClient({
   const [isOnboardRiderOpen, setIsOnboardRiderOpen] = useState(false);
   const [isReassignRiderOpen, setIsReassignRiderOpen] = useState(false);
   const [isAssignStickerOpen, setIsAssignStickerOpen] = useState(false);
+  const [isReplaceStickerConfirmOpen, setIsReplaceStickerConfirmOpen] =
+    useState(false);
   const [isAddStickersOpen, setIsAddStickersOpen] = useState(false);
 
   // Form states
@@ -340,6 +354,7 @@ export default function BoatsClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {canWrite && (
           <Button
             onClick={() => setIsOnboardRiderOpen(true)}
             variant="outline"
@@ -347,19 +362,30 @@ export default function BoatsClient({
             <UserPlus className="w-4 h-4 mr-1.5 text-primary" />
             Add Rider
           </Button>
+          )}
 
-          <Button
-            onClick={() => setIsAddStickersOpen(true)}
-            variant="outline"
-            size="sm">
-            <Tag className="w-4 h-4 mr-1.5 text-warning" />
-            Pre-Load Stickers
-          </Button>
+          {isSystemAdmin && (
+            <Button
+              onClick={() => setIsAddStickersOpen(true)}
+              variant="outline"
+              size="sm">
+              <Tag className="w-4 h-4 mr-1.5 text-warning" />
+              Pre-Load Stickers
+            </Button>
+          )}
 
-          <Button onClick={() => setIsOnboardBoatOpen(true)} size="sm">
-            <Plus className="w-4 h-4 mr-1.5" />
-            Onboard Boat
-          </Button>
+          {canWrite && (
+            <Button onClick={() => setIsOnboardBoatOpen(true)} size="sm">
+              <Plus className="w-4 h-4 mr-1.5" />
+              Onboard Boat
+            </Button>
+          )}
+
+          {!canWrite && (
+            <span className="text-xs text-muted-foreground font-medium px-3 py-2 rounded-lg bg-secondary">
+              View-only access
+            </span>
+          )}
         </div>
       </div>
 
@@ -565,30 +591,53 @@ export default function BoatsClient({
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right space-x-2">
+                        {canWrite && (
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => {
                             setSelectedBoatForSticker(boat);
                             setAssignStickerId(boat.sticker?.id || "none");
-                            setIsAssignStickerOpen(true);
+                            // A boat already carrying a sticker must be
+                            // confirmed before the binding modal opens.
+                            if (boat.sticker) {
+                              setIsReplaceStickerConfirmOpen(true);
+                            } else {
+                              setIsAssignStickerOpen(true);
+                            }
                           }}
                           className="h-8 text-xs my-2 border-border">
-                          <Tag className="w-3 h-3 mr-1 text-amber-400" />
-                          {boat.sticker ? "Change Sticker" : "Assign Sticker"}
+                          {boat.sticker ? (
+                            <>
+                              <RefreshCw className="w-3 h-3 mr-1 text-amber-400" />
+                              Replace Sticker
+                            </>
+                          ) : (
+                            <>
+                              <Tag className="w-3 h-3 mr-1 text-amber-400" />
+                              Assign Sticker
+                            </>
+                          )}
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setSelectedBoatForReassign(boat);
-                            setReassignRiderId(boat.assignedRiderId || "none");
-                            setIsReassignRiderOpen(true);
-                          }}
-                          className="h-8 text-xs border-border">
-                          <RefreshCw className="w-3 h-3 mr-1 text-primary" />
-                          Reassign Rider
-                        </Button>
+                        )}
+                        {(boat.assignedRiderId
+                          ? isSystemAdmin
+                          : canAssignRider) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedBoatForReassign(boat);
+                              setReassignRiderId(boat.assignedRiderId || "none");
+                              setIsReassignRiderOpen(true);
+                            }}
+                            className="h-8 text-xs border-border">
+                            <RefreshCw className="w-3 h-3 mr-1 text-primary" />
+                            {boat.assignedRiderId
+                              ? "Reassign Rider"
+                              : "Assign Rider"}
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"
@@ -692,10 +741,12 @@ export default function BoatsClient({
                 QR Sticker URLs provided by vendor waiting to be bound to boats.
               </p>
             </div>
-            <Button size="sm" onClick={() => setIsAddStickersOpen(true)}>
-              <Plus className="w-3.5 h-3.5 mr-1" />
-              Pre-Load Stickers
-            </Button>
+            {isSystemAdmin && (
+              <Button size="sm" onClick={() => setIsAddStickersOpen(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Pre-Load Stickers
+              </Button>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -1053,7 +1104,10 @@ export default function BoatsClient({
                     <SelectValue placeholder="Select rider" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover border-border">
-                    <SelectItem value="none">Unassign Driver</SelectItem>
+                    {/* Removing an existing rider is a System Admin action. */}
+                    {isSystemAdmin ? (
+                      <SelectItem value="none">Unassign Rider</SelectItem>
+                    ) : null}
                     {initialRiders.map((r) => (
                       <SelectItem key={r.id} value={r.id}>
                         {r.fullName} ({r.licenseNumber})
@@ -1076,6 +1130,60 @@ export default function BoatsClient({
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modal: Confirm Sticker Replacement ──
+          Gate in front of the binding modal. The boat's current sticker is
+          physically applied to the hull, so replacing it retires that code. */}
+      <Dialog
+        open={isReplaceStickerConfirmOpen}
+        onOpenChange={setIsReplaceStickerConfirmOpen}>
+        <DialogContent className="sm:max-w-md bg-popover border-border text-popover-foreground">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <RefreshCw className="w-5 h-5 text-amber-400" />
+              <span>Replace Boat Sticker?</span>
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              <strong>{selectedBoatForSticker?.name}</strong> (
+              {selectedBoatForSticker?.registrationNumber}) already has a
+              sticker bound.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-3.5 my-2 space-y-1.5">
+            <p className="text-xs font-bold uppercase tracking-wide text-amber-400">
+              Currently bound
+            </p>
+            <p className="text-sm font-mono font-semibold text-foreground break-all">
+              {selectedBoatForSticker?.sticker?.stickerCode ||
+                selectedBoatForSticker?.sticker?.stickerUrl ||
+                "—"}
+            </p>
+            <p className="text-xs text-muted-foreground pt-1">
+              Replacing releases this sticker back to the inventory pool. The
+              physical sticker on the boat will no longer resolve to it when
+              scanned.
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsReplaceStickerConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setIsReplaceStickerConfirmOpen(false);
+                setIsAssignStickerOpen(true);
+              }}>
+              Yes, replace sticker
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

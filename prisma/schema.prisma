@@ -37,6 +37,17 @@ enum UserRole {
   PARK_MONITOR // Field staff who monitor parks and transit operations
   SYSTEM_ADMIN // Platform administration (internal)
   ICT_OFFICER // ICT Officer — Printing Center (ID cards, letters of authority, permits)
+  ENUMERATOR // Field enumeration — onboards vehicles & drivers across all modules
+  TRACAS_MD // Ag. MD/CEO, Transport Company of Anambra State — first-stage letter approval
+}
+
+/// Approval chain for a TRACAS Letter of Authority.
+/// Enumerator onboards → MD signs → Commissioner signs → ICT prints.
+enum LetterApprovalStatus {
+  PENDING_MD_APPROVAL // Onboarded; awaiting Ag. MD/CEO
+  PENDING_COMMISSIONER_APPROVAL // MD signed; awaiting Commissioner
+  APPROVED // Both signatures applied — printable
+  DECLINED // Rejected at either stage; returns to the enumerator
 }
 
 enum ApplicationStatus {
@@ -1467,6 +1478,19 @@ model TracasVehicle {
   authorityExpiryDate DateTime?
   status              PermitStatus @default(ACTIVE)
 
+  // ── Letter of Authority approval chain ──
+  // Existing rows adopt the default, so vehicles onboarded before this flow
+  // enter at the MD's desk rather than being grandfathered as approved.
+  letterStatus                 LetterApprovalStatus @default(PENDING_MD_APPROVAL)
+  mdApprovedAt                 DateTime?
+  mdApprovedByUserId           String?
+  commissionerApprovedAt       DateTime?
+  commissionerApprovedByUserId String?
+  declinedAt                   DateTime?
+  declinedByUserId             String?
+  declinedAtStage              String?              @db.VarChar(40) // "MD" | "COMMISSIONER"
+  declineReason                String?              @db.Text
+
   assignedDriverId String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -1480,6 +1504,7 @@ model TracasVehicle {
   @@index([assignedDriverId])
   @@index([status])
   @@index([enrollmentType])
+  @@index([letterStatus])
 }
 
 model TracasDriver {

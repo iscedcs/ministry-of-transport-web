@@ -23,16 +23,30 @@ import { Pagination } from "@/components/ui/pagination";
 import { fmtDateTimeShort as fmt } from "@/lib/utils/format";
 import { getActionBadgeClass as actionBadgeClass } from "@/lib/utils/labels";
 
+/**
+ * Must match the entityType values actually written by the audit calls —
+ * these are compared with exact equality. The previous list used PascalCase
+ * ("MotorPark", "MassTransitCompany", "Inspection") and included "Payment",
+ * none of which are ever written, so those filters always came back empty.
+ */
 const ENTITY_TYPES = [
   "User",
-  "MotorPark",
-  "MassTransitCompany",
-  "Payment",
+  "Document",
+  "MOTOR_PARK",
+  "MASS_TRANSIT",
+  "INSPECTION",
+  "PARK_MONITOR_APP",
+  "TRACAS_VEHICLE",
+  "TRACAS_DRIVER",
+  "TRACAS_STICKER",
+  "BOAT",
+  "BOAT_RIDER",
+  "BOAT_STICKER",
   "FeeSchedule",
   "SystemConfiguration",
-  "Inspection",
 ];
 
+/** Matched as a prefix against the stored action (see listAuditLogs). */
 const ACTION_PREFIXES = [
   "STAFF_ACCOUNT",
   "FEE_SCHEDULE",
@@ -43,6 +57,10 @@ const ACTION_PREFIXES = [
   "INSPECTION",
   "PERMIT",
   "REVOKE",
+  "TRACAS_VEHICLE",
+  "TRACAS_DRIVER",
+  "TRACAS_STICKER",
+  "BOAT",
 ];
 
 interface PageProps {

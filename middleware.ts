@@ -73,9 +73,24 @@ const MINISTRY_ROLES = [
   "VEHICLE_INSPECTION_OFFICER",
   "SYSTEM_ADMIN",
   "ICT_OFFICER",
+  "ENUMERATOR",
+  "TRACAS_MD",
 ];
 
 const EXECUTIVE_ROLES = ["COMMISSIONER", "PERMANENT_SECRETARY"];
+
+/**
+ * Enumerators are field data-entry staff: they onboard vehicles and drivers
+ * across TRACAS, Boats, Motor Parks and Mass Transit, but have no business in
+ * administration, revenue, or the approval chain. Ministry-only guards below
+ * admit every staff role, so the enumerator's ceiling is set explicitly.
+ */
+const ENUMERATOR_DENIED_PREFIXES = [
+  "/admin/",
+  "/payments/",
+  "/payment/",
+  "/inspections/",
+];
 
 // ==================== MIDDLEWARE ====================
 
@@ -123,6 +138,14 @@ export async function middleware(request: NextRequest) {
     if (!MINISTRY_ROLES.includes(session.role)) {
       return NextResponse.redirect(new URL("/unauthorized", request.url));
     }
+  }
+
+  // 7. Role guards — Enumerator ceiling
+  if (
+    session.role === "ENUMERATOR" &&
+    ENUMERATOR_DENIED_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  ) {
+    return NextResponse.redirect(new URL("/unauthorized", request.url));
   }
 
   // 7. Refresh session (sliding expiry) — updates cookie on every authenticated request

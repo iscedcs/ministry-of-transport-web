@@ -25,6 +25,14 @@ export interface LetterVehicleData {
   particularsExpiryDate?: Date | string | null;
   authorityIssueDate?: Date | string | null;
   authorityExpiryDate?: Date | string | null;
+  letterStatus?:
+    | "PENDING_MD_APPROVAL"
+    | "PENDING_COMMISSIONER_APPROVAL"
+    | "APPROVED"
+    | "DECLINED"
+    | null;
+  mdApprovedAt?: Date | string | null;
+  commissionerApprovedAt?: Date | string | null;
   assignedDriver?: {
     id: string;
     fullName: string;
@@ -39,11 +47,25 @@ export interface LetterVehicleData {
 export function LetterOfAuthorityDocument({
   vehicle,
   showActions = true,
+  signatures,
 }: {
   vehicle: LetterVehicleData;
   showActions?: boolean;
+  /**
+   * Base64 signature images, supplied by the authenticated server route.
+   * Deliberately passed in rather than imported here so they never reach a
+   * public bundle — see lib/signatures.ts.
+   */
+  signatures?: { commissioner: string; tracasMd: string };
 }) {
   const driver = vehicle.assignedDriver;
+
+  // A signature only appears once that office has actually signed.
+  const status = vehicle.letterStatus ?? "PENDING_MD_APPROVAL";
+  const mdSigned =
+    status === "PENDING_COMMISSIONER_APPROVAL" || status === "APPROVED";
+  const commissionerSigned = status === "APPROVED";
+  const isDraft = status !== "APPROVED";
 
   const baseUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
@@ -211,6 +233,20 @@ export function LetterOfAuthorityDocument({
               padding: 6px 12px !important;
             }
 
+            /* Signature images and the draft watermark must survive to paper */
+            #letter-of-authority-sheet [data-lp="sig-img"],
+            #letter-of-authority-sheet [data-lp="watermark"] {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            #letter-of-authority-sheet [data-lp="sig-img"] {
+              max-height: 56px !important;
+            }
+            #letter-of-authority-sheet [data-lp="approval-trail"] {
+              margin-top: 6px !important;
+              padding-top: 4px !important;
+            }
+
             /* Keep the emerald footer bar and coloured headings in the PDF */
             #letter-of-authority-sheet [data-lp="footer"],
             #letter-of-authority-sheet [data-lp="header"] h1,
@@ -249,6 +285,19 @@ export function LetterOfAuthorityDocument({
         id="letter-of-authority-sheet"
         className="w-full max-w-[800px] min-h-[1050px] bg-white text-slate-900 font-serif border border-slate-300 p-8 sm:p-12 shadow-2xl relative flex flex-col justify-between print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-none print:w-full print:min-h-0"
         style={{ fontFamily: "'Times New Roman', Times, serif" }}>
+        {/* Draft watermark — an unsigned letter must never be mistakable for
+            an executed one, on screen or on paper. */}
+        {isDraft && (
+          <div
+            data-lp="watermark"
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-10">
+            <span className="rotate-[-30deg] text-[64px] sm:text-[86px] font-black uppercase tracking-widest text-red-600/12 border-[6px] border-red-600/12 px-8 py-3 rounded-2xl whitespace-nowrap">
+              {status === "DECLINED" ? "Declined" : "Draft — Not Valid"}
+            </span>
+          </div>
+        )}
+
         {/* Main Upper Content Wrapper */}
         <div className="flex-1 flex flex-col justify-start">
           {/* Header Block */}
@@ -507,10 +556,19 @@ export function LetterOfAuthorityDocument({
           <div className="flex flex-col items-start">
             <div
               data-lp="sig-line"
-              className="h-12 w-36 border-b border-dashed border-slate-400 flex items-end justify-center mb-2">
-              <span className="text-slate-400 font-mono text-[10px] italic mb-1">
-                [DIGITAL SIGNATURE]
-              </span>
+              className="h-12 w-36 border-b border-dashed border-slate-400 flex items-end justify-center mb-2 relative">
+              {commissionerSigned && signatures?.commissioner ? (
+                <img
+                  src={signatures.commissioner}
+                  alt="Commissioner signature"
+                  data-lp="sig-img"
+                  className="absolute bottom-0 left-1/2 -translate-x-1/2 max-h-[52px] w-auto object-contain"
+                />
+              ) : (
+                <span className="text-slate-400 font-mono text-[10px] italic mb-1">
+                  [AWAITING SIGNATURE]
+                </span>
+              )}
             </div>
             <p className="font-bold text-slate-950 text-sm sm:text-base">
               Hon. Edward Obiefuna Ibuzo
@@ -525,10 +583,19 @@ export function LetterOfAuthorityDocument({
           <div className="flex flex-col items-end text-right">
             <div
               data-lp="sig-line"
-              className="h-12 w-36 border-b border-dashed border-slate-400 flex items-end justify-center mb-2">
-              <span className="text-slate-400 font-mono text-[10px] italic mb-1">
-                [DIGITAL SIGNATURE]
-              </span>
+              className="h-12 w-36 border-b border-dashed border-slate-400 flex items-end justify-center mb-2 relative">
+              {mdSigned && signatures?.tracasMd ? (
+                <img
+                  src={signatures.tracasMd}
+                  alt="Ag. MD/CEO signature"
+                  data-lp="sig-img"
+                  className="absolute bottom-0 left-1/2 -translate-x-1/2 max-h-[52px] w-auto object-contain"
+                />
+              ) : (
+                <span className="text-slate-400 font-mono text-[10px] italic mb-1">
+                  [AWAITING SIGNATURE]
+                </span>
+              )}
             </div>
             <p className="font-bold text-slate-950 text-sm sm:text-base">
               Okeke Njideka
@@ -539,6 +606,28 @@ export function LetterOfAuthorityDocument({
         </div>
 
         {/* Bottom Bar Accent */}
+        {/* Approval trail */}
+        <div
+          data-lp="approval-trail"
+          className="mt-3 pt-2 border-t border-slate-200 font-sans text-[9px] text-slate-500 flex flex-wrap gap-x-4 gap-y-0.5">
+          <span>
+            MD approval:{" "}
+            <strong className="text-slate-700">
+              {vehicle.mdApprovedAt
+                ? formatDateStr(vehicle.mdApprovedAt)
+                : "pending"}
+            </strong>
+          </span>
+          <span>
+            Commissioner approval:{" "}
+            <strong className="text-slate-700">
+              {vehicle.commissionerApprovedAt
+                ? formatDateStr(vehicle.commissionerApprovedAt)
+                : "pending"}
+            </strong>
+          </span>
+        </div>
+
         <div
           data-lp="footer"
           className="mt-8 -mx-8 sm:-mx-12 -mb-8 sm:-mb-12 bg-emerald-800 text-white text-center py-2.5 px-4 font-sans text-xs font-semibold tracking-wide print:-mx-0 print:-mb-0">

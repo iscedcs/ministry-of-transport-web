@@ -2,6 +2,8 @@
 
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { authorize, FLEET_WRITE_ROLES } from "@/lib/auth";
+import { recordAudit } from "@/lib/audit";
 
 export interface OnboardBoatInput {
   name: string;
@@ -24,6 +26,12 @@ export interface OnboardRiderInput {
 
 export async function addStickerUrlsToPool(inputUrls: string[]) {
   try {
+    // Loading the sticker inventory is a System Admin action.
+    const authz = await authorize(["SYSTEM_ADMIN"]);
+    if (!authz.ok) {
+      return { success: false, error: authz.error };
+    }
+
     const urls = inputUrls
       .map((u) => u.trim())
       .filter((u) => u.length > 0);
@@ -48,6 +56,14 @@ export async function addStickerUrlsToPool(inputUrls: string[]) {
       });
       addedCount++;
     }
+
+    await recordAudit({
+      action: "BOAT_STICKER_POOL_IMPORTED",
+      entityType: "BOAT_STICKER",
+      entityId: "pool",
+      changeDescription: `Pre-loaded ${addedCount} sticker(s) into the boat inventory pool`,
+      newValues: { count: addedCount },
+    });
 
     revalidatePath("/boats");
     return { success: true, count: addedCount };
@@ -105,6 +121,10 @@ async function generateUniqueSecurityCode(): Promise<string> {
 
 export async function onboardBoat(input: OnboardBoatInput) {
   try {
+    // Onboarding is the Enumerator's job; other staff are read-only.
+    const authz = await authorize(FLEET_WRITE_ROLES);
+    if (!authz.ok) return { success: false, error: authz.error };
+
     if (!input.name || !input.registrationNumber) {
       return { success: false, error: "Boat name and registration number are required." };
     }
@@ -141,6 +161,20 @@ export async function onboardBoat(input: OnboardBoatInput) {
       });
     }
 
+    await recordAudit({
+      action: "BOAT_ONBOARDED",
+      entityType: "BOAT",
+      entityId: boat.id,
+      changeDescription: `Onboarded boat ${boat.name} (${boat.registrationNumber})`,
+      newValues: {
+        name: boat.name,
+        registrationNumber: boat.registrationNumber,
+        boatType: boat.boatType,
+        securityCode: boat.securityCode,
+        assignedRiderId: boat.assignedRiderId,
+      },
+    });
+
     revalidatePath("/boats");
     return { success: true, data: boat };
   } catch (error: any) {
@@ -150,6 +184,15 @@ export async function onboardBoat(input: OnboardBoatInput) {
 }
 export async function assignStickerToBoat(boatId: string, stickerId: string) {
   try {
+    // Sticker binding is part of onboarding.
+    const authz = await authorize(FLEET_WRITE_ROLES);
+    if (!authz.ok) return { success: false, error: authz.error };
+
+    const previousSticker = await db.boatSticker.findFirst({
+      where: { assignedBoatId: boatId },
+      select: { stickerCode: true },
+    });
+
     // Unassign any currently assigned sticker on this boat
     await db.boatSticker.updateMany({
       where: { assignedBoatId: boatId },
@@ -167,6 +210,20 @@ export async function assignStickerToBoat(boatId: string, stickerId: string) {
       });
     }
 
+    const bound = stickerId && stickerId !== "none";
+    await recordAudit({
+      action: bound ? "BOAT_STICKER_BOUND" : "BOAT_STICKER_UNBOUND",
+      entityType: "BOAT",
+      entityId: boatId,
+      changeDescription: bound
+        ? `Bound sticker to boat ${boatId}`
+        : `Unbound sticker from boat ${boatId}`,
+      oldValues: previousSticker?.stickerCode
+        ? { stickerCode: previousSticker.stickerCode }
+        : undefined,
+      newValues: bound ? { stickerId } : null,
+    });
+
     revalidatePath("/boats");
     return { success: true };
   } catch (error: any) {
@@ -177,6 +234,10 @@ export async function assignStickerToBoat(boatId: string, stickerId: string) {
 
 export async function onboardRider(input: OnboardRiderInput) {
   try {
+    // Rider enumeration is the Enumerator's job.
+    const authz = await authorize(FLEET_WRITE_ROLES);
+    if (!authz.ok) return { success: false, error: authz.error };
+
     if (!input.fullName || !input.phoneNumber) {
       return { success: false, error: "Full name and phone number are required." };
     }
@@ -199,6 +260,18 @@ export async function onboardRider(input: OnboardRiderInput) {
       },
     });
 
+    await recordAudit({
+      action: "BOAT_RIDER_ONBOARDED",
+      entityType: "BOAT_RIDER",
+      entityId: rider.id,
+      changeDescription: `Enumerated boat rider ${rider.fullName}`,
+      newValues: {
+        fullName: rider.fullName,
+        phoneNumber: rider.phoneNumber,
+        licenseNumber: rider.licenseNumber,
+      },
+    });
+
     revalidatePath("/boats");
     return { success: true, data: rider };
   } catch (error: any) {
@@ -209,12 +282,70 @@ export async function onboardRider(input: OnboardRiderInput) {
 
 export async function reassignRider(boatId: string, riderId: string | null) {
   try {
+    // Mirrors the TRACAS driver rule: attaching a rider to a boat that has
+    // none is part of onboarding and follows the fleet write roles; moving or
+    // removing an existing rider stays System Admin only.
+    const current = await db.boat.findUnique({
+      where: { id: boatId },
+      select: { assignedRiderId: true, registrationNumber: true },
+    });
+    if (!current) {
+      return { success: false, error: "Boat not found." };
+    }
+
+    const isInitialAssignment = !current.assignedRiderId && !!riderId;
+
+    const authz = await authorize(
+      isInitialAssignment ? FLEET_WRITE_ROLES : ["SYSTEM_ADMIN"],
+    );
+    if (!authz.ok) {
+      return {
+        success: false,
+        error: isInitialAssignment
+          ? authz.error
+          : "Only a System Admin can reassign or remove a boat rider.",
+      };
+    }
+
+    // A rider may only hold one boat at a time.
+    if (riderId) {
+      const conflict = await db.boat.findFirst({
+        where: { assignedRiderId: riderId, id: { not: boatId } },
+        select: { name: true, registrationNumber: true },
+      });
+      if (conflict) {
+        return {
+          success: false,
+          error: `That rider is already assigned to ${conflict.name} (${conflict.registrationNumber}). Unassign them there first.`,
+        };
+      }
+    }
+
     const boat = await db.boat.update({
       where: { id: boatId },
       data: {
         assignedRiderId: riderId || null,
       },
       include: { assignedRider: true },
+    });
+
+    await recordAudit({
+      action: !riderId
+        ? "BOAT_RIDER_UNASSIGNED"
+        : isInitialAssignment
+          ? "BOAT_RIDER_ASSIGNED"
+          : "BOAT_RIDER_REASSIGNED",
+      entityType: "BOAT",
+      entityId: boatId,
+      changeDescription: `Rider ${
+        !riderId
+          ? "removed from"
+          : isInitialAssignment
+            ? "assigned to"
+            : "reassigned on"
+      } ${current.registrationNumber}`,
+      oldValues: { assignedRiderId: current.assignedRiderId },
+      newValues: { assignedRiderId: riderId },
     });
 
     revalidatePath("/boats");

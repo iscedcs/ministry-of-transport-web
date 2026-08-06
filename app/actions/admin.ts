@@ -269,9 +269,12 @@ export async function listAuditLogs(
 ): Promise<ActionResult<{ logs: AuditLogEntry[]; total: number }>> {
   await requireRole(["COMMISSIONER", "PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
 
+  // `action` is filtered by prefix: the UI offers families like
+  // "TRACAS_VEHICLE" while stored actions are specific
+  // ("TRACAS_VEHICLE_ONBOARDED"). An exact match would return nothing.
   const where = {
     ...(entityType ? { entityType } : {}),
-    ...(action ? { action } : {}),
+    ...(action ? { action: { startsWith: action } } : {}),
   };
 
   const [logs, total] = await Promise.all([
