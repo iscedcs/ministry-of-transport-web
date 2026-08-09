@@ -93,9 +93,12 @@ export function LetterOfAuthorityDocument({
     }
   };
 
-  // Expiration rule: Based on when the driver's license is expiring
+  // Expiry rule: the authority runs to the vehicle's PARTICULARS expiry, not
+  // the driver's licence expiry — the letter authorises the vehicle, and a
+  // driver can be reassigned without the authority lapsing.
   const getAuthorityExpiryFormatted = () => {
-    const rawExpiry = driver?.licenseExpiryDate || vehicle.authorityExpiryDate;
+    const rawExpiry =
+      vehicle.particularsExpiryDate || vehicle.authorityExpiryDate;
     if (!rawExpiry || rawExpiry === "PERPETUAL") return "N/A";
     try {
       const d = new Date(rawExpiry);

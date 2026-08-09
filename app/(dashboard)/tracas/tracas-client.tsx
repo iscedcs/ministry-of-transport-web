@@ -190,8 +190,11 @@ export default function TracasClient({
     fleetNumber: "",
     category: "BUS",
     customType: "",
-    ownershipType: "GOVERNMENT_OWNED",
-    enrollmentType: "EXISTING",
+    capacity: "",
+    // Deliberately blank: pre-selecting these let an enumerator skip past them
+    // and land a private vehicle on a government FT number.
+    ownershipType: "",
+    enrollmentType: "",
     ownerName: "",
     ownerPhone: "",
     ownerAddress: "",
@@ -466,6 +469,24 @@ export default function TracasClient({
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      if (!vehicleForm.enrollmentType) {
+        toast.error("Select an Enrolment Status before onboarding.");
+        setIsSubmitting(false);
+        return;
+      }
+      if (!vehicleForm.ownershipType) {
+        toast.error("Select a Vehicle Ownership Type before onboarding.");
+        setIsSubmitting(false);
+        return;
+      }
+      if (!vehicleForm.particularsIssueDate || !vehicleForm.particularsExpiryDate) {
+        toast.error(
+          "Particulars Issue and Expiry dates are required — the letter expiry is taken from them.",
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
       const finalCategory = vehicleForm.customType.trim()
         ? vehicleForm.customType.trim()
         : vehicleForm.category;
@@ -473,6 +494,7 @@ export default function TracasClient({
       const res = await onboardTracasVehicle({
         ...vehicleForm,
         category: finalCategory,
+        capacity: vehicleForm.capacity || undefined,
         assignedDriverId:
           vehicleForm.assignedDriverId === "NONE"
             ? undefined
@@ -489,8 +511,9 @@ export default function TracasClient({
           fleetNumber: "",
           category: "BUS",
           customType: "",
-          ownershipType: "GOVERNMENT_OWNED",
-          enrollmentType: "EXISTING",
+          capacity: "",
+          ownershipType: "",
+          enrollmentType: "",
           ownerName: "",
           ownerPhone: "",
           ownerAddress: "",
@@ -1404,7 +1427,7 @@ export default function TracasClient({
                     setVehicleForm({ ...vehicleForm, ownershipType: val })
                   }>
                   <SelectTrigger id="ownershipType">
-                    <SelectValue />
+                    <SelectValue placeholder="Select ownership type..." />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="GOVERNMENT_OWNED">
@@ -1513,6 +1536,7 @@ export default function TracasClient({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="BUS">Bus</SelectItem>
+                    <SelectItem value="SHUTTLE_BUS">Shuttle Bus</SelectItem>
                     <SelectItem value="MINIBUS">Minibus</SelectItem>
                     <SelectItem value="SIENNA">Sienna / MPV</SelectItem>
                     <SelectItem value="COASTER">Coaster Bus</SelectItem>
@@ -1545,6 +1569,24 @@ export default function TracasClient({
                     })
                   }
                   required={vehicleForm.category === "OTHER"}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Descriptive only — record seat count in Vehicle Capacity.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="capacity">Vehicle Capacity (seats)</Label>
+                <Input
+                  id="capacity"
+                  type="number"
+                  min={1}
+                  max={200}
+                  placeholder="e.g. 18"
+                  value={vehicleForm.capacity}
+                  onChange={(e) =>
+                    setVehicleForm({ ...vehicleForm, capacity: e.target.value })
+                  }
                 />
               </div>
 
@@ -1644,7 +1686,7 @@ export default function TracasClient({
 
               <div className="space-y-1.5">
                 <Label htmlFor="particularsIssueDate">
-                  Particulars Issue Date
+                  Particulars Issue Date *
                 </Label>
                 <Input
                   id="particularsIssueDate"
@@ -1656,12 +1698,13 @@ export default function TracasClient({
                       particularsIssueDate: e.target.value,
                     })
                   }
+                  required
                 />
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="particularsExpiryDate">
-                  Particulars Expiry Date
+                  Particulars Expiry Date *
                 </Label>
                 <Input
                   id="particularsExpiryDate"
@@ -1673,6 +1716,7 @@ export default function TracasClient({
                       particularsExpiryDate: e.target.value,
                     })
                   }
+                  required
                 />
               </div>
 
