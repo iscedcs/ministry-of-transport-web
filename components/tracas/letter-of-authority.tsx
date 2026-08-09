@@ -6,6 +6,9 @@ import { ArrowLeft, Printer } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 
+/** Official contact address printed on the Ministry letterhead. */
+const MINISTRY_EMAIL = "mot@anambrastate.gov.ng";
+
 export interface LetterVehicleData {
   id: string;
   registrationNumber: string;
@@ -166,55 +169,64 @@ export function LetterOfAuthorityDocument({
               left: 0 !important;
               width: 100% !important;
               max-width: none !important;
-              min-height: 274mm !important;
+              min-height: 265mm !important;
               height: auto !important;
               display: flex !important;
               flex-direction: column !important;
               justify-content: space-between !important;
               margin: 0 !important;
-              padding: 0 !important;
+              padding: 26px 20px 0 20px !important;
               border: none !important;
               box-shadow: none !important;
               box-sizing: border-box !important;
               break-inside: avoid !important;
               page-break-inside: avoid !important;
-              font-size: 11.5pt !important;
-              line-height: 1.35 !important;
+              font-size: 10pt !important;
+              line-height: 1.28 !important;
             }
 
             /* ── Vertical compaction ─────────────────────────────────── */
-            #letter-of-authority-sheet [data-lp="header"] {
-              padding-bottom: 6px !important;
-              margin-bottom: 6px !important;
+            #letter-of-authority-sheet [data-lp="letterhead"] {
+              margin-bottom: 4px !important;
             }
-            #letter-of-authority-sheet [data-lp="header"] img {
-              width: 52px !important;
-              height: 52px !important;
+            #letter-of-authority-sheet [data-lp="lh-title"] {
+              font-size: 13.5pt !important;
+            }
+            #letter-of-authority-sheet [data-lp="lh-subtitle"] {
+              font-size: 11pt !important;
+              margin-top: 0 !important;
+            }
+            #letter-of-authority-sheet [data-lp="lh-crest"] {
+              width: 56px !important;
+              height: 56px !important;
+            }
+            #letter-of-authority-sheet [data-lp="lh-fields"] {
+              margin-top: 6px !important;
             }
             #letter-of-authority-sheet [data-lp="ref-row"] {
-              margin-top: 6px !important;
-              margin-bottom: 6px !important;
+              margin-top: 2px !important;
+              margin-bottom: 2px !important;
             }
             #letter-of-authority-sheet [data-lp="qr"] {
-              width: 84px !important;
-              height: 84px !important;
+              width: 70px !important;
+              height: 70px !important;
             }
             #letter-of-authority-sheet [data-lp="photo"] {
-              width: 84px !important;
-              height: 100px !important;
+              width: 70px !important;
+              height: 84px !important;
             }
             #letter-of-authority-sheet [data-lp="title"] {
-              margin-top: 6px !important;
-              margin-bottom: 6px !important;
+              margin-top: 2px !important;
+              margin-bottom: 4px !important;
             }
             #letter-of-authority-sheet [data-lp="title"] h2 {
               font-size: 15pt !important;
             }
             #letter-of-authority-sheet [data-lp="body"] > * + * {
-              margin-top: 6px !important;
+              margin-top: 4px !important;
             }
             #letter-of-authority-sheet [data-lp="particulars"] > * + * {
-              margin-top: 3px !important;
+              margin-top: 1px !important;
             }
             #letter-of-authority-sheet [data-lp="particulars"] {
               padding-top: 2px !important;
@@ -225,15 +237,21 @@ export function LetterOfAuthorityDocument({
                generous rule for a real pen signature. */
             #letter-of-authority-sheet [data-lp="signatures"] {
               margin-top: auto !important;
-              padding-top: 28px !important;
+              padding-top: 12px !important;
             }
             #letter-of-authority-sheet [data-lp="signatures"] [data-lp="sig-line"] {
-              height: 64px !important;
+              height: 42px !important;
               width: 200px !important;
             }
+            #letter-of-authority-sheet [data-lp="frame"] {
+              inset: 6px !important;
+              border-radius: 30px !important;
+            }
             #letter-of-authority-sheet [data-lp="footer"] {
-              margin: 10px 0 0 0 !important;
-              padding: 6px 12px !important;
+              margin: 8px -14px 6px -14px !important;
+              padding: 4px 12px !important;
+              border-radius: 0 0 28px 28px !important;
+              font-size: 8.5pt !important;
             }
 
             /* Signature images and the draft watermark must survive to paper */
@@ -245,6 +263,10 @@ export function LetterOfAuthorityDocument({
             #letter-of-authority-sheet [data-lp="sig-img"] {
               max-height: 56px !important;
             }
+            #letter-of-authority-sheet [data-lp="ref-row"] img[alt="Tracas Official Logo"] {
+              width: 68px !important;
+              height: 34px !important;
+            }
             #letter-of-authority-sheet [data-lp="approval-trail"] {
               margin-top: 6px !important;
               padding-top: 4px !important;
@@ -252,8 +274,9 @@ export function LetterOfAuthorityDocument({
 
             /* Keep the emerald footer bar and coloured headings in the PDF */
             #letter-of-authority-sheet [data-lp="footer"],
-            #letter-of-authority-sheet [data-lp="header"] h1,
-            #letter-of-authority-sheet [data-lp="header"] h2 {
+            #letter-of-authority-sheet [data-lp="frame"],
+            #letter-of-authority-sheet [data-lp="lh-title"],
+            #letter-of-authority-sheet [data-lp="lh-subtitle"] {
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
             }
@@ -288,6 +311,23 @@ export function LetterOfAuthorityDocument({
         id="letter-of-authority-sheet"
         className="w-full max-w-[800px] min-h-[1050px] bg-white text-slate-900 font-serif border border-slate-300 p-8 sm:p-12 shadow-2xl relative flex flex-col justify-between print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-none print:w-full print:min-h-0"
         style={{ fontFamily: "'Times New Roman', Times, serif" }}>
+        {/* Rounded frame, as on the pre-printed sheet. Drawn as an overlay so
+            it traces the page edge without disturbing content flow. The top
+            edge is interrupted by the heading, which sits on it. */}
+        <div
+          data-lp="frame"
+          className="pointer-events-none absolute inset-3 sm:inset-5 rounded-[2.25rem] border-[1.5px]"
+          style={{ borderColor: "#1f5138" }}>
+          {/* The heading sits ON the top border, breaking the line either
+              side exactly as the printed sheet does. */}
+          <h1
+            data-lp="lh-title"
+            className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-3 text-center text-[14px] sm:text-[18px] font-bold tracking-tight text-slate-900 uppercase leading-none whitespace-nowrap"
+            style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+            Government of Anambra State of Nigeria
+          </h1>
+        </div>
+
         {/* Draft watermark — an unsigned letter must never be mistakable for
             an executed one, on screen or on paper. */}
         {isDraft && (
@@ -303,73 +343,105 @@ export function LetterOfAuthorityDocument({
 
         {/* Main Upper Content Wrapper */}
         <div className="flex-1 flex flex-col justify-start">
-          {/* Header Block */}
-          <div
-            data-lp="header"
-            className="flex items-start justify-between border-b-2 border-slate-900 pb-3 mb-4">
-            <div className="flex items-center gap-3">
-              <img
-                src="/anambra_mot_logo.png"
-                alt="Anambra Crest"
-                className="w-16 h-16 object-contain"
-              />
-              <div>
-                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-emerald-800 uppercase leading-tight">
-                  GOVERNMENT OF ANAMBRA STATE OF NIGERIA
-                </h1>
-                <h2 className="text-sm sm:text-base font-bold text-red-700 uppercase tracking-wide">
-                  MINISTRY OF TRANSPORT
-                </h2>
-              </div>
-            </div>
+          {/* ── OFFICIAL LETTERHEAD ──────────────────────────────────
+              Reproduces the Ministry's pre-printed sheet: rounded frame,
+              both heading lines, coat of arms, and the E-mail/Tel/Ref block
+              on the left with the secretariat address and Date on the right.
+              Rebuilt in markup rather than dropped in as the supplied photo,
+              which is ~78 DPI and would print soft. */}
+          <div data-lp="letterhead" className="relative">
+            <h2
+              data-lp="lh-subtitle"
+              className="text-center text-[12px] sm:text-[15px] font-bold uppercase tracking-wide mt-1"
+              style={{
+                fontFamily: "Arial, Helvetica, sans-serif",
+                color: "#8a6d1f",
+              }}>
+              Ministry of Transport
+            </h2>
 
-            <div className="text-right text-xs sm:text-sm font-sans text-slate-800 leading-snug">
-              <p className="font-semibold">Government House</p>
-              <p>P.M.B. 5036</p>
-              <p>Awka</p>
-              <p className="mt-1 font-semibold">
-                {vehicle.authorityIssueDate
-                  ? format(new Date(vehicle.authorityIssueDate), "dd MMMM yyyy")
-                  : format(new Date(), "dd MMMM yyyy")}
-              </p>
-            </div>
-          </div>
-
-          {/* Reference Numbers, QR Code & TRACAS Logo + Driver Passport Photo Row */}
-          <div
-            data-lp="ref-row"
-            className="flex items-start justify-between my-4 px-2">
-            {/* Left Column: Our Ref / Your Ref & QR Code */}
-            <div className="flex flex-col items-start space-y-4">
-              <div className="text-xs sm:text-sm font-sans">
+            {/* Reference block, coat of arms, address */}
+            <div
+              data-lp="lh-fields"
+              className="grid grid-cols-[1fr_auto_1fr] items-start gap-3 mt-3 px-2">
+              {/* Left — contact and references */}
+              <div
+                className="space-y-1.5 text-[10px] sm:text-[11px] text-slate-700"
+                style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
                 <p>
-                  <span className="font-bold">Our Ref:</span>{" "}
-                  <span className="font-mono font-bold text-slate-900">
-                    {vehicle.authorityRef}
+                  <span>E-mail:</span>{" "}
+                  <span className="text-slate-900">
+                    {MINISTRY_EMAIL}
                   </span>
                 </p>
                 <p>
-                  <span className="font-bold">Your Ref:</span>
+                  <span>Tel:</span>
+                </p>
+                <p className="flex items-baseline gap-1">
+                  <span className="whitespace-nowrap">Your Ref:</span>
+                  <span className="flex-1 border-b border-dotted border-slate-400" />
+                </p>
+                <p className="flex items-baseline gap-1">
+                  <span className="whitespace-nowrap">Our Ref:</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {vehicle.authorityRef}
+                  </span>
+                  <span className="flex-1 border-b border-dotted border-slate-400" />
                 </p>
               </div>
 
-              <div className="flex flex-col items-center">
-                <div
-                  data-lp="qr"
-                  className="w-28 h-28 border border-slate-900 p-1 bg-white shadow-xs">
-                  <img
-                    src={qrImageUrl}
-                    alt="Verification QR Code"
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <span className="text-[10px] font-sans text-slate-600 mt-1 uppercase font-semibold">
-                  Scan to Verify
-                </span>
+              {/* Centre — coat of arms */}
+              <img
+                data-lp="lh-crest"
+                src="/letter-head/coat-of-arms.png"
+                alt="Coat of Arms of the Federal Republic of Nigeria"
+                className="w-[74px] h-[74px] object-contain mt-0.5"
+              />
+
+              {/* Right — secretariat address and date, sitting at the outer
+                  edge as on the printed sheet rather than hugging the crest */}
+              <div
+                className="justify-self-end text-[10px] sm:text-[11px] text-slate-700 leading-snug text-left"
+                style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
+                <p>Chief Jerome Udoji Secretariat</p>
+                <p>Complex</p>
+                <p>Awka</p>
+                <p className="mt-3">
+                  <span>Date:</span>{" "}
+                  <span className="font-semibold text-slate-900">
+                    {vehicle.authorityIssueDate
+                      ? format(
+                          new Date(vehicle.authorityIssueDate),
+                          "dd MMMM yyyy",
+                        )
+                      : format(new Date(), "dd MMMM yyyy")}
+                  </span>
+                </p>
               </div>
             </div>
+          </div>
 
-            {/* Right Column: TRACAS Logo above, Driver Passport Photo below */}
+          {/* Verification QR, TRACAS mark and driver photograph.
+              These sat beside the old reference block; the letterhead now
+              carries the references, so they keep their own row. */}
+          <div
+            data-lp="ref-row"
+            className="flex items-start justify-between my-4 px-2">
+            <div className="flex flex-col items-center">
+              <div
+                data-lp="qr"
+                className="w-28 h-28 border border-slate-900 p-1 bg-white shadow-xs">
+                <img
+                  src={qrImageUrl}
+                  alt="Verification QR Code"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <span className="text-[10px] font-sans text-slate-600 mt-1 uppercase font-semibold">
+                Scan to Verify
+              </span>
+            </div>
+
             <div className="flex flex-col items-center space-y-2">
               <div className="h-10 flex items-center justify-center">
                 <img
@@ -633,8 +705,9 @@ export function LetterOfAuthorityDocument({
 
         <div
           data-lp="footer"
-          className="mt-8 -mx-8 sm:-mx-12 -mb-8 sm:-mb-12 bg-emerald-800 text-white text-center py-2.5 px-4 font-sans text-xs font-semibold tracking-wide print:-mx-0 print:-mb-0">
-          All replies to be addressed to the Secretary to the State Government
+          className="relative z-10 mt-6 -mx-5 sm:-mx-7 -mb-5 sm:-mb-7 rounded-b-[2.15rem] text-white text-center py-2 px-4 font-sans text-[11px] font-semibold italic tracking-wide"
+          style={{ backgroundColor: "#1f5138" }}>
+          All replies to be addressed to the Hon. Commissioner
         </div>
       </div>
     </div>
