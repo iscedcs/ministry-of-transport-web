@@ -3,7 +3,12 @@
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { extractStickerCode } from "@/lib/tracas-sticker";
-import { authorize, FLEET_WRITE_ROLES } from "@/lib/auth";
+import {
+  authorize,
+  FLEET_WRITE_ROLES,
+  FLEET_EDIT_ROLES,
+  FLEET_VIEW_ROLES,
+} from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 
 export interface OnboardTracasVehicleInput {
@@ -858,6 +863,211 @@ export async function updateTracasDriver(
     return {
       success: false,
       error: error?.message || "Failed to update driver.",
+    };
+  }
+}
+
+// ─── Vehicle Detail & Editing ─────────────────────────────────────────────
+
+/**
+ * Full record for the vehicle detail page.
+ * Readable by any Ministry role with fleet visibility.
+ */
+export async function getTracasVehicleDetail(vehicleId: string) {
+  const authz = await authorize(FLEET_VIEW_ROLES);
+  if (!authz.ok) return { success: false as const, error: authz.error };
+
+  try {
+    const vehicle = await db.tracasVehicle.findUnique({
+      where: { id: vehicleId },
+      include: {
+        assignedDriver: true,
+        sticker: true,
+      },
+    });
+    if (!vehicle) {
+      return { success: false as const, error: "Vehicle not found." };
+    }
+    return { success: true as const, data: vehicle };
+  } catch (error: any) {
+    console.error("getTracasVehicleDetail failed:", error);
+    return { success: false as const, error: "Failed to load the vehicle." };
+  }
+}
+
+export interface UpdateTracasVehicleInput {
+  registrationNumber?: string;
+  category?: string;
+  capacity?: number | string;
+  makeModel?: string;
+  engineNumber?: string;
+  chassisNumber?: string;
+  insuranceCertificateNo?: string;
+  insuranceCommencement?: string;
+  insuranceExpiry?: string;
+  particularsIssueDate?: string;
+  particularsExpiryDate?: string;
+  assignedRoute?: string;
+  ownershipType?: string;
+  enrollmentType?: string;
+  ownerName?: string;
+  ownerPhone?: string;
+  ownerAddress?: string;
+  ownerNIN?: string;
+  status?: string;
+}
+
+/**
+ * Amend an onboarded vehicle.
+ *
+ * Restricted to Enumerators and System Admins — narrower than onboarding,
+ * because these fields are printed on an issued Letter of Authority.
+ *
+ * Note: fleetNumber and authorityRef are deliberately NOT editable here.
+ * Fleet numbers are positional across the whole register (see
+ * fix-fleet-numbering.ts) and the authority ref is printed on circulating
+ * letters, so neither can be changed safely from a single-record form.
+ */
+export async function updateTracasVehicle(
+  vehicleId: string,
+  input: UpdateTracasVehicleInput,
+) {
+  try {
+    const authz = await authorize(FLEET_EDIT_ROLES);
+    if (!authz.ok) {
+      return {
+        success: false,
+        error: "You do not have permission to edit a vehicle record.",
+      };
+    }
+
+    const existing = await db.tracasVehicle.findUnique({
+      where: { id: vehicleId },
+    });
+    if (!existing) return { success: false, error: "Vehicle not found." };
+
+    // Registration must stay unique across the register.
+    const nextReg = input.registrationNumber?.trim().toUpperCase();
+    if (nextReg && nextReg !== existing.registrationNumber.toUpperCase()) {
+      const clash = await db.tracasVehicle.findFirst({
+        where: { registrationNumber: nextReg, id: { not: vehicleId } },
+        select: { fleetNumber: true },
+      });
+      if (clash) {
+        return {
+          success: false,
+          error: `Registration '${nextReg}' already belongs to ${clash.fleetNumber}.`,
+        };
+      }
+    }
+
+    // Ownership and enrolment keep their mandatory, explicit values.
+    if (
+      input.ownershipType !== undefined &&
+      !["GOVERNMENT_OWNED", "INDIVIDUAL", "COLLABORATIVE"].includes(
+        input.ownershipType,
+      )
+    ) {
+      return { success: false, error: "Select a valid Vehicle Ownership Type." };
+    }
+    if (
+      input.enrollmentType !== undefined &&
+      !["EXISTING", "NEW_JOINER"].includes(input.enrollmentType)
+    ) {
+      return { success: false, error: "Select a valid Enrolment Status." };
+    }
+
+    // Particulars drive the letter's expiry, so they stay required and ordered.
+    const issue = input.particularsIssueDate
+      ? new Date(input.particularsIssueDate)
+      : existing.particularsIssueDate;
+    const expiry = input.particularsExpiryDate
+      ? new Date(input.particularsExpiryDate)
+      : existing.particularsExpiryDate;
+    if (issue && expiry && expiry <= issue) {
+      return {
+        success: false,
+        error: "Particulars Expiry Date must be after the Issue Date.",
+      };
+    }
+
+    const str = (v: string | undefined) =>
+      v === undefined ? undefined : v.trim() || null;
+    const date = (v: string | undefined) =>
+      v === undefined ? undefined : v ? new Date(v) : null;
+
+    const data = {
+      registrationNumber: nextReg,
+      category: str(input.category) ?? undefined,
+      capacity:
+        input.capacity === undefined
+          ? undefined
+          : input.capacity === ""
+            ? null
+            : Number(input.capacity) || null,
+      makeModel: str(input.makeModel),
+      engineNumber: str(input.engineNumber),
+      chassisNumber: str(input.chassisNumber),
+      insuranceCertificateNo: str(input.insuranceCertificateNo),
+      insuranceCommencement: date(input.insuranceCommencement),
+      insuranceExpiry: date(input.insuranceExpiry),
+      particularsIssueDate: date(input.particularsIssueDate),
+      particularsExpiryDate: date(input.particularsExpiryDate),
+      assignedRoute: str(input.assignedRoute),
+      ownershipType: input.ownershipType,
+      enrollmentType: input.enrollmentType,
+      ownerName: str(input.ownerName),
+      ownerPhone: str(input.ownerPhone),
+      ownerAddress: str(input.ownerAddress),
+      ownerNIN: str(input.ownerNIN),
+      ...(input.status &&
+      ["ACTIVE", "SUSPENDED", "REVOKED", "EXPIRED"].includes(input.status)
+        ? { status: input.status as any }
+        : {}),
+    };
+
+    // Drop untouched keys so a partial edit never blanks a field.
+    const cleaned = Object.fromEntries(
+      Object.entries(data).filter(([, v]) => v !== undefined),
+    );
+
+    const updated = await db.tracasVehicle.update({
+      where: { id: vehicleId },
+      data: cleaned,
+    });
+
+    const norm = (v: unknown) =>
+      v instanceof Date ? v.toISOString() : (v ?? null);
+    const changed = Object.keys(cleaned).filter(
+      (k) =>
+        norm((existing as Record<string, unknown>)[k]) !==
+        norm((cleaned as Record<string, unknown>)[k]),
+    );
+
+    await recordAudit({
+      action: "TRACAS_VEHICLE_UPDATED",
+      entityType: "TRACAS_VEHICLE",
+      entityId: vehicleId,
+      changeDescription: changed.length
+        ? `Updated ${existing.registrationNumber} (${existing.fleetNumber}): ${changed.join(", ")}`
+        : `No effective change to ${existing.registrationNumber}`,
+      oldValues: Object.fromEntries(
+        changed.map((k) => [k, norm((existing as Record<string, unknown>)[k])]),
+      ),
+      newValues: Object.fromEntries(
+        changed.map((k) => [k, norm((cleaned as Record<string, unknown>)[k])]),
+      ),
+    });
+
+    revalidatePath("/tracas");
+    revalidatePath(`/tracas/${vehicleId}`);
+    revalidatePath(`/tracas/${vehicleId}/letter`);
+    return { success: true, data: updated };
+  } catch (error: any) {
+    console.error("updateTracasVehicle failed:", error);
+    return {
+      success: false,
+      error: error?.message || "Failed to update the vehicle.",
     };
   }
 }

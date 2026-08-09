@@ -116,7 +116,10 @@ export async function requireHodOrAbove(): Promise<SessionPayload> {
 export {
   FLEET_WRITE_ROLES,
   FLEET_VIEW_ROLES,
+  FLEET_EDIT_ROLES,
   canWriteFleet,
+  canEditFleet,
+  canViewFleet,
 } from "./fleet-roles";
 
 // ==================== NON-REDIRECTING AUTHORIZATION ====================
