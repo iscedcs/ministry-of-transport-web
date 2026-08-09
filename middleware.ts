@@ -33,6 +33,7 @@ const PUBLIC_ROUTES = [
   "/unauthorized",
   "/apply-park-monitor",
   "/services",
+  "/verify",
   "/",
   "/sw.js",
   "/manifest.json",

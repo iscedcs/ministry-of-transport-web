@@ -162,26 +162,14 @@ export default async function PublicTracasStickerViewPage({
                 </div>
               )}
 
-              {vehicle.engineNumber && (
+              {vehicle.capacity && (
                 <div className="flex justify-between items-center py-1.5 border-b border-border/60">
                   <span className="text-muted-foreground flex items-center text-xs">
                     <FileText className="w-3.5 h-3.5 mr-1.5 text-primary" />{" "}
-                    Engine Number
+                    Seating Capacity
                   </span>
-                  <span className="font-mono font-bold text-foreground">
-                    {vehicle.engineNumber}
-                  </span>
-                </div>
-              )}
-
-              {vehicle.chassisNumber && (
-                <div className="flex justify-between items-center py-1.5 border-b border-border/60">
-                  <span className="text-muted-foreground flex items-center text-xs">
-                    <FileText className="w-3.5 h-3.5 mr-1.5 text-primary" />{" "}
-                    Chassis / VIN
-                  </span>
-                  <span className="font-mono font-bold text-foreground">
-                    {vehicle.chassisNumber}
+                  <span className="font-bold text-foreground">
+                    {vehicle.capacity} seats
                   </span>
                 </div>
               )}
@@ -236,13 +224,11 @@ export default async function PublicTracasStickerViewPage({
                       {driver.fullName}
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
+                      {/* Licence number withheld — a public scan confirms the
+                          driver is licensed, it does not publish the number. */}
                       {driver.licenseNumber && (
                         <span>
-                          License:{" "}
-                          <span className="font-mono text-foreground">
-                            {driver.licenseNumber}
-                          </span>{" "}
-                          •{" "}
+                          Licence held •{" "}
                         </span>
                       )}
                       {driver.securityCode && (

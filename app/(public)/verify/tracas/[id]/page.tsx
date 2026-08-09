@@ -145,18 +145,9 @@ export default async function VerifyTracasPage({
                 <p className="font-bold text-base text-foreground truncate">
                   {driver?.fullName || "No Driver Assigned"}
                 </p>
-                {driver?.phoneNumber && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                    <Phone className="w-3 h-3 text-muted-foreground" />{" "}
-                    {driver.phoneNumber}
-                  </p>
-                )}
                 {driver?.licenseNumber && (
-                  <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                    License:{" "}
-                    <span className="font-semibold text-foreground">
-                      {driver.licenseNumber}
-                    </span>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Licence held &amp; on record
                   </p>
                 )}
               </div>
@@ -177,9 +168,7 @@ export default async function VerifyTracasPage({
                 Registered Owner
               </span>
               <p className="font-bold text-foreground truncate">
-                {vehicle.ownerName
-                  ? `${vehicle.ownerName} (${vehicle.ownerPhone || "N/A"})`
-                  : "Anambra State Govt (TRACAS)"}
+                {vehicle.ownerName || "Anambra State Govt (TRACAS)"}
               </p>
             </div>
 
@@ -194,19 +183,19 @@ export default async function VerifyTracasPage({
 
             <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1">
               <span className="text-muted-foreground text-[10px] uppercase font-semibold block">
-                Engine Number
+                Seating Capacity
               </span>
-              <p className="font-mono font-semibold text-foreground truncate">
-                {vehicle.engineNumber || "N/A"}
+              <p className="font-bold text-foreground truncate">
+                {vehicle.capacity ? `${vehicle.capacity} seats` : "N/A"}
               </p>
             </div>
 
             <div className="bg-card border border-border/60 p-3 rounded-xl space-y-1">
               <span className="text-muted-foreground text-[10px] uppercase font-semibold block">
-                Chassis / VIN
+                Fleet Number
               </span>
               <p className="font-mono font-semibold text-foreground truncate">
-                {vehicle.chassisNumber || "N/A"}
+                {vehicle.fleetNumber}
               </p>
             </div>
 
