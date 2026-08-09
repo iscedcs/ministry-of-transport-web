@@ -137,16 +137,12 @@ export default async function VerifyBoatPage({
                       {boat.assignedRider.fullName}
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">
+                      {/* Licence number and phone withheld — a public scan
+                          confirms the operator is licensed, it does not
+                          publish their identity documents. */}
                       {boat.assignedRider.licenseNumber && (
-                        <span>
-                          License:{" "}
-                          <span className="font-mono text-foreground">
-                            {boat.assignedRider.licenseNumber}
-                          </span>{" "}
-                          •{" "}
-                        </span>
+                        <span>Licence held</span>
                       )}
-                      <span>{boat.assignedRider.phoneNumber}</span>
                     </div>
                   </div>
                 </div>

@@ -43,7 +43,7 @@ export default function manifest(): MetadataRoute.Manifest {
         name: "Verify Motor Park",
         short_name: "Verify Park",
         description: "Quickly verify a motor park registration",
-        url: "/verify/motor-parks",
+        url: "/verify",
         icons: [{ src: "/icons/icon-192x192.png", sizes: "192x192" }],
       },
       {

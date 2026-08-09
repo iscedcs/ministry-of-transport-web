@@ -109,14 +109,8 @@ export default async function VerifyTracasDriverPage({
 
           {/* Driver Particulars Summary Card */}
           <div className="space-y-3 bg-secondary/40 p-4 rounded-2xl border border-border text-sm">
-            <div className="flex justify-between items-center py-1.5 border-b border-border/60">
-              <span className="text-muted-foreground flex items-center text-xs">
-                <Phone className="w-3.5 h-3.5 mr-1.5 text-primary" /> Phone Number
-              </span>
-              <span className="font-bold text-foreground">
-                {driver.phoneNumber}
-              </span>
-            </div>
+            {/* Phone number withheld — publishing a driver's direct line
+                alongside their vehicle invites impersonation. */}
 
             <div className="flex justify-between items-center py-1.5 border-b border-border/60">
               <span className="text-muted-foreground flex items-center text-xs">

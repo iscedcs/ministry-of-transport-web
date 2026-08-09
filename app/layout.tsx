@@ -11,6 +11,7 @@ import { Toaster } from "sonner";
 import { PwaRegister } from "@/components/pwa-register";
 import { PwaInstallBanner } from "@/components/pwa-install-banner";
 import { SmoothScroll } from "@/components/smooth-scroll";
+import { TopLoader } from "@/components/ui/top-loader";
 
 import "./globals.css";
 
@@ -53,6 +54,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}>
       <body className="min-h-dvh bg-background text-foreground">
+        <TopLoader />
         <SmoothScroll>{children}</SmoothScroll>
         <PwaRegister />
         <PwaInstallBanner />
