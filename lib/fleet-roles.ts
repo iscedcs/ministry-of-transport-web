@@ -37,7 +37,24 @@ export const FLEET_VIEW_ROLES: UserRole[] = [
   "TRACAS_MD",
 ];
 
+/**
+ * Editing an onboarded vehicle carries the same authority as creating one, so
+ * it shares FLEET_WRITE_ROLES rather than maintaining a parallel list that
+ * could drift out of step.
+ */
+export const FLEET_EDIT_ROLES: UserRole[] = FLEET_WRITE_ROLES;
+
 /** True when the role may create or modify fleet records. */
 export function canWriteFleet(role: UserRole | string | null): boolean {
   return !!role && (FLEET_WRITE_ROLES as string[]).includes(role);
+}
+
+/** True when the role may amend an existing vehicle record. */
+export function canEditFleet(role: UserRole | string | null): boolean {
+  return canWriteFleet(role);
+}
+
+/** True when the role may view fleet records. */
+export function canViewFleet(role: UserRole | string | null): boolean {
+  return !!role && (FLEET_VIEW_ROLES as string[]).includes(role);
 }

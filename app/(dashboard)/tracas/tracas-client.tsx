@@ -894,7 +894,16 @@ export default function TracasClient({
                   filteredVehicles.map((vehicle) => (
                     <tr
                       key={vehicle.id}
-                      className="hover:bg-muted/20 transition-colors">
+                      role="link"
+                      tabIndex={0}
+                      onClick={() => router.push(`/tracas/${vehicle.id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          router.push(`/tracas/${vehicle.id}`);
+                        }
+                      }}
+                      className="hover:bg-muted/40 transition-colors cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-ring">
                       <td className="py-3.5 px-4 font-medium">
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
@@ -1005,7 +1014,11 @@ export default function TracasClient({
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 text-right">
+                      {/* The row navigates to the vehicle; the action controls
+                          must not also trigger that navigation. */}
+                      <td
+                        className="py-3.5 px-4 text-right"
+                        onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
                           <Link
                             href={`/tracas/${vehicle.id}/letter`}
