@@ -10,6 +10,8 @@ export interface OnboardTracasVehicleInput {
   registrationNumber: string;
   fleetNumber: string;
   category?: string;
+  /** Seating capacity — its own field, separate from the sub-category text. */
+  capacity?: number | string;
   makeModel?: string;
   engineNumber?: string;
   chassisNumber?: string;
@@ -203,9 +205,58 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
     }
 
     const regNo = input.registrationNumber.trim();
-    const ownershipType = input.ownershipType || "GOVERNMENT_OWNED";
-    const enrollmentType =
-      input.enrollmentType === "NEW_JOINER" ? "NEW_JOINER" : "EXISTING";
+
+    // Enrolment status and ownership decide the fleet-number prefix (FT vs LV).
+    // They previously defaulted silently, so an enumerator who skipped past
+    // them got a government FT number on a private vehicle — a mistake that
+    // then needs a data migration to unpick. Both are now mandatory and must
+    // be an explicit, recognised value.
+    const VALID_OWNERSHIP = [
+      "GOVERNMENT_OWNED",
+      "INDIVIDUAL",
+      "COLLABORATIVE",
+    ];
+    const VALID_ENROLLMENT = ["EXISTING", "NEW_JOINER"];
+
+    const ownershipType = input.ownershipType?.trim() ?? "";
+    if (!VALID_OWNERSHIP.includes(ownershipType)) {
+      return {
+        success: false,
+        error:
+          "Select a Vehicle Ownership Type — this determines the fleet number prefix (FT for state fleet, LV for private).",
+      };
+    }
+
+    const enrollmentType = input.enrollmentType?.trim() ?? "";
+    if (!VALID_ENROLLMENT.includes(enrollmentType)) {
+      return {
+        success: false,
+        error:
+          "Select an Enrolment Status — whether the vehicle already operates under TRACAS or is joining now.",
+      };
+    }
+
+    // The Letter of Authority expiry is driven by the particulars expiry, so
+    // both particulars dates are required at onboarding.
+    if (!input.particularsIssueDate) {
+      return { success: false, error: "Particulars Issue Date is required." };
+    }
+    if (!input.particularsExpiryDate) {
+      return { success: false, error: "Particulars Expiry Date is required." };
+    }
+
+    const particularsIssue = new Date(input.particularsIssueDate);
+    const particularsExpiry = new Date(input.particularsExpiryDate);
+    if (isNaN(particularsIssue.getTime()) || isNaN(particularsExpiry.getTime())) {
+      return { success: false, error: "Particulars dates are invalid." };
+    }
+    if (particularsExpiry <= particularsIssue) {
+      return {
+        success: false,
+        error: "Particulars Expiry Date must be after the Issue Date.",
+      };
+    }
+
     const fleetNo = input.fleetNumber?.trim() || (await generateNextFleetNumber(ownershipType));
 
     const existingReg = await db.tracasVehicle.findUnique({ where: { registrationNumber: regNo } });
@@ -248,14 +299,18 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
         registrationNumber: regNo,
         fleetNumber: fleetNo,
         category: input.category || "BUS",
+        capacity:
+          input.capacity === undefined || input.capacity === ""
+            ? null
+            : Number(input.capacity) || null,
         makeModel: input.makeModel || null,
         engineNumber: input.engineNumber || null,
         chassisNumber: input.chassisNumber || null,
         insuranceCertificateNo: input.insuranceCertificateNo || null,
         insuranceCommencement: input.insuranceCommencement ? new Date(input.insuranceCommencement) : null,
         insuranceExpiry: input.insuranceExpiry ? new Date(input.insuranceExpiry) : null,
-        particularsIssueDate: input.particularsIssueDate ? new Date(input.particularsIssueDate) : null,
-        particularsExpiryDate: input.particularsExpiryDate ? new Date(input.particularsExpiryDate) : null,
+        particularsIssueDate: particularsIssue,
+        particularsExpiryDate: particularsExpiry,
         assignedRoute: input.assignedRoute || null,
         ownershipType: ownershipType,
         enrollmentType: enrollmentType,

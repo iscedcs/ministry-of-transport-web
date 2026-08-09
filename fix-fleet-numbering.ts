@@ -1,16 +1,27 @@
 /**
- * One-off data fix — TRACAS fleet numbering.
+ * Data fix — TRACAS fleet numbering corrections (insert-and-shift).
  *
- * Two vehicles were onboarded as GOVERNMENT_OWNED (receiving FT001 / FT002)
- * when they should have been private, carrying the LV001 / LV002 numbers they
- * were already issued off-platform. Everything currently numbered LV must
- * therefore shift up to make room.
+ * THE PROBLEM
+ * Vehicles were onboarded as GOVERNMENT_OWNED (taking FT numbers) when they
+ * should have been private. Because the LV counter never saw them, every
+ * private vehicle onboarded afterwards slid DOWN one position to fill the gap
+ * each missing vehicle left behind.
  *
- * `TracasVehicle.fleetNumber` is @unique, so the numbers cannot simply be
- * reassigned — moving LV001 to LV003 collides with the existing LV003 while
- * both rows are live. The rename runs in two phases inside one transaction:
- * every affected row is first parked on a temporary value, then given its
- * final number.
+ * So this is not a swap. The slot each vehicle should occupy is already held
+ * by whoever moved down into it. Correcting it means re-inserting each vehicle
+ * at its rightful position and shifting everything from that point onward UP
+ * by one — the same way the sequence would have run had the mistake never
+ * happened.
+ *
+ * THE ALGORITHM
+ *   1. Take the current LV vehicles in ascending numeric order.
+ *   2. Reserve the target positions for the corrected vehicles.
+ *   3. Fill every remaining position, in ascending order, with the existing
+ *      vehicles in their current relative order.
+ *
+ * `fleetNumber` is @unique, so a direct renumber collides mid-flight. The
+ * rename runs in two phases inside one transaction: every affected row is
+ * parked on a temporary value, then given its final number.
  *
  * DRY RUN BY DEFAULT. Nothing is written unless you pass --apply.
  *
@@ -19,214 +30,38 @@
  */
 
 import "dotenv/config";
+import { Prisma } from "@prisma/client";
 import { db } from "./lib/db";
 
 // ── Configure here ──────────────────────────────────────────────────────────
 
-/**
- * Registration numbers of the two vehicles to move from GOVERNMENT_OWNED to
- * private, IN THE ORDER THEY SHOULD RECEIVE LV001, LV002.
- */
-const VEHICLES_TO_CONVERT: string[] = [
-  "ABN437YP", // currently FT001 → LV001
-  "KPP402YT", // currently FT002 → LV002
+interface Correction {
+  registrationNumber: string;
+  /** The LV position this vehicle should occupy, from the issued paperwork. */
+  targetPosition: number;
+  targetOwnership?: "GOVERNMENT_OWNED" | "INDIVIDUAL" | "COLLABORATIVE";
+}
+
+const CORRECTIONS: Correction[] = [
+  { registrationNumber: "AAH294XB", targetPosition: 50, targetOwnership: "INDIVIDUAL" },
+  { registrationNumber: "YEN71GP", targetPosition: 55, targetOwnership: "INDIVIDUAL" },
+  { registrationNumber: "UMZ638XB", targetPosition: 63, targetOwnership: "INDIVIDUAL" },
 ];
 
-/** Ownership type they should end up on. */
-const TARGET_OWNERSHIP = "INDIVIDUAL"; // or "COLLABORATIVE"
+const PREFIX = "LV";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 const APPLY = process.argv.includes("--apply");
-const COMPACT_FT = process.argv.includes("--compact-ft");
 
-const PRIVATE_PREFIX = "LV";
-const GOV_PREFIX = "FT";
+const fleetNo = (n: number) => `${PREFIX}${n.toString().padStart(3, "0")}`;
 
-const fleetNo = (prefix: string, n: number) =>
-  `${prefix}${n.toString().padStart(3, "0")}`;
-
-/** Numeric part of a fleet number, or null when it doesn't match the prefix. */
-const numOf = (fleet: string | null, prefix: string): number | null => {
-  if (!fleet) return null;
-  const upper = fleet.toUpperCase();
-  if (!upper.startsWith(prefix)) return null;
-  const n = parseInt(upper.slice(prefix.length), 10);
+const positionOf = (fleet: string): number | null => {
+  const upper = (fleet ?? "").toUpperCase();
+  if (!upper.startsWith(PREFIX)) return null;
+  const n = parseInt(upper.slice(PREFIX.length), 10);
   return isNaN(n) ? null : n;
 };
-
-async function main() {
-  if (VEHICLES_TO_CONVERT.length === 0) {
-    console.error(
-      "\n  Nothing to do — fill in VEHICLES_TO_CONVERT at the top of this file\n" +
-        "  with the registration numbers of the two vehicles, in the order they\n" +
-        "  should receive LV001 and LV002.\n",
-    );
-    printCurrentState(await loadVehicles());
-    process.exit(1);
-  }
-
-  const vehicles = await loadVehicles();
-  printCurrentState(vehicles);
-
-  // ── Resolve the vehicles being converted ─────────────────────────────────
-  const converting = VEHICLES_TO_CONVERT.map((reg) => {
-    const match = vehicles.find(
-      (v) => v.registrationNumber.toUpperCase() === reg.toUpperCase().trim(),
-    );
-    if (!match) {
-      throw new Error(`No TRACAS vehicle found with registration '${reg}'.`);
-    }
-    return match;
-  });
-
-  for (const v of converting) {
-    if (v.ownershipType !== "GOVERNMENT_OWNED") {
-      console.warn(
-        `  ! ${v.registrationNumber} is already '${v.ownershipType}', not GOVERNMENT_OWNED.`,
-      );
-    }
-  }
-
-  const convertingIds = new Set(converting.map((v) => v.id));
-
-  // ── Build the target LV ordering ─────────────────────────────────────────
-  // Converted vehicles take the front (LV001, LV002...), then every existing
-  // private vehicle follows in its current numeric order, shifted up.
-  const existingPrivate = vehicles
-    .filter((v) => !convertingIds.has(v.id))
-    .filter((v) => numOf(v.fleetNumber, PRIVATE_PREFIX) !== null)
-    .sort(
-      (a, b) =>
-        numOf(a.fleetNumber, PRIVATE_PREFIX)! -
-        numOf(b.fleetNumber, PRIVATE_PREFIX)!,
-    );
-
-  const privateOrder = [...converting, ...existingPrivate];
-
-  const plan: {
-    id: string;
-    reg: string;
-    fromFleet: string;
-    toFleet: string;
-    fromOwnership: string;
-    toOwnership: string;
-  }[] = [];
-
-  privateOrder.forEach((v, i) => {
-    const target = fleetNo(PRIVATE_PREFIX, i + 1);
-    const targetOwnership = convertingIds.has(v.id)
-      ? TARGET_OWNERSHIP
-      : v.ownershipType;
-    if (v.fleetNumber !== target || v.ownershipType !== targetOwnership) {
-      plan.push({
-        id: v.id,
-        reg: v.registrationNumber,
-        fromFleet: v.fleetNumber,
-        toFleet: target,
-        fromOwnership: v.ownershipType,
-        toOwnership: targetOwnership,
-      });
-    }
-  });
-
-  // ── Optionally close the gap left in the FT sequence ─────────────────────
-  const remainingGov = vehicles
-    .filter((v) => !convertingIds.has(v.id))
-    .filter((v) => numOf(v.fleetNumber, GOV_PREFIX) !== null)
-    .sort(
-      (a, b) =>
-        numOf(a.fleetNumber, GOV_PREFIX)! - numOf(b.fleetNumber, GOV_PREFIX)!,
-    );
-
-  if (COMPACT_FT) {
-    remainingGov.forEach((v, i) => {
-      const target = fleetNo(GOV_PREFIX, i + 1);
-      if (v.fleetNumber !== target) {
-        plan.push({
-          id: v.id,
-          reg: v.registrationNumber,
-          fromFleet: v.fleetNumber,
-          toFleet: target,
-          fromOwnership: v.ownershipType,
-          toOwnership: v.ownershipType,
-        });
-      }
-    });
-  } else if (remainingGov.length > 0) {
-    const lowest = numOf(remainingGov[0].fleetNumber, GOV_PREFIX)!;
-    if (lowest > 1) {
-      console.log(
-        `\n  Note: the government sequence will start at ${remainingGov[0].fleetNumber} ` +
-          `(FT001–FT${(lowest - 1).toString().padStart(3, "0")} freed up).\n` +
-          `  Re-run with --compact-ft to renumber them from FT001.`,
-      );
-    }
-  }
-
-  // ── Show the plan ────────────────────────────────────────────────────────
-  console.log("\n── PLANNED CHANGES ──────────────────────────────────────────");
-  if (plan.length === 0) {
-    console.log("  Nothing to change — numbering already matches the target.");
-    return;
-  }
-  for (const p of plan) {
-    const ownershipNote =
-      p.fromOwnership !== p.toOwnership
-        ? `   [${p.fromOwnership} → ${p.toOwnership}]`
-        : "";
-    console.log(
-      `  ${p.reg.padEnd(14)} ${p.fromFleet.padEnd(7)} → ${p.toFleet.padEnd(7)}${ownershipNote}`,
-    );
-  }
-
-  // Guard: the final numbers must be unique among themselves.
-  const targets = plan.map((p) => p.toFleet);
-  const dupes = targets.filter((t, i) => targets.indexOf(t) !== i);
-  if (dupes.length > 0) {
-    throw new Error(`Target fleet numbers collide: ${[...new Set(dupes)].join(", ")}`);
-  }
-
-  if (!APPLY) {
-    console.log(
-      "\n  DRY RUN — nothing written. Re-run with --apply to execute.\n",
-    );
-    return;
-  }
-
-  // ── Apply: two-phase rename in a single transaction ──────────────────────
-  console.log("\n  Applying...");
-  await db.$transaction(async (tx) => {
-    // Phase 1 — park every affected row on a temporary unique value so the
-    // @unique constraint cannot trip while numbers are being swapped around.
-    for (let i = 0; i < plan.length; i++) {
-      await tx.tracasVehicle.update({
-        where: { id: plan[i].id },
-        data: { fleetNumber: `__MIGRATING_${i}_${Date.now()}` },
-      });
-    }
-
-    // Phase 2 — write the final numbers and ownership.
-    for (const p of plan) {
-      await tx.tracasVehicle.update({
-        where: { id: p.id },
-        data: { fleetNumber: p.toFleet, ownershipType: p.toOwnership },
-      });
-    }
-  });
-
-  console.log("  Done.\n");
-  printCurrentState(await loadVehicles());
-
-  const stillTemp = (await loadVehicles()).filter((v) =>
-    v.fleetNumber.startsWith("__MIGRATING_"),
-  );
-  if (stillTemp.length > 0) {
-    console.error(
-      `\n  WARNING: ${stillTemp.length} row(s) left on a temporary fleet number. Investigate before continuing.`,
-    );
-  }
-}
 
 async function loadVehicles() {
   return db.tracasVehicle.findMany({
@@ -236,25 +71,216 @@ async function loadVehicles() {
       fleetNumber: true,
       ownershipType: true,
       ownerName: true,
-      authorityRef: true,
       createdAt: true,
     },
     orderBy: { createdAt: "asc" },
   });
 }
 
-function printCurrentState(vehicles: Awaited<ReturnType<typeof loadVehicles>>) {
-  console.log("\n── CURRENT STATE ────────────────────────────────────────────");
-  console.log(
-    `  ${"REG".padEnd(14)} ${"FLEET".padEnd(7)} ${"OWNERSHIP".padEnd(18)} OWNER`,
+type Vehicle = Awaited<ReturnType<typeof loadVehicles>>[number];
+
+async function main() {
+  const vehicles = await loadVehicles();
+  const byReg = new Map(
+    vehicles.map((v) => [v.registrationNumber.toUpperCase(), v]),
   );
-  for (const v of vehicles) {
-    console.log(
-      `  ${v.registrationNumber.padEnd(14)} ${v.fleetNumber.padEnd(7)} ` +
-        `${v.ownershipType.padEnd(18)} ${v.ownerName ?? "—"}`,
+
+  // ── Resolve the corrected vehicles ───────────────────────────────────────
+  const problems: string[] = [];
+  const corrected: { vehicle: Vehicle; position: number; ownership: string }[] = [];
+
+  for (const c of CORRECTIONS) {
+    const reg = c.registrationNumber.toUpperCase().trim();
+    const vehicle = byReg.get(reg);
+    if (!vehicle) {
+      problems.push(`  ! No vehicle found with registration '${reg}'.`);
+      continue;
+    }
+    corrected.push({
+      vehicle,
+      position: c.targetPosition,
+      ownership: c.targetOwnership ?? vehicle.ownershipType,
+    });
+  }
+
+  const correctedIds = new Set(corrected.map((c) => c.vehicle.id));
+
+  const positions = corrected.map((c) => c.position);
+  const dupePositions = positions.filter((p, i) => positions.indexOf(p) !== i);
+  if (dupePositions.length > 0) {
+    problems.push(
+      `  ! Two corrections target the same position: ${[...new Set(dupePositions)].join(", ")}`,
     );
   }
-  console.log(`  (${vehicles.length} vehicles)`);
+
+  // ── Existing private vehicles, in their current order ────────────────────
+  const existing = vehicles
+    .filter((v) => !correctedIds.has(v.id))
+    .filter((v) => positionOf(v.fleetNumber) !== null)
+    .sort((a, b) => positionOf(a.fleetNumber)! - positionOf(b.fleetNumber)!);
+
+  const totalSlots = existing.length + corrected.length;
+  const maxTarget = Math.max(...positions, 0);
+
+  if (maxTarget > totalSlots) {
+    problems.push(
+      `  ! Target position ${maxTarget} exceeds the ${totalSlots} slots available ` +
+        `(${existing.length} existing + ${corrected.length} corrected). ` +
+        `That would leave holes in the sequence — check the paperwork.`,
+    );
+  }
+
+  if (problems.length > 0) {
+    console.log("\n── PROBLEMS ─────────────────────────────────────────────────");
+    problems.forEach((p) => console.log(p));
+    console.log("\n  Aborting — resolve the above first.\n");
+    process.exit(1);
+  }
+
+  // ── Build the final ordering ─────────────────────────────────────────────
+  // Reserve the corrected positions, then pour the existing vehicles into
+  // whatever slots remain, preserving their relative order.
+  const slots = new Map<number, { vehicle: Vehicle; ownership: string }>();
+  for (const c of corrected) {
+    slots.set(c.position, { vehicle: c.vehicle, ownership: c.ownership });
+  }
+
+  let cursor = 1;
+  for (const v of existing) {
+    while (slots.has(cursor)) cursor++;
+    slots.set(cursor, { vehicle: v, ownership: v.ownershipType });
+    cursor++;
+  }
+
+  // ── Diff against current state ───────────────────────────────────────────
+  const plan: {
+    id: string;
+    reg: string;
+    fromFleet: string;
+    toFleet: string;
+    fromOwnership: string;
+    toOwnership: string;
+    isCorrected: boolean;
+  }[] = [];
+
+  for (const [position, entry] of [...slots.entries()].sort((a, b) => a[0] - b[0])) {
+    const target = fleetNo(position);
+    const v = entry.vehicle;
+    if (v.fleetNumber === target && v.ownershipType === entry.ownership) continue;
+    plan.push({
+      id: v.id,
+      reg: v.registrationNumber,
+      fromFleet: v.fleetNumber,
+      toFleet: target,
+      fromOwnership: v.ownershipType,
+      toOwnership: entry.ownership,
+      isCorrected: correctedIds.has(v.id),
+    });
+  }
+
+  console.log(
+    `\n  ${vehicles.length} vehicles total · ${existing.length} already on LV numbers · ` +
+      `${corrected.length} being re-inserted\n`,
+  );
+
+  console.log("── PLANNED CHANGES ──────────────────────────────────────────");
+  if (plan.length === 0) {
+    console.log("  Nothing to change — numbering already matches the target.\n");
+    return;
+  }
+  for (const p of plan) {
+    const marker = p.isCorrected ? " ←" : "  ";
+    const ownershipNote =
+      p.fromOwnership !== p.toOwnership
+        ? `   [${p.fromOwnership} → ${p.toOwnership}]`
+        : "";
+    console.log(
+      `${marker} ${p.reg.padEnd(14)} ${p.fromFleet.padEnd(7)} → ${p.toFleet.padEnd(7)}${ownershipNote}`,
+    );
+  }
+  console.log(
+    `\n  ${plan.length} row(s) change. Rows marked ← are the corrected vehicles; ` +
+      `the rest shift up to make room.`,
+  );
+
+  // Guard: final numbers must be unique among themselves.
+  const targets = plan.map((p) => p.toFleet);
+  const dupes = targets.filter((t, i) => targets.indexOf(t) !== i);
+  if (dupes.length > 0) {
+    console.error(
+      `\n  ABORT — target numbers collide: ${[...new Set(dupes)].join(", ")}\n`,
+    );
+    process.exit(1);
+  }
+
+  // Report what is left on FT numbers.
+  const remainingGov = vehicles
+    .filter((v) => !correctedIds.has(v.id))
+    .filter((v) => v.fleetNumber.toUpperCase().startsWith("FT"));
+  console.log(
+    `\n  ${remainingGov.length} vehicle(s) remain on FT numbers` +
+      (remainingGov.length
+        ? `: ${remainingGov.map((v) => v.fleetNumber).join(", ")}`
+        : " — the next government onboarding will start at FT001."),
+  );
+
+  if (!APPLY) {
+    console.log("\n  DRY RUN — nothing written. Re-run with --apply to execute.\n");
+    return;
+  }
+
+  console.log(`\n  Applying ${plan.length} change(s)...`);
+
+  // Each phase is ONE statement rather than one per row. Doing 2N sequential
+  // round trips to Neon blew past the interactive-transaction budget; batching
+  // makes it two queries and keeps the whole thing comfortably atomic.
+  await db.$transaction(
+    async (tx) => {
+      const ids = plan.map((p) => p.id);
+
+      // Phase 1 — park every affected row on a temporary value. Deriving it
+      // from the primary key guarantees uniqueness without a second lookup.
+      await tx.$executeRaw`
+        UPDATE "TracasVehicle"
+        SET "fleetNumber" = '__MIG_' || "id"
+        WHERE "id" IN (${Prisma.join(ids)})
+      `;
+
+      // Phase 2 — write the final numbers and ownership in a single pass.
+      const rows = Prisma.join(
+        plan.map((p) => Prisma.sql`(${p.id}, ${p.toFleet}, ${p.toOwnership})`),
+      );
+      await tx.$executeRaw`
+        UPDATE "TracasVehicle" AS t
+        SET "fleetNumber" = v.fleet, "ownershipType" = v.own
+        FROM (VALUES ${rows}) AS v(id, fleet, own)
+        WHERE t."id" = v.id
+      `;
+    },
+    // Generous ceiling: the work is now two statements, but network latency to
+    // Neon is variable and a half-applied renumber is far worse than a slow one.
+    { timeout: 120_000, maxWait: 15_000 },
+  );
+
+  console.log("  Done.\n");
+
+  const after = await loadVehicles();
+  const stuck = after.filter((v) => v.fleetNumber.startsWith("__MIG_"));
+  if (stuck.length > 0) {
+    console.error(
+      `  WARNING: ${stuck.length} row(s) left on a temporary fleet number.\n`,
+    );
+  }
+
+  console.log("── FINAL STATE ──────────────────────────────────────────────");
+  for (const v of [...after].sort((a, b) =>
+    a.fleetNumber.localeCompare(b.fleetNumber),
+  )) {
+    console.log(
+      `  ${v.fleetNumber.padEnd(7)} ${v.registrationNumber.padEnd(14)} ${v.ownershipType}`,
+    );
+  }
+  console.log();
 }
 
 main()

@@ -1454,6 +1454,8 @@ model TracasVehicle {
   registrationNumber     String    @unique
   fleetNumber            String    @unique
   category               String    @default("BUS") @db.VarChar(50)
+  /** Seating capacity — its own field, not folded into the sub-category text. */
+  capacity               Int?
   makeModel              String?
   engineNumber           String?
   chassisNumber          String?
