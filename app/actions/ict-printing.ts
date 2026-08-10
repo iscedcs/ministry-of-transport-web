@@ -68,10 +68,13 @@ export async function getIctPrintingQueues(searchQuery = "") {
 
   const q = searchQuery.trim().toLowerCase();
 
-  // 1. Fetch TRACAS Driver ID Cards
+  // 1. Fetch TRACAS Driver ID Cards.
+  // Only fully-approved cards reach the printing queue: the VIO must have
+  // verified, and both the MD and Commissioner must have signed.
   const drivers = await db.tracasDriver.findMany({
+    where: { idCardStatus: "APPROVED" },
     take: 100,
-    orderBy: { createdAt: "desc" },
+    orderBy: { idCommissionerApprovedAt: "desc" },
     select: {
       id: true,
       fullName: true,

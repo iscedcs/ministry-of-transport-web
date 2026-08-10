@@ -51,6 +51,18 @@ enum LetterApprovalStatus {
   DECLINED // Rejected at either stage; returns to the enumerator
 }
 
+/// Approval chain for a TRACAS driver ID card.
+/// Enumerator enrols → VIO verifies → MD signs → Commissioner signs → ICT prints.
+/// Only the MD and Commissioner signatures appear on the card; the VIO stage
+/// is a verification gate, not a signatory.
+enum IdCardApprovalStatus {
+  PENDING_VIO_APPROVAL // Enrolled; awaiting Vehicle Inspection Officer
+  PENDING_MD_APPROVAL // VIO cleared; awaiting Ag. MD/CEO
+  PENDING_COMMISSIONER_APPROVAL // MD signed; awaiting Commissioner
+  APPROVED // Both signatures applied — printable
+  DECLINED // Rejected at any stage; returns to the enumerator
+}
+
 enum ApplicationStatus {
   SUBMITTED // Initial submission
   UNDER_REVIEW // Documents being reviewed
@@ -1541,6 +1553,20 @@ model TracasDriver {
   notes                    String?      @db.Text
   status                   PermitStatus @default(ACTIVE)
 
+  // ── ID card approval chain ──
+  // Existing drivers adopt the default and enter at the VIO's desk.
+  idCardStatus                   IdCardApprovalStatus @default(PENDING_VIO_APPROVAL)
+  vioApprovedAt                  DateTime?
+  vioApprovedByUserId            String?
+  idMdApprovedAt                 DateTime?
+  idMdApprovedByUserId           String?
+  idCommissionerApprovedAt       DateTime?
+  idCommissionerApprovedByUserId String?
+  idDeclinedAt                   DateTime?
+  idDeclinedByUserId             String?
+  idDeclinedAtStage              String?              @db.VarChar(40) // "VIO" | "MD" | "COMMISSIONER"
+  idDeclineReason                String?              @db.Text
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1550,4 +1576,5 @@ model TracasDriver {
   @@index([phoneNumber])
   @@index([securityCode])
   @@index([status])
+  @@index([idCardStatus])
 }
