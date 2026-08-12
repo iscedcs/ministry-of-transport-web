@@ -3,6 +3,11 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { StatusPill } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import Link from "next/link";
+import {
+  SECTION_TITLES,
+  parseChecklist,
+} from "@/lib/revalidation-checklist";
 import { WorkflowActions } from "./workflow-actions";
 import { 
   CheckCircle2, 
@@ -12,6 +17,8 @@ import {
   Users, 
   Banknote, 
   ShieldCheck, 
+  ClipboardList,
+  Camera, 
   User, 
   CheckSquare, 
   ExternalLink, 
@@ -77,6 +84,18 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
   });
 
   if (!app) notFound();
+
+  // Inspection artefacts for the reviewer.
+  const checklist = parseChecklist(app.inspectionChecklist);
+  const verifiedCount = checklist.filter((c) => c.verified === "YES").length;
+  const partialCount = checklist.filter((c) => c.verified === "PARTIAL").length;
+  const failedCount = checklist.filter((c) => c.verified === "NO").length;
+  const evidence: { url: string; caption?: string }[] = Array.isArray(
+    app.evidenceUrls,
+  )
+    ? (app.evidenceUrls as { url: string; caption?: string }[])
+    : [];
+
 
   // Get available inspectors for HOD to assign
   const inspectors = await db.user.findMany({
@@ -485,6 +504,110 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
                 </span>
               </div>
               
+              {/* Verified checklist — declared vs. found, so the HOD can
+                  weigh discrepancies rather than read prose alone. */}
+              {checklist.length > 0 && (
+                <div className="sm:col-span-2 border-t pt-5 mt-2">
+                  <h4 className="font-semibold text-sm text-foreground mb-1 flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4 text-primary" /> Inspection Checklist
+                  </h4>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    {verifiedCount} verified · {partialCount} partial · {failedCount} not found
+                  </p>
+
+                  <div className="space-y-4">
+                    {(["E", "F", "G"] as const).map((sec) => {
+                      const rows = checklist.filter((c) => c.section === sec);
+                      if (rows.length === 0) return null;
+                      return (
+                        <div key={sec}>
+                          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                            {SECTION_TITLES[sec]}
+                          </p>
+                          <ul className="rounded-xl border divide-y overflow-hidden">
+                            {rows.map((c) => (
+                              <li key={c.key} className="p-3 bg-card">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-foreground">{c.label}</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      Declared: {c.declared}
+                                    </p>
+                                    {c.note && (
+                                      <p className="text-xs mt-1 text-amber-600 dark:text-amber-400">
+                                        Inspector: {c.note}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <span
+                                    className={cn(
+                                      "shrink-0 rounded-md border px-2 py-1 text-[11px] font-bold",
+                                      c.verified === "YES"
+                                        ? "bg-green-500/10 text-green-700 dark:text-green-300 border-green-500/20"
+                                        : c.verified === "PARTIAL"
+                                        ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20"
+                                        : c.verified === "NO"
+                                        ? "bg-destructive/10 text-destructive border-destructive/20"
+                                        : "bg-secondary text-secondary-foreground",
+                                    )}>
+                                    {c.verified === "YES"
+                                      ? "Verified"
+                                      : c.verified === "PARTIAL"
+                                      ? "Partial"
+                                      : c.verified === "NO"
+                                      ? "Not found"
+                                      : "Unanswered"}
+                                  </span>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Evidence gallery — images render inline so the HOD can see
+                  the site without downloading each file. */}
+              {evidence.length > 0 && (
+                <div className="sm:col-span-2 border-t pt-5 mt-2">
+                  <h4 className="font-semibold text-sm text-foreground mb-3 flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-primary" /> Site Evidence ({evidence.length})
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {evidence.map((ev) => {
+                      const isImg = /\.(png|jpe?g|webp|gif|avif)$/i.test(ev.url);
+                      return (
+                        <a
+                          key={ev.url}
+                          href={ev.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block rounded-xl border overflow-hidden bg-secondary/40 hover:border-primary/50 transition-colors">
+                          {isImg ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={ev.url}
+                              alt={ev.caption ?? "Site evidence"}
+                              className="w-full h-28 object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-28 flex items-center justify-center text-xs text-muted-foreground px-2 text-center">
+                              {ev.caption ?? "Document"}
+                            </div>
+                          )}
+                          <p className="text-[10px] text-muted-foreground truncate px-2 py-1">
+                            {ev.caption ?? "Evidence"}
+                          </p>
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div className="sm:col-span-2 border-t pt-5 mt-2">
                 <h4 className="font-semibold text-sm text-foreground mb-3 flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-primary" /> Signatures & Executive Approvals
@@ -517,7 +640,14 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
                     <span className="text-green-800 dark:text-green-300 block mb-1 text-xs uppercase tracking-wider font-bold">Official Revalidation Certificate Number</span>
                     <p className="font-mono font-bold text-2xl text-green-900 dark:text-green-100">{app.revalidationNumber}</p>
                   </div>
-                  <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400 shrink-0" />
+                  <div className="flex items-center gap-3 shrink-0">
+                    <Link
+                      href={`/admin/revalidation-queue/${app.id}/certificate`}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors">
+                      View / print certificate
+                    </Link>
+                    <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400 shrink-0" />
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -527,6 +657,12 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
         <div className="space-y-6">
           <WorkflowActions 
             applicationId={app.id}
+            terms={{
+              monthlyFeeAmount: app.monthlyFeeAmount,
+              previousMonthlyFeeAmount: app.previousMonthlyFeeAmount,
+              effectiveFrom: app.effectiveFrom,
+              requiredFacilities: app.requiredFacilities,
+            }}
             status={app.status}
             role={session.role}
             inspectors={inspectors}
