@@ -16,6 +16,17 @@ import Image from "next/image";
 import { ROLE_LABELS } from "@/lib/utils/labels";
 import { X } from "lucide-react";
 import { useMobileMenu } from "./mobile-menu-context";
+import {
+  TRACAS_TABS,
+  hasTracasAccess,
+  tracasLandingFor,
+} from "@/lib/tracas-nav";
+
+/** Stand-in href for the TRACAS entry, resolved per role at render. */
+const TRACAS_HUB_PLACEHOLDER = "__TRACAS_HUB__";
+
+/** Any of these paths should light up the single TRACAS sidebar entry. */
+const TRACAS_SECTION_PREFIXES = TRACAS_TABS.map((t) => t.href);
 
 // ─── Nav item definition ─────────────────────────────────────────────────────
 
@@ -35,44 +46,19 @@ const NAV_ITEMS: NavItem[] = [
     allowedRoles: "ALL",
   },
 
+  // ── TRACAS Module ──
+  // A single entry; the four sections are reachable from the in-page tab bar.
+  // allowedRoles is derived from lib/tracas-nav.ts at render time.
+  {
+    label: "TRACAS",
+    href: TRACAS_HUB_PLACEHOLDER,
+    icon: "🚏",
+    allowedRoles: "ALL",
+  },
+
   // ── Motor Park Module ──
-  // ── TRACAS Letter Approvals (VIO → MD → Commissioner) ──
-  {
-    label: "Letter Approvals",
-    href: "/tracas-approvals",
-    icon: "🖊️",
-    allowedRoles: [
-      "VEHICLE_INSPECTION_OFFICER",
-      "HOD_VIS",
-      "TRACAS_MD",
-      "COMMISSIONER",
-      "SYSTEM_ADMIN",
-      "PERMANENT_SECRETARY",
-    ],
-  },
 
-  // ── Driver ID Card Approvals (VIO → MD → Commissioner) ──
-  {
-    label: "ID Card Approvals",
-    href: "/id-card-approvals",
-    icon: "🪪",
-    allowedRoles: [
-      "VEHICLE_INSPECTION_OFFICER",
-      "HOD_VIS",
-      "TRACAS_MD",
-      "COMMISSIONER",
-      "SYSTEM_ADMIN",
-      "PERMANENT_SECRETARY",
-    ],
-  },
 
-  // ── TRACAS Staff (MD provisions her own printing officers) ──
-  {
-    label: "TRACAS Staff",
-    href: "/tracas-staff",
-    icon: "👥",
-    allowedRoles: ["TRACAS_MD", "SYSTEM_ADMIN", "COMMISSIONER"],
-  },
 
   // ── Enumeration Module ──
   {
@@ -157,22 +143,6 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
 
-  // ── TRACAS Module ──
-  {
-    label: "TRACAS Transport",
-    href: "/tracas",
-    icon: "🚏",
-    allowedRoles: [
-      "COMMISSIONER",
-      "PERMANENT_SECRETARY",
-      "HOD_TRANSPORT_OPS",
-      "HOD_PARKS",
-      "FIELD_INSPECTOR",
-      "SYSTEM_ADMIN",
-      "TRACAS_MD",
-      "ENUMERATOR",
-    ],
-  },
 
   // ── Revalidation Module ──
   {
@@ -318,6 +288,11 @@ export function DashboardSidebar({
   const { isOpen, close } = useMobileMenu();
 
   const visibleItems = NAV_ITEMS.filter((item) => {
+    // TRACAS visibility comes from the shared tab definition, so the sidebar
+    // and the tab bar can never disagree about who gets in.
+    if (item.href === TRACAS_HUB_PLACEHOLDER) {
+      return hasTracasAccess(role);
+    }
     if (
       (role === "ICT_OFFICER" || role === "ICT_OFFICER_TRACAS") &&
       item.href === "/dashboard"
@@ -410,15 +385,25 @@ export function DashboardSidebar({
         <nav aria-label="Main navigation" className="p-3 flex-1">
           <ul className="flex flex-col gap-0.5 list-none m-0 p-0">
             {visibleItems.map((item) => {
-              const isActive =
-                item.href === "/dashboard"
+              // The TRACAS entry resolves to the first section this role can
+              // use, so an approver is never dropped on the fleet register.
+              const isTracas = item.href === TRACAS_HUB_PLACEHOLDER;
+              const href = isTracas
+                ? (tracasLandingFor(role) ?? "/tracas")
+                : item.href;
+
+              const isActive = isTracas
+                ? TRACAS_SECTION_PREFIXES.some(
+                    (p) => pathname === p || pathname.startsWith(`${p}/`),
+                  )
+                : item.href === "/dashboard"
                   ? pathname === "/dashboard"
                   : pathname.startsWith(item.href);
 
               return (
                 <li key={item.href}>
                   <Link
-                    href={item.href}
+                    href={href}
                     onClick={close}
                     aria-current={isActive ? "page" : undefined}
                     className={cn(

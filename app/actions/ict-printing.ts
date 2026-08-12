@@ -9,7 +9,8 @@ export interface PrintingItem {
     | "DRIVER_ID_CARD"
     | "LETTER_OF_AUTHORITY"
     | "PARK_STAFF_ID_CARD"
-    | "BOAT_PERMIT";
+    | "BOAT_PERMIT"
+    | "REVALIDATION_CERTIFICATE";
   title: string;
   subtitle: string;
   refOrCode: string;
@@ -53,12 +54,14 @@ export async function getIctPrintingQueues(searchQuery = "") {
         lettersCount: 0,
         parkStaffCount: 0,
         boatPermitsCount: 0,
+        revalidationCount: 0,
       },
       items: [],
       driverItems: [],
       vehicleItems: [],
       parkStaffItems: [],
       boatItems: [],
+      revalidationItems: [],
     };
   }
 
@@ -104,22 +107,48 @@ export async function getIctPrintingQueues(searchQuery = "") {
   });
 
   // 3. Fetch Park Staff ID Cards — Ministry queue only.
+  // Only approved applications with an issued ID card belong in the queue —
+  // this previously listed every application regardless of status.
   const parkMonitors = includeMinistryQueues
     ? await db.parkMonitorApplication.findMany({
+        where: { status: "APPROVED", idCardIssued: true },
         take: 100,
-        orderBy: { createdAt: "desc" },
+        orderBy: { idCardIssuedAt: "desc" },
       })
     : [];
 
   // 4. Fetch Boat Permits — Ministry queue only.
+  // A revoked or suspended boat has no printable permit.
   const boats = includeMinistryQueues
     ? await db.boat.findMany({
+        where: { status: "ACTIVE" },
         take: 100,
         orderBy: { createdAt: "desc" },
         include: {
           assignedRider: {
             select: { fullName: true },
           },
+        },
+      })
+    : [];
+
+  // 5. Fetch approved Revalidation Certificates — Ministry queue only.
+  // Issued once the Commissioner signs, so the letter carries a signature.
+  const revalidations = includeMinistryQueues
+    ? await db.revalidationApplication.findMany({
+        where: { status: "APPROVED", commissionerApprovedAt: { not: null } },
+        take: 100,
+        orderBy: { commissionerApprovedAt: "desc" },
+        select: {
+          id: true,
+          parkName: true,
+          ownerName: true,
+          townCommunity: true,
+          lga: true,
+          revalidationNumber: true,
+          commissionerApprovedAt: true,
+          validUntil: true,
+          status: true,
         },
       })
     : [];
@@ -179,11 +208,24 @@ export async function getIctPrintingQueues(searchQuery = "") {
     photoUrl: null,
   }));
 
+  const revalidationItems: PrintingItem[] = revalidations.map((r) => ({
+    id: r.id,
+    category: "REVALIDATION_CERTIFICATE",
+    title: `${r.parkName}`,
+    subtitle: `Revalidation · ${[r.townCommunity, r.lga].filter(Boolean).join(", ") || "Anambra State"}`,
+    refOrCode: `Cert: ${r.revalidationNumber ?? "N/A"}`,
+    issueDate: r.commissionerApprovedAt,
+    status: r.status,
+    printUrl: `/admin/revalidation-queue/${r.id}/certificate`,
+    photoUrl: null,
+  }));
+
   const allItems = [
     ...driverItems,
     ...vehicleItems,
     ...parkStaffItems,
     ...boatItems,
+    ...revalidationItems,
   ];
 
   const filterFn = (i: PrintingItem) =>
@@ -201,11 +243,13 @@ export async function getIctPrintingQueues(searchQuery = "") {
       lettersCount: vehicleItems.length,
       parkStaffCount: parkStaffItems.length,
       boatPermitsCount: boatItems.length,
+      revalidationCount: revalidationItems.length,
     },
     items: allItems.filter(filterFn),
     driverItems: driverItems.filter(filterFn),
     vehicleItems: vehicleItems.filter(filterFn),
     parkStaffItems: parkStaffItems.filter(filterFn),
     boatItems: boatItems.filter(filterFn),
+    revalidationItems: revalidationItems.filter(filterFn),
   };
 }

@@ -18,6 +18,7 @@ import {
   Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TracasNavTabs } from "@/components/tracas/tracas-nav-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -110,6 +111,8 @@ export function ApprovalsClient({
 
   return (
     <div className="space-y-8 py-2">
+      <TracasNavTabs role={role} />
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">

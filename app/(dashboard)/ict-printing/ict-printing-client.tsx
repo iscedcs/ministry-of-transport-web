@@ -11,6 +11,7 @@ import {
   Ship,
   ExternalLink,
   CheckCircle2,
+  FileCheck,
   Filter,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -29,12 +30,14 @@ export function IctPrintingClient({
       lettersCount: number;
       parkStaffCount: number;
       boatPermitsCount: number;
+      revalidationCount: number;
     };
     items: PrintingItem[];
     driverItems: PrintingItem[];
     vehicleItems: PrintingItem[];
     parkStaffItems: PrintingItem[];
     boatItems: PrintingItem[];
+    revalidationItems: PrintingItem[];
   };
 }) {
   /**
@@ -50,6 +53,7 @@ export function IctPrintingClient({
     | "LETTER_OF_AUTHORITY"
     | "PARK_STAFF_ID_CARD"
     | "BOAT_PERMIT"
+    | "REVALIDATION_CERTIFICATE"
   >("ALL");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -62,6 +66,8 @@ export function IctPrintingClient({
     else if (activeTab === "PARK_STAFF_ID_CARD")
       source = initialData.parkStaffItems;
     else if (activeTab === "BOAT_PERMIT") source = initialData.boatItems;
+    else if (activeTab === "REVALIDATION_CERTIFICATE")
+      source = initialData.revalidationItems;
 
     if (!searchQuery.trim()) return source;
     const q = searchQuery.toLowerCase();
@@ -101,7 +107,7 @@ export function IctPrintingClient({
           <p className="text-sm text-slate-300 max-w-2xl">
             {isTracasScoped
               ? "Print TRACAS documents: Commercial Driver ID Cards and Letters of Authority approved by the Ag. MD/CEO and the Commissioner."
-              : "Manage, verify, and print official Ministry documents: Commercial Driver ID Cards, TRACAS Letters of Authority, Motor Park Staff Badges, and Boat Permits."}
+              : "Manage, verify, and print official Ministry documents: Commercial Driver ID Cards, TRACAS Letters of Authority, Motor Park Staff Badges, Boat Permits, and Revalidation Letters."}
           </p>
         </div>
 
@@ -118,7 +124,7 @@ export function IctPrintingClient({
       </div>
 
       {/* Summary Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <button
           onClick={() => setActiveTab("DRIVER_ID_CARD")}
           className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
@@ -196,6 +202,27 @@ export function IctPrintingClient({
           </p>
         </button>
         )}
+
+        {!isTracasScoped && (
+        <button
+          onClick={() => setActiveTab("REVALIDATION_CERTIFICATE")}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            activeTab === "REVALIDATION_CERTIFICATE"
+              ? "bg-primary/10 border-primary shadow-md"
+              : "bg-card border-border hover:border-primary/50"
+          }`}>
+          <div className="flex items-center justify-between">
+            <FileCheck className="w-5 h-5 text-emerald-500" />
+            <Badge variant="outline" className="font-bold text-xs">
+              {initialData.stats.revalidationCount}
+            </Badge>
+          </div>
+          <p className="font-bold text-base mt-2">Revalidation Letters</p>
+          <p className="text-xs text-muted-foreground">
+            Approved Park Revalidations
+          </p>
+        </button>
+        )}
       </div>
 
       {/* Search and Navigation Bar */}
@@ -247,6 +274,15 @@ export function IctPrintingClient({
                     : "bg-muted text-muted-foreground hover:text-foreground"
                 }`}>
                 Boats ({initialData.stats.boatPermitsCount})
+              </button>
+              <button
+                onClick={() => setActiveTab("REVALIDATION_CERTIFICATE")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                  activeTab === "REVALIDATION_CERTIFICATE"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}>
+                Revalidation ({initialData.stats.revalidationCount})
               </button>
             </>
           )}
