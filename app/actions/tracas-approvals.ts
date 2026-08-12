@@ -3,7 +3,8 @@
 /**
  * TRACAS Letter of Authority — approval chain.
  *
- *   Enumerator onboards  →  PENDING_MD_APPROVAL
+ *   Enumerator onboards  →  PENDING_VIO_APPROVAL
+ *   VIO verifies         →  PENDING_MD_APPROVAL
  *   MD approves          →  PENDING_COMMISSIONER_APPROVAL   (MD signature applied)
  *   Commissioner approves→  APPROVED                        (both signatures applied)
  *   Either declines      →  DECLINED                        (returns to the enumerator)
@@ -18,6 +19,12 @@ import { db } from "@/lib/db";
 import { authorize } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 
+/** The VIO stage is a verification gate — it produces no signature. */
+const VIO_ROLES = [
+  "VEHICLE_INSPECTION_OFFICER",
+  "HOD_VIS",
+  "SYSTEM_ADMIN",
+] as const;
 /** Who may act at the MD stage. System Admin included for support/recovery. */
 const MD_ROLES = ["TRACAS_MD", "SYSTEM_ADMIN"] as const;
 /** Who may act at the Commissioner stage. */
@@ -25,7 +32,112 @@ const COMMISSIONER_ROLES = ["COMMISSIONER", "SYSTEM_ADMIN"] as const;
 
 type Result = { success: boolean; error?: string };
 
-// ── MD stage ────────────────────────────────────────────────────────────────
+// ── VIO stage (verification, no signature) ──────────────────────────────────
+
+export async function vioApproveLetter(vehicleId: string): Promise<Result> {
+  const authz = await authorize([...VIO_ROLES]);
+  if (!authz.ok) return { success: false, error: authz.error };
+
+  try {
+    const vehicle = await db.tracasVehicle.findUnique({
+      where: { id: vehicleId },
+      select: { letterStatus: true, registrationNumber: true },
+    });
+    if (!vehicle) return { success: false, error: "Vehicle not found." };
+
+    if (vehicle.letterStatus !== "PENDING_VIO_APPROVAL") {
+      return {
+        success: false,
+        error: `This letter is not awaiting VIO verification (currently ${vehicle.letterStatus}).`,
+      };
+    }
+
+    await db.tracasVehicle.update({
+      where: { id: vehicleId },
+      data: {
+        letterStatus: "PENDING_MD_APPROVAL",
+        vioApprovedAt: new Date(),
+        vioApprovedByUserId: authz.session.userId,
+        declinedAt: null,
+        declinedByUserId: null,
+        declinedAtStage: null,
+        declineReason: null,
+      },
+    });
+
+    await recordAudit({
+      action: "TRACAS_LETTER_VIO_APPROVED",
+      entityType: "TRACAS_VEHICLE",
+      entityId: vehicleId,
+      changeDescription: `VIO verified Letter of Authority for ${vehicle.registrationNumber}; forwarded to the MD`,
+      oldValues: { letterStatus: vehicle.letterStatus },
+      newValues: { letterStatus: "PENDING_MD_APPROVAL" },
+    });
+
+    revalidatePath("/tracas");
+    revalidatePath("/tracas-approvals");
+    return { success: true };
+  } catch (error: unknown) {
+    console.error("vioApproveLetter failed:", error);
+    return { success: false, error: "Failed to verify letter." };
+  }
+}
+
+export async function vioDeclineLetter(
+  vehicleId: string,
+  reason: string,
+): Promise<Result> {
+  const authz = await authorize([...VIO_ROLES]);
+  if (!authz.ok) return { success: false, error: authz.error };
+
+  if (!reason?.trim()) {
+    return { success: false, error: "A reason is required when declining." };
+  }
+
+  try {
+    const vehicle = await db.tracasVehicle.findUnique({
+      where: { id: vehicleId },
+      select: { letterStatus: true, registrationNumber: true },
+    });
+    if (!vehicle) return { success: false, error: "Vehicle not found." };
+
+    if (vehicle.letterStatus !== "PENDING_VIO_APPROVAL") {
+      return {
+        success: false,
+        error: `This letter is not awaiting VIO verification (currently ${vehicle.letterStatus}).`,
+      };
+    }
+
+    await db.tracasVehicle.update({
+      where: { id: vehicleId },
+      data: {
+        letterStatus: "DECLINED",
+        declinedAt: new Date(),
+        declinedByUserId: authz.session.userId,
+        declinedAtStage: "VIO",
+        declineReason: reason.trim(),
+      },
+    });
+
+    await recordAudit({
+      action: "TRACAS_LETTER_VIO_DECLINED",
+      entityType: "TRACAS_VEHICLE",
+      entityId: vehicleId,
+      changeDescription: `VIO declined Letter of Authority for ${vehicle.registrationNumber}: ${reason.trim()}`,
+      oldValues: { letterStatus: vehicle.letterStatus },
+      newValues: { letterStatus: "DECLINED", stage: "VIO" },
+    });
+
+    revalidatePath("/tracas");
+    revalidatePath("/tracas-approvals");
+    return { success: true };
+  } catch (error: unknown) {
+    console.error("vioDeclineLetter failed:", error);
+    return { success: false, error: "Failed to decline letter." };
+  }
+}
+
+// ── MD stage (signature) ────────────────────────────────────────────────────
 
 export async function mdApproveLetter(vehicleId: string): Promise<Result> {
   const authz = await authorize([...MD_ROLES]);
@@ -151,8 +263,10 @@ export async function commissionerApproveLetter(
       return {
         success: false,
         error:
-          vehicle.letterStatus === "PENDING_MD_APPROVAL"
-            ? "This letter must be approved by the TRACAS MD first."
+          vehicle.letterStatus === "PENDING_VIO_APPROVAL"
+            ? "This letter must be verified by the VIO, then approved by the TRACAS MD, first."
+            : vehicle.letterStatus === "PENDING_MD_APPROVAL"
+              ? "This letter must be approved by the TRACAS MD first."
             : `This letter is not awaiting Commissioner approval (currently ${vehicle.letterStatus}).`,
       };
     }
@@ -276,7 +390,9 @@ export async function resubmitLetterForApproval(
     await db.tracasVehicle.update({
       where: { id: vehicleId },
       data: {
-        letterStatus: "PENDING_MD_APPROVAL",
+        letterStatus: "PENDING_VIO_APPROVAL",
+        vioApprovedAt: null,
+        vioApprovedByUserId: null,
         declinedAt: null,
         declinedByUserId: null,
         declinedAtStage: null,
@@ -292,9 +408,9 @@ export async function resubmitLetterForApproval(
       action: "TRACAS_LETTER_RESUBMITTED",
       entityType: "TRACAS_VEHICLE",
       entityId: vehicleId,
-      changeDescription: `Letter of Authority for ${vehicle.registrationNumber} resubmitted to the MD`,
+      changeDescription: `Letter of Authority for ${vehicle.registrationNumber} resubmitted to the VIO`,
       oldValues: { letterStatus: "DECLINED" },
-      newValues: { letterStatus: "PENDING_MD_APPROVAL" },
+      newValues: { letterStatus: "PENDING_VIO_APPROVAL" },
     });
 
     revalidatePath("/tracas");
@@ -330,9 +446,10 @@ export interface ApprovalQueueVehicle {
 
 export interface ApprovalQueueData {
   /** Stage this viewer acts on, or null when they are only observing. */
-  stage: "MD" | "COMMISSIONER" | null;
+  stage: "VIO" | "MD" | "COMMISSIONER" | null;
   pending: ApprovalQueueVehicle[];
   counts: {
+    pendingVio: number;
     pendingMd: number;
     pendingCommissioner: number;
     approved: number;
@@ -369,6 +486,8 @@ export async function getLetterApprovalQueue(): Promise<
   { success: true; data: ApprovalQueueData } | { success: false; error: string }
 > {
   const authz = await authorize([
+    "VEHICLE_INSPECTION_OFFICER",
+    "HOD_VIS",
     "TRACAS_MD",
     "COMMISSIONER",
     "SYSTEM_ADMIN",
@@ -379,32 +498,51 @@ export async function getLetterApprovalQueue(): Promise<
   try {
     const role = authz.session.role;
     // System Admin and PS observe the chain; they do not own a stage.
-    const stage: "MD" | "COMMISSIONER" | null =
-      role === "TRACAS_MD"
-        ? "MD"
-        : role === "COMMISSIONER"
-          ? "COMMISSIONER"
-          : null;
+    const stage: "VIO" | "MD" | "COMMISSIONER" | null =
+      role === "VEHICLE_INSPECTION_OFFICER" || role === "HOD_VIS"
+        ? "VIO"
+        : role === "TRACAS_MD"
+          ? "MD"
+          : role === "COMMISSIONER"
+            ? "COMMISSIONER"
+            : null;
 
     const pendingStatus =
-      stage === "MD"
-        ? "PENDING_MD_APPROVAL"
+      stage === "VIO"
+        ? "PENDING_VIO_APPROVAL"
+        : stage === "MD"
+          ? "PENDING_MD_APPROVAL"
         : stage === "COMMISSIONER"
           ? "PENDING_COMMISSIONER_APPROVAL"
           : undefined;
 
-    const [pending, pendingMd, pendingCommissioner, approved, declined, recentlyDeclined] =
+    const [
+      pending,
+      pendingVio,
+      pendingMd,
+      pendingCommissioner,
+      approved,
+      declined,
+      recentlyDeclined,
+    ] =
       await Promise.all([
         db.tracasVehicle.findMany({
           where: pendingStatus
             ? { letterStatus: pendingStatus }
             : {
                 letterStatus: {
-                  in: ["PENDING_MD_APPROVAL", "PENDING_COMMISSIONER_APPROVAL"],
+                  in: [
+                    "PENDING_VIO_APPROVAL",
+                    "PENDING_MD_APPROVAL",
+                    "PENDING_COMMISSIONER_APPROVAL",
+                  ],
                 },
               },
           orderBy: { createdAt: "asc" },
           select: QUEUE_SELECT,
+        }),
+        db.tracasVehicle.count({
+          where: { letterStatus: "PENDING_VIO_APPROVAL" },
         }),
         db.tracasVehicle.count({ where: { letterStatus: "PENDING_MD_APPROVAL" } }),
         db.tracasVehicle.count({
@@ -425,7 +563,13 @@ export async function getLetterApprovalQueue(): Promise<
       data: {
         stage,
         pending,
-        counts: { pendingMd, pendingCommissioner, approved, declined },
+        counts: {
+          pendingVio,
+          pendingMd,
+          pendingCommissioner,
+          approved,
+          declined,
+        },
         recentlyDeclined,
       },
     };

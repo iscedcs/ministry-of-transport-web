@@ -366,9 +366,20 @@ export async function updateMotorParkStatus(
 
     // Only allow valid transitions
     const validTransitions: Record<ApplicationStatus, ApplicationStatus[]> = {
-      SUBMITTED: ["UNDER_REVIEW", "INSPECTION_SCHEDULED"],
+      SUBMITTED: [
+        "UNDER_REVIEW",
+        "INSPECTION_SCHEDULED",
+        "PENDING_PS_INSPECTION_APPROVAL",
+      ],
       UNDER_REVIEW: ["INSPECTION_SCHEDULED", "REJECTED"],
-      INSPECTION_SCHEDULED: ["INSPECTION_IN_PROGRESS"],
+      // Revalidation routes the inspection SCHEDULE past the PS before the
+      // inspector attends; it can also bounce back to the HOD to reschedule.
+      PENDING_PS_INSPECTION_APPROVAL: [
+        "INSPECTION_SCHEDULED",
+        "SUBMITTED",
+        "REJECTED",
+      ],
+      INSPECTION_SCHEDULED: ["INSPECTION_IN_PROGRESS", "PENDING_HOD_APPROVAL"],
       INSPECTION_IN_PROGRESS: ["INSPECTION_COMPLETED", "INSPECTION_SCHEDULED"],
       INSPECTION_COMPLETED: ["PENDING_HOD_APPROVAL", "PENDING_PS_APPROVAL", "PENDING_APPROVAL"],
       PENDING_APPROVAL: ["APPROVED", "REJECTED"],

@@ -36,12 +36,14 @@ const NAV_ITEMS: NavItem[] = [
   },
 
   // ── Motor Park Module ──
-  // ── TRACAS Letter Approvals (MD + Commissioner) ──
+  // ── TRACAS Letter Approvals (VIO → MD → Commissioner) ──
   {
-    label: "Commissioner Approvals",
+    label: "Letter Approvals",
     href: "/tracas-approvals",
     icon: "🖊️",
     allowedRoles: [
+      "VEHICLE_INSPECTION_OFFICER",
+      "HOD_VIS",
       "TRACAS_MD",
       "COMMISSIONER",
       "SYSTEM_ADMIN",

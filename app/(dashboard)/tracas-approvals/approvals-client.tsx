@@ -30,6 +30,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  vioApproveLetter,
+  vioDeclineLetter,
   mdApproveLetter,
   mdDeclineLetter,
   commissionerApproveLetter,
@@ -58,8 +60,10 @@ export function ApprovalsClient({
   const { stage, pending, counts, recentlyDeclined } = data;
 
   const stageLabel =
-    stage === "MD"
-      ? "Awaiting your approval as Ag. MD/CEO"
+    stage === "VIO"
+      ? "Awaiting your verification as Vehicle Inspection Officer"
+      : stage === "MD"
+        ? "Awaiting your approval as Ag. MD/CEO"
       : stage === "COMMISSIONER"
         ? "Awaiting your approval as Commissioner"
         : "Letters in the approval chain (view only)";
@@ -80,9 +84,11 @@ export function ApprovalsClient({
 
   const handleApprove = (v: ApprovalQueueVehicle) =>
     run(() =>
-      stage === "MD"
-        ? mdApproveLetter(v.id)
-        : commissionerApproveLetter(v.id),
+      stage === "VIO"
+        ? vioApproveLetter(v.id)
+        : stage === "MD"
+          ? mdApproveLetter(v.id)
+          : commissionerApproveLetter(v.id),
     );
 
   const handleDeclineConfirm = () => {
@@ -94,9 +100,11 @@ export function ApprovalsClient({
     const id = declineTarget.id;
     const reason = declineReason.trim();
     run(() =>
-      stage === "MD"
-        ? mdDeclineLetter(id, reason)
-        : commissionerDeclineLetter(id, reason),
+      stage === "VIO"
+        ? vioDeclineLetter(id, reason)
+        : stage === "MD"
+          ? mdDeclineLetter(id, reason)
+          : commissionerDeclineLetter(id, reason),
     );
   };
 
@@ -120,7 +128,14 @@ export function ApprovalsClient({
       </div>
 
       {/* Chain overview — the MD sees the whole picture, not just her step */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCard
+          label="Awaiting VIO"
+          value={counts.pendingVio}
+          icon={<ShieldCheck className="w-5 h-5 text-purple-500" />}
+          tint="bg-purple-500/10"
+          highlight={stage === "VIO"}
+        />
         <StatCard
           label="Awaiting MD"
           value={counts.pendingMd}
@@ -318,6 +333,11 @@ export function ApprovalsClient({
                           ? "New Joiner"
                           : "Existing"}
                       </Badge>
+                      {v.letterStatus === "PENDING_MD_APPROVAL" && (
+                        <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20 text-[10px] font-bold">
+                          VIO verified
+                        </Badge>
+                      )}
                       {v.letterStatus === "PENDING_COMMISSIONER_APPROVAL" && (
                         <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-[10px] font-bold">
                           MD signed
@@ -352,7 +372,7 @@ export function ApprovalsClient({
                           onClick={() => handleApprove(v)}
                           className="gap-1.5 cursor-pointer">
                           <CheckCircle2 className="w-3.5 h-3.5" />
-                          Approve &amp; sign
+                          {stage === "VIO" ? "Verify" : "Approve & sign"}
                         </Button>
                         <Button
                           size="sm"
