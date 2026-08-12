@@ -1377,11 +1377,26 @@ model RevalidationApplication {
 
   // Inspector's submission
   inspectionCompletedAt DateTime?
+  /// Item-by-item verification of what the applicant declared in Sections
+  /// E, F and G. JSON array of
+  /// { key, section, label, declared, verified: "YES"|"NO"|"PARTIAL", note }.
+  inspectionChecklist   Json?
   /// Evidence captured on site — JSON array of { url, caption }.
   evidenceUrls          Json?
 
   // Reason recorded when the application is rejected outright
   rejectionReason String? @db.Text
+
+  // ── Certificate terms (printed on the revalidation letter) ──
+  /// Monthly operational fee that applies going forward, in kobo.
+  monthlyFeeAmount         Int?
+  /// Prior monthly fee, in kobo. Set only when the fee was reviewed — the
+  /// letter then reads "reviewed from X to Y" instead of a single figure.
+  previousMonthlyFeeAmount Int?
+  /// Date the revalidation takes effect ("with effect from ...").
+  effectiveFrom            DateTime?
+  /// Facilities the park must provide within six months, free text.
+  requiredFacilities       String?   @db.Text
 
   hodApprovedAt          DateTime?
   commissionerApprovedAt DateTime?

@@ -172,6 +172,7 @@ export async function submitRevalidationFindings(
   findings: string,
   recommendation: string,
   evidenceUrls: { url: string; caption?: string }[] = [],
+  checklist: unknown[] = [],
 ) {
   const session = await requireAuth();
 
@@ -215,12 +216,27 @@ export async function submitRevalidationFindings(
     };
   }
 
+  // Every declared item must be verified — a half-finished checklist gives the
+  // HOD no basis for a decision.
+  const unanswered = checklist.filter(
+    (i) => !i || typeof i !== "object" || (i as { verified?: unknown }).verified == null,
+  ).length;
+  if (checklist.length > 0 && unanswered > 0) {
+    return {
+      success: false,
+      error: `${unanswered} checklist item(s) are unanswered.`,
+    };
+  }
+
   const app = await db.revalidationApplication.update({
     where: { id: applicationId },
     data: {
       findings: findings.trim(),
       recommendation,
       evidenceUrls: evidenceUrls as never,
+      ...(checklist.length > 0
+        ? { inspectionChecklist: checklist as never }
+        : {}),
       inspectionCompletedAt: new Date(),
       // Back to the HOD. This previously set INSPECTION_COMPLETED, a state the
       // queue had no branch for, so the application became unactionable.
@@ -232,7 +248,7 @@ export async function submitRevalidationFindings(
     action: "REVALIDATION_INSPECTION_COMPLETED",
     entityType: "REVALIDATION",
     entityId: applicationId,
-    changeDescription: `Inspection findings filed for ${app.parkName} with ${evidenceUrls.length} evidence item(s); returned to HOD`,
+    changeDescription: `Inspection filed for ${app.parkName} — ${checklist.length} checklist item(s), ${evidenceUrls.length} evidence item(s); returned to HOD`,
     newValues: { status: "PENDING_HOD_APPROVAL", recommendation },
   });
 
@@ -429,4 +445,124 @@ export async function rejectRevalidation(applicationId: string) {
   revalidatePath(`/admin/revalidation-queue/${applicationId}`);
   revalidatePath(`/admin/revalidation-queue`);
   return { success: true, data: app };
+}
+
+// ── Certificate terms ───────────────────────────────────────────────────────
+
+/**
+ * Set the values printed on the revalidation letter that the Ministry decides
+ * rather than the applicant: the monthly operational fee, whether it was
+ * reviewed, when the revalidation takes effect, and any facilities the park
+ * must provide within six months.
+ *
+ * Amounts are entered in NAIRA and stored in kobo, matching the rest of the
+ * platform.
+ */
+export async function setRevalidationCertificateTerms(
+  applicationId: string,
+  input: {
+    monthlyFeeNaira?: string | number | null;
+    previousMonthlyFeeNaira?: string | number | null;
+    effectiveFrom?: string | null;
+    requiredFacilities?: string | null;
+  },
+) {
+  const authz = await authorize([
+    "HOD_PARKS_REVALIDATION",
+    "HOD_PARKS",
+    "PERMANENT_SECRETARY",
+    "COMMISSIONER",
+    "SYSTEM_ADMIN",
+  ]);
+  if (!authz.ok) return { success: false, error: authz.error };
+
+  const toKobo = (v: string | number | null | undefined) => {
+    if (v === null || v === undefined || v === "") return null;
+    const n = typeof v === "number" ? v : Number(String(v).replace(/,/g, ""));
+    if (!isFinite(n) || n < 0) return undefined; // signals invalid
+    return Math.round(n * 100);
+  };
+
+  const fee = toKobo(input.monthlyFeeNaira);
+  const prevFee = toKobo(input.previousMonthlyFeeNaira);
+  if (fee === undefined || prevFee === undefined) {
+    return { success: false, error: "Enter a valid fee amount." };
+  }
+
+  let effective: Date | null = null;
+  if (input.effectiveFrom) {
+    effective = new Date(input.effectiveFrom);
+    if (isNaN(effective.getTime())) {
+      return { success: false, error: "Enter a valid effective date." };
+    }
+  }
+
+  const app = await db.revalidationApplication.update({
+    where: { id: applicationId },
+    data: {
+      monthlyFeeAmount: fee,
+      previousMonthlyFeeAmount: prevFee,
+      effectiveFrom: effective,
+      requiredFacilities: input.requiredFacilities?.trim() || null,
+    },
+  });
+
+  await recordAudit({
+    action: "REVALIDATION_TERMS_SET",
+    entityType: "REVALIDATION",
+    entityId: applicationId,
+    changeDescription: `Certificate terms set for ${app.parkName}${
+      fee != null ? ` — monthly fee ₦${(fee / 100).toLocaleString()}` : ""
+    }`,
+    newValues: {
+      monthlyFeeAmount: fee,
+      previousMonthlyFeeAmount: prevFee,
+      effectiveFrom: effective?.toISOString() ?? null,
+    },
+  });
+
+  touch(applicationId);
+  return { success: true, data: app };
+}
+
+/**
+ * Suggested defaults for the terms form: the fee currently assessed on the
+ * linked motor park, so the Ministry confirms a figure rather than typing one
+ * from memory.
+ */
+export async function getRevalidationTermsDefaults(applicationId: string) {
+  const authz = await authorize([
+    "HOD_PARKS_REVALIDATION",
+    "HOD_PARKS",
+    "PERMANENT_SECRETARY",
+    "COMMISSIONER",
+    "SYSTEM_ADMIN",
+  ]);
+  if (!authz.ok) return { success: false as const, error: authz.error };
+
+  const app = await db.revalidationApplication.findUnique({
+    where: { id: applicationId },
+    select: { motorParkId: true, asinNumber: true, applicantUserId: true },
+  });
+  if (!app) return { success: false as const, error: "Application not found." };
+
+  const park = app.motorParkId
+    ? await db.motorPark.findUnique({
+        where: { id: app.motorParkId },
+        select: { monthlyLevyAmount: true },
+      })
+    : await db.motorPark.findFirst({
+        where: {
+          OR: [
+            { anssidNumber: app.asinNumber },
+            { contactUserId: app.applicantUserId },
+          ],
+        },
+        select: { monthlyLevyAmount: true },
+      });
+
+  return {
+    success: true as const,
+    data: { currentMonthlyLevyKobo: park?.monthlyLevyAmount ?? null },
+  };
 }

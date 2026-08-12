@@ -4,11 +4,14 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import {
   scheduleRevalidationInspection,
   psApproveInspectionSchedule,
   psRejectInspectionSchedule,
+  setRevalidationCertificateTerms,
   submitRevalidationFindings,
   hodApproveRevalidation,
   commissionerApproveRevalidation,
@@ -21,13 +24,20 @@ export function WorkflowActions({
   status,
   role,
   inspectors,
-  assignedInspectorId
+  assignedInspectorId,
+  terms,
 }: {
   applicationId: string;
   status: string;
   role: string;
   inspectors: any[];
   assignedInspectorId: string | null;
+  terms?: {
+    monthlyFeeAmount: number | null;
+    previousMonthlyFeeAmount: number | null;
+    effectiveFrom: Date | string | null;
+    requiredFacilities: string | null;
+  } | null;
 }) {
   const [isPending, startTransition] = useTransition();
   const [evidence, setEvidence] = useState<{ url: string; caption?: string }[]>(
@@ -124,6 +134,21 @@ export function WorkflowActions({
     });
   };
 
+  const handleTerms = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    startTransition(async () => {
+      const res = await setRevalidationCertificateTerms(applicationId, {
+        monthlyFeeNaira: fd.get("monthlyFeeNaira") as string,
+        previousMonthlyFeeNaira: fd.get("previousMonthlyFeeNaira") as string,
+        effectiveFrom: fd.get("effectiveFrom") as string,
+        requiredFacilities: fd.get("requiredFacilities") as string,
+      });
+      if (res.success) toast.success("Certificate terms saved");
+      else toast.error(res.error ?? "Failed to save terms");
+    });
+  };
+
   const handleApprove = async (actionFn: (id: string) => Promise<any>, successMsg: string) => {
     startTransition(async () => {
       const res = await actionFn(applicationId);
@@ -217,70 +242,22 @@ export function WorkflowActions({
       {status === "INSPECTION_SCHEDULED" && isInspector && (
         <Card>
           <CardHeader>
-            <CardTitle>Submit Findings</CardTitle>
-            <CardDescription>Record inspection results</CardDescription>
+            <CardTitle>Site Inspection</CardTitle>
+            <CardDescription>
+              Verify the declared facilities, compliance and staffing
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-2 mb-4">
-            <label className="text-sm font-semibold">
-              Site Evidence <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="file"
-              accept="image/*,application/pdf"
-              multiple
-              onChange={handleEvidenceUpload}
-              disabled={uploading || isPending}
-              className="block w-full text-sm cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:text-sm file:font-semibold"
-            />
-            <p className="text-xs text-muted-foreground">
-              Photographs or documents captured on site. Images or PDF, under
-              5MB each.
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              The inspection checklist is built from what the applicant
+              declared in Sections E, F and G. Work through it on the full
+              inspection page, attach site evidence, then submit to the HOD.
             </p>
-            {uploading && (
-              <p className="text-xs text-primary">Uploading…</p>
-            )}
-            {evidence.length > 0 && (
-              <ul className="space-y-1 pt-1">
-                {evidence.map((ev, i) => (
-                  <li
-                    key={ev.url}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-border bg-secondary/40 px-2.5 py-1.5 text-xs">
-                    <span className="truncate">{ev.caption ?? ev.url}</span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setEvidence((prev) => prev.filter((_, j) => j !== i))
-                      }
-                      className="text-red-500 hover:underline flex-shrink-0">
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <form onSubmit={handleFindings} className="flex flex-col gap-3">
-              <div>
-                <label className="text-sm block mb-1">Findings</label>
-                <textarea name="findings" rows={4} className="flex w-full rounded-md border bg-background px-3 py-2 text-sm" required></textarea>
-              </div>
-              <div>
-                <label className="text-sm block mb-1">Recommendation</label>
-                <select name="recommendation" className="flex h-10 w-full rounded-md border bg-background px-3 py-2 text-sm" required>
-                  <option value="">-- Select --</option>
-                  <option value="Approved">Approved</option>
-                  <option value="Approved with Conditions">Approved with Conditions</option>
-                  <option value="Pending Compliance">Pending Compliance</option>
-                  <option value="Rejected">Rejected</option>
-                </select>
-              </div>
-              <Button type="submit" disabled={isPending}>
-                {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                Submit to HOD
-              </Button>
-            </form>
+            <Button asChild className="w-full">
+              <Link href={`/admin/revalidation-queue/${applicationId}/inspect`}>
+                Open inspection checklist
+              </Link>
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -317,6 +294,91 @@ export function WorkflowActions({
           </CardContent>
         </Card>
       )}
+
+      {/* Values the Ministry sets, printed on the certificate. Available
+          before the Commissioner signs so the letter is complete on issue. */}
+      {(isHod || isPs || isComm) &&
+        status !== "APPROVED" &&
+        status !== "REJECTED" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Certificate Terms</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-3">
+                These appear on the revalidation letter. Set them before the
+                Commissioner approves, or the letter prints with blanks.
+              </p>
+              <form onSubmit={handleTerms} className="space-y-3">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">
+                      Monthly operational fee (₦)
+                    </label>
+                    <Input
+                      name="monthlyFeeNaira"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      defaultValue={
+                        terms?.monthlyFeeAmount != null
+                          ? terms.monthlyFeeAmount / 100
+                          : ""
+                      }
+                      placeholder="e.g. 15000"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">
+                      Previous fee (₦) — only if reviewed
+                    </label>
+                    <Input
+                      name="previousMonthlyFeeNaira"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      defaultValue={
+                        terms?.previousMonthlyFeeAmount != null
+                          ? terms.previousMonthlyFeeAmount / 100
+                          : ""
+                      }
+                      placeholder="Leave blank if unchanged"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">
+                      With effect from
+                    </label>
+                    <Input
+                      name="effectiveFrom"
+                      type="date"
+                      defaultValue={
+                        terms?.effectiveFrom
+                          ? new Date(terms.effectiveFrom)
+                              .toISOString()
+                              .slice(0, 10)
+                          : ""
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">
+                      Facilities required within 6 months
+                    </label>
+                    <Input
+                      name="requiredFacilities"
+                      defaultValue={terms?.requiredFacilities ?? ""}
+                      placeholder="e.g. Fire extinguishers, CCTV"
+                    />
+                  </div>
+                </div>
+                <Button type="submit" variant="outline" disabled={isPending}>
+                  {isPending ? "Saving..." : "Save terms"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
 
       {status === "PENDING_COMMISSIONER_APPROVAL" && isComm && (
         <Card>
