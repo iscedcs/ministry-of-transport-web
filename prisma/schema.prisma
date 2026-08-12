@@ -43,9 +43,12 @@ enum UserRole {
 }
 
 /// Approval chain for a TRACAS Letter of Authority.
-/// Enumerator onboards → MD signs → Commissioner signs → ICT prints.
+/// Enumerator onboards → VIO verifies → MD signs → Commissioner signs → ICT prints.
+/// The VIO stage is a verification gate and produces no signature; only the
+/// MD and Commissioner sign the letter.
 enum LetterApprovalStatus {
-  PENDING_MD_APPROVAL // Onboarded; awaiting Ag. MD/CEO
+  PENDING_VIO_APPROVAL // Onboarded; awaiting Vehicle Inspection Officer
+  PENDING_MD_APPROVAL // VIO cleared; awaiting Ag. MD/CEO
   PENDING_COMMISSIONER_APPROVAL // MD signed; awaiting Commissioner
   APPROVED // Both signatures applied — printable
   DECLINED // Rejected at either stage; returns to the enumerator
@@ -66,7 +69,8 @@ enum IdCardApprovalStatus {
 enum ApplicationStatus {
   SUBMITTED // Initial submission
   UNDER_REVIEW // Documents being reviewed
-  INSPECTION_SCHEDULED // Inspection assigned to field team
+  PENDING_PS_INSPECTION_APPROVAL // Inspection scheduled by HOD; awaiting PS clearance
+  INSPECTION_SCHEDULED // PS cleared; assigned to the field inspector
   INSPECTION_IN_PROGRESS
   INSPECTION_COMPLETED // Inspection report submitted
   PENDING_HOD_APPROVAL
@@ -1366,6 +1370,19 @@ model RevalidationApplication {
   findings            String?   @db.Text
   recommendation      String?   @db.VarChar(50)
 
+  // PS clearance of the inspection SCHEDULE (before the inspector attends).
+  inspectionApprovedAt        DateTime?
+  inspectionApprovedByUserId  String?
+  inspectionRejectionReason   String?   @db.Text
+
+  // Inspector's submission
+  inspectionCompletedAt DateTime?
+  /// Evidence captured on site — JSON array of { url, caption }.
+  evidenceUrls          Json?
+
+  // Reason recorded when the application is rejected outright
+  rejectionReason String? @db.Text
+
   hodApprovedAt          DateTime?
   commissionerApprovedAt DateTime?
   psApprovedAt           DateTime?
@@ -1496,7 +1513,9 @@ model TracasVehicle {
   // ── Letter of Authority approval chain ──
   // Existing rows adopt the default, so vehicles onboarded before this flow
   // enter at the MD's desk rather than being grandfathered as approved.
-  letterStatus                 LetterApprovalStatus @default(PENDING_MD_APPROVAL)
+  letterStatus                 LetterApprovalStatus @default(PENDING_VIO_APPROVAL)
+  vioApprovedAt                DateTime?
+  vioApprovedByUserId          String?
   mdApprovedAt                 DateTime?
   mdApprovedByUserId           String?
   commissionerApprovedAt       DateTime?

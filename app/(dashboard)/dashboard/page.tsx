@@ -11,7 +11,11 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getParkStatusSummary } from "@/app/actions/motor-park";
-import { APPLICANT_SERVICE_CARDS, SERVICE_LABELS, SERVICE_ROOT_ROUTES } from "@/lib/service-config";
+import {
+  APPLICANT_SERVICE_CARDS,
+  SERVICE_LABELS,
+  SERVICE_ROOT_ROUTES,
+} from "@/lib/service-config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
@@ -40,7 +44,9 @@ export default async function DashboardPage() {
 
   const isApplicant = session.role === "EXTERNAL_APPLICANT";
   const isExecutive =
-    session.role === "COMMISSIONER" || session.role === "PERMANENT_SECRETARY" || session.role === "SYSTEM_ADMIN";
+    session.role === "COMMISSIONER" ||
+    session.role === "PERMANENT_SECRETARY" ||
+    session.role === "SYSTEM_ADMIN";
   const isParkMonitor = session.role === "PARK_MONITOR";
   const isStaff = !isApplicant && !isParkMonitor;
 
@@ -83,7 +89,13 @@ export default async function DashboardPage() {
           <h1
             className="text-2xl font-bold text-foreground"
             style={{ fontFamily: "var(--font-display)" }}>
-            {isApplicant ? "My Applications" : isParkMonitor ? "Park Monitor Dashboard" : isExecutive ? "Executive Dashboard" : "Platform Overview"}
+            {isApplicant
+              ? "My Applications"
+              : isParkMonitor
+                ? "Park Monitor Dashboard"
+                : isExecutive
+                  ? "Executive Dashboard"
+                  : "Platform Overview"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {isApplicant
@@ -93,54 +105,61 @@ export default async function DashboardPage() {
                 : "Real-time view of all applications and workflow activity."}
           </p>
         </div>
-        {isApplicant && (
+        {/* {isApplicant && (
           <Button asChild>
             <Link href="/motor-parks/apply">New Application</Link>
           </Button>
-        )}
+        )} */}
       </div>
 
       {/* Stats grid */}
       {isExecutive ? (
         <ExecutiveDashboard initialStats={execStats} error={execError} />
       ) : (
-        stats && !isParkMonitor && (!isApplicant || currentServices.includes("MOTOR_PARK")) && (
+        stats &&
+        !isParkMonitor &&
+        (!isApplicant || currentServices.includes("MOTOR_PARK")) && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {isApplicant ? (
-            <>
-              <StatCard label="Total Motor Parks" value={stats.total} />
-              <StatCard
-                label="Under Review"
-                value={stats.underReview + stats.inspectionScheduled}
-              />
-              <StatCard label="Approved" value={stats.approved} />
-              <StatCard
-                label="Pending Payments"
-                value={stats.pendingPayments}
-                deltaDirection={stats.pendingPayments > 0 ? "down" : "neutral"}
-                delta={stats.pendingPayments > 0 ? "Payment required" : undefined}
-              />
-            </>
-          ) : (
-            <>
-              <StatCard label="Total Applications" value={stats.total} />
-              <StatCard
-                label="Pending Review"
-                value={stats.submitted + stats.underReview}
-              />
-              <StatCard
-                label="Awaiting Inspection"
-                value={stats.inspectionScheduled}
-              />
-              <StatCard
-                label="Pending Approval"
-                value={stats.pendingApproval}
-                deltaDirection={stats.pendingApproval > 0 ? "up" : "neutral"}
-              />
-            </>
-          )}
-        </div>
-      ))}
+            {isApplicant ? (
+              <>
+                <StatCard label="Total Motor Parks" value={stats.total} />
+                <StatCard
+                  label="Under Review"
+                  value={stats.underReview + stats.inspectionScheduled}
+                />
+                <StatCard label="Approved" value={stats.approved} />
+                <StatCard
+                  label="Pending Payments"
+                  value={stats.pendingPayments}
+                  deltaDirection={
+                    stats.pendingPayments > 0 ? "down" : "neutral"
+                  }
+                  delta={
+                    stats.pendingPayments > 0 ? "Payment required" : undefined
+                  }
+                />
+              </>
+            ) : (
+              <>
+                <StatCard label="Total Applications" value={stats.total} />
+                <StatCard
+                  label="Pending Review"
+                  value={stats.submitted + stats.underReview}
+                />
+                <StatCard
+                  label="Awaiting Inspection"
+                  value={stats.inspectionScheduled}
+                />
+                <StatCard
+                  label="Pending Approval"
+                  value={stats.pendingApproval}
+                  deltaDirection={stats.pendingApproval > 0 ? "up" : "neutral"}
+                />
+              </>
+            )}
+          </div>
+        )
+      )}
 
       {/* Quick links */}
       {!isParkMonitor && (
@@ -151,8 +170,12 @@ export default async function DashboardPage() {
           <div className="flex flex-wrap gap-3">
             {isApplicant ? (
               currentServices.map((serviceKey) => {
-                const label = SERVICE_LABELS[serviceKey as keyof typeof SERVICE_LABELS];
-                const route = SERVICE_ROOT_ROUTES[serviceKey as keyof typeof SERVICE_ROOT_ROUTES];
+                const label =
+                  SERVICE_LABELS[serviceKey as keyof typeof SERVICE_LABELS];
+                const route =
+                  SERVICE_ROOT_ROUTES[
+                    serviceKey as keyof typeof SERVICE_ROOT_ROUTES
+                  ];
                 if (!label || !route) return null;
                 return (
                   <div key={serviceKey} className="contents">
@@ -189,15 +212,25 @@ export default async function DashboardPage() {
       {isApplicant && stats && stats.pendingPayments > 0 && (
         <Card className="border-l-4 border-l-amber-500 border-border bg-amber-50 dark:bg-amber-950/20">
           <CardHeader>
-            <CardTitle className="text-base text-amber-900 dark:text-amber-200">Payment Reminder</CardTitle>
+            <CardTitle className="text-base text-amber-900 dark:text-amber-200">
+              Payment Reminder
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-amber-900 dark:text-amber-200 mb-4">
-              You have <span className="font-semibold">{stats.pendingPayments}</span> application{stats.pendingPayments !== 1 ? "s" : ""} awaiting payment. 
-              Please complete payment to proceed with your application.
+              You have{" "}
+              <span className="font-semibold">{stats.pendingPayments}</span>{" "}
+              application{stats.pendingPayments !== 1 ? "s" : ""} awaiting
+              payment. Please complete payment to proceed with your application.
             </p>
-            <Button asChild variant="default" size="sm" className="bg-amber-600 hover:bg-amber-700">
-              <Link href="/motor-parks?status=SUBMITTED">View Applications</Link>
+            <Button
+              asChild
+              variant="default"
+              size="sm"
+              className="bg-amber-600 hover:bg-amber-700">
+              <Link href="/motor-parks?status=SUBMITTED">
+                View Applications
+              </Link>
             </Button>
           </CardContent>
         </Card>
@@ -206,7 +239,9 @@ export default async function DashboardPage() {
       {isApplicant && availableServices.length > 0 && (
         <Card className="border-border/60 bg-secondary/50">
           <CardHeader>
-            <CardTitle className="text-base">Add another service to your account</CardTitle>
+            <CardTitle className="text-base">
+              Add another service to your account
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
@@ -265,9 +300,7 @@ export default async function DashboardPage() {
       )}
 
       {/* Commissioner/Executive/HOD Park Monitor Queue */}
-      {canManageParkMonitors && (
-        <AdminParkMonitorCard />
-      )}
+      {canManageParkMonitors && <AdminParkMonitorCard />}
     </div>
   );
 }
@@ -286,7 +319,8 @@ async function ParkMonitorStatusCard({ userId }: { userId: string }) {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-4">
-            You can apply to become a Park Monitor and join the Special Enforcement Unit.
+            You can apply to become a Park Monitor and join the Special
+            Enforcement Unit.
           </p>
           <Button asChild>
             <Link href="/park-monitor/apply">Start Application</Link>
@@ -300,7 +334,10 @@ async function ParkMonitorStatusCard({ userId }: { userId: string }) {
   const needsId = isApproved && !app.idCardIssued;
 
   return (
-    <Card className={isApproved ? "border-green-500/50 bg-green-50 dark:bg-green-950/20" : ""}>
+    <Card
+      className={
+        isApproved ? "border-green-500/50 bg-green-50 dark:bg-green-950/20" : ""
+      }>
       <CardHeader>
         <CardTitle className="text-base">Park Monitor Application</CardTitle>
       </CardHeader>
@@ -309,35 +346,59 @@ async function ParkMonitorStatusCard({ userId }: { userId: string }) {
           <span className="text-sm text-muted-foreground">Status:</span>
           <StatusPill status={app.status as any} />
         </div>
-        
+
         {app.status === "SUBMITTED" && (
-          <p className="text-sm text-muted-foreground">Your application has been received and is awaiting review.</p>
+          <p className="text-sm text-muted-foreground">
+            Your application has been received and is awaiting review.
+          </p>
         )}
         {app.status === "WAITLISTED" && (
-          <p className="text-sm text-muted-foreground">Your application has been waitlisted. We will contact you when a position opens.</p>
+          <p className="text-sm text-muted-foreground">
+            Your application has been waitlisted. We will contact you when a
+            position opens.
+          </p>
         )}
         {app.status === "REJECTED" && (
-          <p className="text-sm text-red-600">Your application was rejected. Reason: {app.rejectionReason}</p>
+          <p className="text-sm text-red-600">
+            Your application was rejected. Reason: {app.rejectionReason}
+          </p>
         )}
         {needsId && !app.idCardPaymentId && (
           <div className="space-y-4">
-            <p className="text-sm text-green-700 dark:text-green-400 font-medium">Congratulations! Your application has been approved.</p>
-            <p className="text-sm text-muted-foreground">Please proceed to claim your official ID card to complete your registration.</p>
-            <Button asChild className="bg-green-600 hover:bg-green-700 text-white">
+            <p className="text-sm text-green-700 dark:text-green-400 font-medium">
+              Congratulations! Your application has been approved.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Please proceed to claim your official ID card to complete your
+              registration.
+            </p>
+            <Button
+              asChild
+              className="bg-green-600 hover:bg-green-700 text-white">
               <Link href="/park-monitor/claim-id">Claim Your ID</Link>
             </Button>
           </div>
         )}
         {needsId && app.idCardPaymentId && (
           <div className="space-y-4">
-            <p className="text-sm text-green-700 dark:text-green-400 font-medium">Payment Confirmed.</p>
-            <p className="text-sm text-muted-foreground">Your application is being reviewed by an official. Please come back in 24hr to check your ID status, or pick up your ID from the HOD office.</p>
+            <p className="text-sm text-green-700 dark:text-green-400 font-medium">
+              Payment Confirmed.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Your application is being reviewed by an official. Please come
+              back in 24hr to check your ID status, or pick up your ID from the
+              HOD office.
+            </p>
           </div>
         )}
         {app.idCardIssued && (
           <div className="space-y-4">
-            <p className="text-sm text-green-700 dark:text-green-400 font-medium">Your ID Card has been issued!</p>
-            <p className="text-sm text-muted-foreground">You are now an official Park Monitor.</p>
+            <p className="text-sm text-green-700 dark:text-green-400 font-medium">
+              Your ID Card has been issued!
+            </p>
+            <p className="text-sm text-muted-foreground">
+              You are now an official Park Monitor.
+            </p>
           </div>
         )}
       </CardContent>
@@ -383,7 +444,9 @@ async function AdminParkMonitorCard() {
           </div>
           <div className="text-right">
             <span className="text-2xl font-bold">{totalPending}</span>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Queue</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">
+              Queue
+            </p>
           </div>
         </div>
       </CardHeader>
@@ -395,11 +458,17 @@ async function AdminParkMonitorCard() {
         ) : (
           <div className="divide-y divide-border">
             {pendingApps.map((app) => (
-              <div key={app.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+              <div
+                key={app.id}
+                className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
                 <div>
-                  <p className="font-medium">{app.firstName} {app.surname}</p>
+                  <p className="font-medium">
+                    {app.firstName} {app.surname}
+                  </p>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-muted-foreground">{app.lga}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {app.lga}
+                    </span>
                     <span className="text-xs text-muted-foreground">•</span>
                     <StatusPill status={app.status as any} />
                   </div>
@@ -411,10 +480,16 @@ async function AdminParkMonitorCard() {
             ))}
           </div>
         )}
-        
+
         <div className="p-3 border-t text-center bg-muted/10">
-          <Button asChild variant="ghost" size="sm" className="w-full text-xs text-primary">
-            <Link href="/admin/park-monitors">View all park monitor applications</Link>
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="w-full text-xs text-primary">
+            <Link href="/admin/park-monitors">
+              View all park monitor applications
+            </Link>
           </Button>
         </div>
       </CardContent>
