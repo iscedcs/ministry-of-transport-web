@@ -15,6 +15,7 @@ import {
   ClipboardCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TracasNavTabs } from "@/components/tracas/tracas-nav-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -102,6 +103,8 @@ export function IdCardApprovalsClient({
 
   return (
     <div className="space-y-8 py-2">
+      <TracasNavTabs role={role} />
+
       <div>
         <h1 className="text-2xl font-bold text-foreground">
           Driver ID Card Approvals

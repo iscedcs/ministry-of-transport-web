@@ -22,5 +22,9 @@ export default async function TracasStaffPage() {
   const canManage =
     session.role === "TRACAS_MD" || session.role === "SYSTEM_ADMIN";
 
-  return <TracasStaffClient staff={res.data} canManage={canManage} />;
+  return <TracasStaffClient
+      staff={res.data}
+      canManage={canManage}
+      role={session.role}
+    />;
 }

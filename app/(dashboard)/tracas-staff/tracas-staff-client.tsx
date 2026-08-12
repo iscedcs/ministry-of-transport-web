@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Printer, UserPlus, Power, Copy, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TracasNavTabs } from "@/components/tracas/tracas-nav-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -45,9 +46,11 @@ const EMPTY_FORM = {
 export function TracasStaffClient({
   staff,
   canManage,
+  role,
 }: {
   staff: TracasStaffMember[];
   canManage: boolean;
+  role: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -96,6 +99,8 @@ export function TracasStaffClient({
 
   return (
     <div className="space-y-6 py-2">
+      <TracasNavTabs role={role} />
+
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">TRACAS Staff</h1>

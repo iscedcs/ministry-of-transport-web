@@ -61,6 +61,7 @@ import {
 } from "@/app/actions/tracas";
 import { StickerQrScannerModal } from "@/components/tracas/sticker-qr-scanner-modal";
 import { canWriteFleet } from "@/lib/fleet-roles";
+import { TracasNavTabs } from "@/components/tracas/tracas-nav-tabs";
 
 interface VehicleItem {
   id: string;
@@ -674,6 +675,8 @@ export default function TracasClient({
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <TracasNavTabs role={currentUserRole} />
+
       {/* Header Banner */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border/50 pb-5">
         <div>
