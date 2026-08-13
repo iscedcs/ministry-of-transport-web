@@ -35,11 +35,29 @@ const loginSchema = z.object({
 });
 
 const loginApplicantSchema = z.object({
-  email: z.string().email("Enter a valid email address").trim().toLowerCase(),
+  // Owners migrated from the previous vendor's register often have no email
+  // address on file, so a phone number is an equally valid identifier.
+  email: z
+    .string()
+    .min(1, "Email or phone number is required")
+    .trim()
+    .toLowerCase()
+    .refine(
+      (v) => v.includes("@") || /^(\+234|0)\d{10}$/.test(v.replace(/[\s-]/g, "")),
+      "Enter a valid email address or phone number",
+    ),
   asinNumber: z
     .string()
     .regex(/^\d{6,16}$/, "ASIN must be 6–16 digits (numbers only)"),
 });
+
+/** "+2348012345678" / "0803 455 1818" → "08034551818", matching how we store. */
+function normalisePhone(raw: string): string {
+  const v = raw.replace(/[\s-]/g, "");
+  if (/^\+234\d{10}$/.test(v)) return "0" + v.slice(4);
+  if (/^234\d{10}$/.test(v)) return "0" + v.slice(3);
+  return v;
+}
 
 /**
  * External Applicant registration schema.
@@ -142,7 +160,8 @@ export async function login(
     where: { 
       OR: [
         { email },
-        { phone: email }
+        { phone: email },
+        { phone: normalisePhone(email) }
       ]
     },
     select: {
@@ -354,10 +373,13 @@ export async function loginApplicant(
     return { errors: validated.error.flatten().fieldErrors };
   }
 
-  const { email, asinNumber } = validated.data;
+  const { email: identifier, asinNumber } = validated.data;
+  const isEmail = identifier.includes("@");
 
-  const user = await db.user.findUnique({
-    where: { email },
+  const user = await db.user.findFirst({
+    where: isEmail
+      ? { email: identifier }
+      : { phone: normalisePhone(identifier) },
     select: {
       id: true,
       asinNumber: true,
@@ -372,7 +394,7 @@ export async function loginApplicant(
   const asinMatch = user?.asinNumber === asinNumber;
 
   if (!user || user.role !== "EXTERNAL_APPLICANT" || !asinMatch) {
-    return { message: "Invalid email or ASIN number" };
+    return { message: "Invalid email/phone number or ASIN number" };
   }
 
   if (!user.isActive) {
@@ -399,7 +421,7 @@ export async function loginApplicant(
 export type UserProfile = {
   firstName: string;
   lastName: string;
-  email: string;
+  email: string | null;
   phone: string | null;
   asinNumber: string | null;
   residentialAddress: string | null;
@@ -558,7 +580,7 @@ export async function provisionStaffAccount(
     },
   });
 
-    return { success: true, data: { userId: user.id, email: user.email } };
+    return { success: true, data: { userId: user.id, email: user.email ?? email } };
   } catch (err: any) {
     if (err?.code === "P2002") {
       const field = err?.meta?.target?.[0] || "email or phone";

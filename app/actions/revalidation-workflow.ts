@@ -356,7 +356,7 @@ export async function commissionerApproveRevalidation(applicationId: string) {
         OR: [
           { anssidNumber: { equals: app.asinNumber, mode: "insensitive" as const } },
           ...(app.existingApprovalNum ? [{ permitNumber: { equals: app.existingApprovalNum, mode: "insensitive" as const } }] : []),
-          { contactUserId: app.applicantUserId },
+          ...(app.applicantUserId ? [{ contactUserId: app.applicantUserId }] : []),
         ],
       },
     });
@@ -386,21 +386,21 @@ export async function commissionerApproveRevalidation(applicationId: string) {
         permitIssuedAt: existingPark.permitIssuedAt || new Date(),
       },
     });
-  } else {
+  } else if (app.applicantUserId) {
     // Create new MotorPark only if no existing record exists anywhere
     await db.motorPark.create({
       data: {
         businessName: app.parkName,
         transportCompanyName: app.ownerName,
-        streetAddress: app.physicalLocation,
-        lga: app.lga,
-        townCity: app.townCommunity,
+        streetAddress: app.physicalLocation ?? "",
+        lga: app.lga ?? "",
+        townCity: app.townCommunity ?? "",
         anssidNumber: app.asinNumber,
         cacRegistrationNumber: app.cacRegistrationNumber,
         contactUserId: app.applicantUserId,
-        contactPerson: app.representativeName,
-        contactPhone: app.phoneNumber,
-        contactEmail: app.emailAddress,
+        contactPerson: app.representativeName ?? app.ownerName,
+        contactPhone: app.phoneNumber ?? "",
+        contactEmail: app.emailAddress ?? "",
         managerResidentialAddress: app.residentialAddress,
         applicationStatus: "APPROVED",
         permitStatus: "ACTIVE",
@@ -555,7 +555,7 @@ export async function getRevalidationTermsDefaults(applicationId: string) {
         where: {
           OR: [
             { anssidNumber: app.asinNumber },
-            { contactUserId: app.applicantUserId },
+            ...(app.applicantUserId ? [{ contactUserId: app.applicantUserId }] : []),
           ],
         },
         select: { monthlyLevyAmount: true },

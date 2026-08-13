@@ -22,6 +22,8 @@ import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/badge";
 import { ExecutiveDashboard } from "./executive-dashboard";
 import { getExecutiveDashboardStats } from "@/app/actions/executive-dashboard";
+import { getRoleDashboard } from "@/lib/role-dashboard";
+import { WorkQueues } from "@/components/dashboard/work-queues";
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -49,6 +51,11 @@ export default async function DashboardPage() {
     session.role === "SYSTEM_ADMIN";
   const isParkMonitor = session.role === "PARK_MONITOR";
   const isStaff = !isApplicant && !isParkMonitor;
+
+  const roleDashboard =
+    !isApplicant && !isParkMonitor
+      ? await getRoleDashboard(session.role, session.userId)
+      : null;
 
   let execStats = null;
   let execError = null;
@@ -112,12 +119,16 @@ export default async function DashboardPage() {
         )} */}
       </div>
 
+      {/* What is sitting on this user's desk */}
+      {roleDashboard && <WorkQueues data={roleDashboard} />}
+
       {/* Stats grid */}
       {isExecutive ? (
         <ExecutiveDashboard initialStats={execStats} error={execError} />
       ) : (
         stats &&
         !isParkMonitor &&
+        (isApplicant || stats.total > 0) &&
         (!isApplicant || currentServices.includes("MOTOR_PARK")) && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {isApplicant ? (

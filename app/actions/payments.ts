@@ -209,7 +209,7 @@ export async function initiateMotorParkFeePayment(
   const callbackUrl = `${getAppUrl()}/api/payment/callback?reference=${reference}&returnTo=/motor-parks/${fee.motorParkId}`;
 
   const txn = await initializeTransaction({
-    email: fee.motorPark.applicant.email,
+    email: fee.motorPark.applicant.email ?? "",
     amountKobo: fee.amount,
     reference,
     callbackUrl,
@@ -239,7 +239,7 @@ export async function initiateMotorParkFeePayment(
         paystackAuthorizationUrl: txn.authorization_url,
         payerUserId: fee.motorPark.contactUserId,
         payerAsinNumber: fee.motorPark.anssidNumber,
-        payerEmail: fee.motorPark.applicant.email,
+        payerEmail: fee.motorPark.applicant.email ?? "",
         amount: fee.amount,
         currency: "NGN",
         paymentType: fee.feeType,

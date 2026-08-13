@@ -154,7 +154,7 @@ export default function ApplyRevalidationPage() {
           setData((prev) => ({
             ...prev,
             ownerName: `${p.firstName} ${p.lastName}`,
-            emailAddress: p.email,
+            emailAddress: p.email ?? "",
             phoneNumber: p.phone || "",
             asinNumber: p.asinNumber || "",
             residentialAddress: p.residentialAddress || "",

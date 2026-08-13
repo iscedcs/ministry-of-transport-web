@@ -70,12 +70,14 @@ function LoginForm() {
 
         <form action={action} noValidate className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">Email address</Label>
+            <Label htmlFor="email">Email address or phone number</Label>
             <Input
               id="email"
               name="email"
-              type="email"
-              autoComplete="email"
+              type="text"
+              inputMode="email"
+              autoComplete="username"
+              placeholder="you@example.com or 08012345678"
               required
               aria-invalid={!!state?.errors?.email}
               aria-describedby={state?.errors?.email ? "email-error" : undefined}

@@ -116,7 +116,7 @@ export function EditStaffForm({ user }: { user: StaffUser }) {
               <Label htmlFor="email">Email (read-only)</Label>
               <Input
                 id="email"
-                value={user.email}
+                value={user.email ?? ""}
                 disabled
                 className="opacity-60"
               />
