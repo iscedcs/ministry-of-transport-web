@@ -9,6 +9,8 @@ import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { authorize } from "@/lib/auth";
 import { buildChecklist, parseChecklist } from "@/lib/revalidation-checklist";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { InspectionClient } from "./inspection-client";
 
 export const metadata = {
@@ -22,11 +24,16 @@ export default async function RevalidationInspectPage({
 }) {
   const { id } = await params;
 
+  // Any officer who can sit on a team may open the checklist; only the
+  // designated lead can submit it (enforced below and server-side).
   const authz = await authorize([
     "FIELD_INSPECTOR",
     "VEHICLE_INSPECTION_OFFICER",
-    "HOD_PARKS_REVALIDATION",
+    "HOD_VIS",
+    "HOD_TRANSPORT_OPS",
     "HOD_PARKS",
+    "HOD_PARKS_REVALIDATION",
+    "PARK_MONITOR",
     "SYSTEM_ADMIN",
   ]);
   if (!authz.ok) redirect("/unauthorized");
@@ -63,6 +70,7 @@ export default async function RevalidationInspectPage({
       securityArrangement: true,
       operationalStatus: true,
       dailyVehiclesCount: true,
+      inspectionTeam: { select: { userId: true, isLead: true } },
     },
   });
 
@@ -73,7 +81,14 @@ export default async function RevalidationInspectPage({
   const checklist = saved.length > 0 ? saved : buildChecklist(app);
 
   return (
-    <InspectionClient
+    <div className="flex flex-col gap-4">
+      <Link
+        href={`/admin/revalidation-queue/${app.id}`}
+        className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" />
+        Back to application
+      </Link>
+      <InspectionClient
       applicationId={app.id}
       parkName={app.parkName}
       ownerName={app.ownerName}
@@ -86,7 +101,10 @@ export default async function RevalidationInspectPage({
       initialChecklist={checklist}
       initialFindings={app.findings ?? ""}
       initialRecommendation={app.recommendation ?? ""}
-      isAssignedInspector={app.inspectionOfficerId === authz.session.userId}
-    />
+      isAssignedInspector={app.inspectionTeam.some(
+        (m) => m.userId === authz.session.userId && m.isLead,
+      )}
+      />
+    </div>
   );
 }

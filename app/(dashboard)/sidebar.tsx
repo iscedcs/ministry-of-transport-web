@@ -158,8 +158,11 @@ const NAV_ITEMS: NavItem[] = [
     allowedRoles: [
       "COMMISSIONER",
       "PERMANENT_SECRETARY",
-      "HOD_PARKS",
+      // HOD Operations owns the first half of the chain: scheduling the
+      // inspection team and recommending. HOD Parks Revalidation reviews.
+      "HOD_TRANSPORT_OPS",
       "HOD_PARKS_REVALIDATION",
+      "HOD_VIS",
       "FIELD_INSPECTOR",
       "VEHICLE_INSPECTION_OFFICER",
       "SYSTEM_ADMIN",

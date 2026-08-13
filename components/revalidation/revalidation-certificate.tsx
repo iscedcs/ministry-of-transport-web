@@ -43,6 +43,8 @@ export interface RevalidationCertificateData {
   previousMonthlyFeeAmount: number | null;
   requiredFacilities: string | null;
   commissionerApprovedAt: Date | string | null;
+  /** "TEMPORAL" | "PERMANENT" — set by the Commissioner at final approval. */
+  approvalType?: string | null;
 }
 
 /** Kobo → "₦12,000.00". Amounts are stored in kobo throughout the platform. */
@@ -123,6 +125,10 @@ export function RevalidationCertificate({
   const a = application;
 
   const issued = a.commissionerApprovedAt ?? a.approvedAt;
+
+  // A temporal approval is a permission to keep operating while something is
+  // put right. It must never read like a full revalidation on paper.
+  const isTemporal = a.approvalType === "TEMPORAL";
   const isIssued = !!a.revalidationNumber && !!issued;
 
   const effective = a.effectiveFrom ?? a.validUntil ?? null;
@@ -360,8 +366,8 @@ export function RevalidationCertificate({
 
           {/* Subject */}
           <h3 className="mt-5 text-sm sm:text-base font-bold underline decoration-2 underline-offset-4 uppercase leading-snug">
-            Revalidation of your Authority to Operate {headingKind} Motor Park
-            at {location || "…"}
+            {isTemporal ? "Temporal Approval of" : "Revalidation of"} your
+            Authority to Operate {headingKind} Motor Park at {location || "…"}
           </h3>
 
           <div
@@ -370,8 +376,9 @@ export function RevalidationCertificate({
             <p>
               Further to the Ministry&apos;s Revalidation Exercise for Motor
               Parks/Loading Bays in the State, please be informed that the
-              Ministry has approved the Revalidation of Your Authority to
-              Operate the{" "}
+              Ministry has granted{" "}
+              {isTemporal ? "TEMPORAL APPROVAL of" : "approved the Revalidation of"}{" "}
+              Your Authority to Operate the{" "}
               <span className="font-semibold">{parkKind}</span> situated at{" "}
               <span className="font-semibold">
                 {location || <Blank width="12rem" />}
@@ -380,9 +387,26 @@ export function RevalidationCertificate({
               <span className="font-semibold">
                 {effective ? fmtLong(effective) : <Blank width="8rem" />}
               </span>
-              . This approval shall be subject to revalidation as the Ministry
-              may deem fit and in line with extant Transport Laws and
-              Regulations.
+              .{" "}
+              {isTemporal ? (
+                <>
+                  This is a <span className="font-semibold">TEMPORAL</span>{" "}
+                  approval valid until{" "}
+                  <span className="font-semibold">
+                    {a.validUntil ? fmtLong(a.validUntil) : <Blank width="8rem" />}
+                  </span>
+                  , granted to permit continued operation while the
+                  outstanding requirements below are met. It does not
+                  constitute a full revalidation, and lapses on that date
+                  unless a full revalidation is granted.
+                </>
+              ) : (
+                <>
+                  This approval shall be subject to revalidation as the
+                  Ministry may deem fit and in line with extant Transport Laws
+                  and Regulations.
+                </>
+              )}
             </p>
 
             {/* Fee — a single figure, or a review from → to */}
