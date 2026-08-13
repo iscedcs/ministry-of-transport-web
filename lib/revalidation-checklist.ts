@@ -40,22 +40,23 @@ export interface ChecklistItem {
 /** Shape of the application fields the checklist is built from. */
 export interface ChecklistSource {
   facilitiesAvailable: unknown;
-  maintainsManifest: boolean;
-  operatorsRegistered: boolean;
-  paymentsUpToDate: boolean;
-  safetySignages: boolean;
-  pendingSanctions: boolean;
+  maintainsManifest: boolean | null;
+  operatorsRegistered: boolean | null;
+  paymentsUpToDate: boolean | null;
+  safetySignages: boolean | null;
+  pendingSanctions: boolean | null;
   sanctionDetails: string | null;
   managementStaffCount: number;
   adminStaffCount: number;
   securityStaffCount: number;
   otherStaffCount: number;
-  securityArrangement: string;
-  operationalStatus: string;
-  dailyVehiclesCount: string;
+  securityArrangement: string | null;
+  operationalStatus: string | null;
+  dailyVehiclesCount: string | null;
 }
 
-const yesNo = (v: boolean) => (v ? "Yes" : "No");
+const yesNo = (v: boolean | null | undefined) =>
+  v === null || v === undefined ? "Not stated" : v ? "Yes" : "No";
 
 /** Applicant's facility selection, tolerant of the JSON shapes in the wild. */
 function declaredFacilities(raw: unknown): string[] {
@@ -117,9 +118,12 @@ export function buildChecklist(app: ChecklistSource): ChecklistItem[] {
       key: "compliance:sanctions",
       section: "F",
       label: "Free of pending sanctions",
-      declared: app.pendingSanctions
-        ? `Sanctions declared${app.sanctionDetails ? `: ${app.sanctionDetails}` : ""}`
-        : "None declared",
+      declared:
+        app.pendingSanctions === null || app.pendingSanctions === undefined
+          ? "Not stated"
+          : app.pendingSanctions
+            ? `Sanctions declared${app.sanctionDetails ? `: ${app.sanctionDetails}` : ""}`
+            : "None declared",
       verified: null,
     },
   ];

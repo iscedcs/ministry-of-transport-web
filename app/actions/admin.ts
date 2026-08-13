@@ -21,7 +21,7 @@ export interface StaffUser {
   id: string;
   firstName: string;
   lastName: string;
-  email: string;
+  email: string | null;
   phone: string | null;
   role: UserRole;
   designation: string | null;
@@ -43,7 +43,7 @@ export interface AuditLogEntry {
   performer: {
     firstName: string;
     lastName: string;
-    email: string;
+    email: string | null;
     role: UserRole;
   };
 }
@@ -634,7 +634,7 @@ export async function getExportData(
           rows: rows.map((r) => [
             r.firstName,
             r.lastName,
-            r.email,
+            r.email ?? "",
             r.role,
             r.designation ?? "",
             r.isActive ? "Yes" : "No",

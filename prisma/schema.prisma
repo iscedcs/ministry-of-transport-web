@@ -159,7 +159,7 @@ enum AVIRConditionAfter {
 
 model User {
   id           String   @id @default(cuid())
-  email        String   @unique
+  email        String?  @unique // Null when the owner signs in with a phone number instead
   phone        String?  @unique // Primary contact — unique per account
   passwordHash String?  @db.VarChar(255) // bcrypt hash — null for passwordless applicants
   asinNumber   String?  @unique // Anambra State ID Number (for external applicants)
@@ -1298,18 +1298,18 @@ model RevalidationApplication {
 
   // SECTION A: APPLICANT DETAILS
   ownerName             String
-  ownershipType         String  @db.VarChar(50)
+  ownershipType         String? @db.VarChar(50)
   cacRegistrationNumber String?
-  representativeName    String
-  designation           String
-  phoneNumber           String
+  representativeName    String?
+  designation           String?
+  phoneNumber           String?
   alternatePhoneNumber  String?
-  emailAddress          String
-  residentialAddress    String  @db.Text
+  emailAddress          String?
+  residentialAddress    String? @db.Text
 
   // SECTION B: ASIN DETAILS
   asinNumber         String
-  nin                String
+  nin                String?
   tin                String?
   revalidationNumber String? @unique
 
@@ -1319,28 +1319,28 @@ model RevalidationApplication {
 
   // SECTION C: MOTOR PARK INFORMATION
   parkName         String
-  facilityType     String @db.VarChar(50)
+  facilityType     String? @db.VarChar(50)
   facilitySubTypes Json?
-  physicalLocation String @db.Text
-  townCommunity    String
-  lga              String
+  physicalLocation String? @db.Text
+  townCommunity    String?
+  lga              String?
 
   // SECTION D: OPERATIONAL INFORMATION
-  yearEstablished    String
-  operationalStatus  String @db.VarChar(50)
-  dailyVehiclesCount String @db.VarChar(50)
-  vehicleTypes       String @db.Text
+  yearEstablished    String?
+  operationalStatus  String? @db.VarChar(50)
+  dailyVehiclesCount String? @db.VarChar(50)
+  vehicleTypes       String? @db.Text
 
   // SECTION E: FACILITIES AVAILABLE (JSON)
-  facilitiesAvailable Json
+  facilitiesAvailable Json?
 
   // SECTION F: REGULATORY COMPLIANCE
   existingApprovalNum String?
-  maintainsManifest   Boolean
-  operatorsRegistered Boolean
-  paymentsUpToDate    Boolean
-  safetySignages      Boolean
-  pendingSanctions    Boolean
+  maintainsManifest   Boolean?
+  operatorsRegistered Boolean?
+  paymentsUpToDate    Boolean?
+  safetySignages      Boolean?
+  pendingSanctions    Boolean?
   sanctionDetails     String? @db.Text
 
   // SECTION G: EMPLOYMENT & SECURITY DATA
@@ -1349,19 +1349,40 @@ model RevalidationApplication {
   securityStaffCount   Int     @default(0)
   otherStaffCount      Int     @default(0)
   otherStaffDetails    String? @db.VarChar(100)
-  securityArrangement  String  @db.VarChar(50)
+  securityArrangement  String? @db.VarChar(50)
 
   // SECTION H: REVENUE INFORMATION
-  estimatedDailyRevenue   Int
-  estimatedMonthlyRev     Int
-  revenueCollectionMethod String @db.VarChar(50)
+  estimatedDailyRevenue   Int?
+  estimatedMonthlyRev     Int?
+  revenueCollectionMethod String? @db.VarChar(50)
+
+  /// Services offered, e.g. Inter-State, Intra-State, Keke, Logistics.
+  serviceTypes     Json?
+  /// Routes plied, e.g. ["Nnewi - Kwara state"].
+  routes           Json?
 
   // DOCUMENT
   passportPhotoUrl String? @db.VarChar(500)
   passportPhotoId  String?
 
+  // ── LEGACY IMPORT PROVENANCE ──
+  /// "VENDOR_IMPORT" for records migrated from the previous vendor's system;
+  /// null for applications submitted through this portal.
+  dataSource        String?   @db.VarChar(30)
+  /// The vendor's own record id, kept so the two registers can be reconciled.
+  legacyRecordId    String?   @db.VarChar(50)
+  /// The vendor's form serial. Retained for reference only — this application
+  /// is issued a fresh revalidation number once the Commissioner approves.
+  legacyFormSerial  String?   @db.VarChar(60)
+  /// Which of the vendor's field agents captured the record.
+  legacyCapturedBy  String?   @db.VarChar(50)
+  importedAt        DateTime?
+  /// Sections the applicant must still complete, e.g. ["F","H"]. Empty or null
+  /// once the record is whole.
+  incompleteSections Json?
+
   // SYSTEM & TRACKING
-  applicantUserId String
+  applicantUserId String?
   status          ApplicationStatus @default(SUBMITTED)
 
   // INSPECTION & APPROVAL (Official Use)
@@ -1408,7 +1429,7 @@ model RevalidationApplication {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  applicant          User                @relation("RevalidationApplicant", fields: [applicantUserId], references: [id])
+  applicant          User?               @relation("RevalidationApplicant", fields: [applicantUserId], references: [id])
   inspectionOfficer  User?               @relation("RevalidationInspector", fields: [inspectionOfficerId], references: [id])
   motorPark          MotorPark?          @relation("MotorParkRevalidation", fields: [motorParkId], references: [id], onDelete: SetNull)
   massTransitCompany MassTransitCompany? @relation("MassTransitRevalidation", fields: [massTransitCompanyId], references: [id], onDelete: SetNull)
@@ -1417,6 +1438,8 @@ model RevalidationApplication {
   @@index([status])
   @@index([motorParkId])
   @@index([massTransitCompanyId])
+  @@index([dataSource])
+  @@index([legacyRecordId])
 }
 
 // ==================== MARITIME / BOAT MODULE ====================

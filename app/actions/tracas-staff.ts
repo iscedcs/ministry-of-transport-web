@@ -48,7 +48,7 @@ export interface TracasStaffMember {
   id: string;
   firstName: string;
   lastName: string;
-  email: string;
+  email: string | null;
   phone: string | null;
   designation: string | null;
   isActive: boolean;
@@ -132,7 +132,7 @@ export async function createTracasIctAccount(
     });
 
     revalidatePath("/tracas-staff");
-    return { success: true, email: user.email };
+    return { success: true, email: user.email ?? cleanEmail };
   } catch (error: unknown) {
     console.error("createTracasIctAccount failed:", error);
     return { success: false, error: "Failed to create the account." };

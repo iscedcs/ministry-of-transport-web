@@ -10,7 +10,8 @@ import {
 } from "@/lib/revalidation-checklist";
 import { WorkflowActions } from "./workflow-actions";
 import { 
-  CheckCircle2, 
+  CheckCircle2,
+  HelpCircle, 
   XCircle, 
   AlertCircle, 
   Building2, 
@@ -40,17 +41,22 @@ const STANDARD_FACILITIES = [
   "Solar/Street Lights", "Ticketing Point", "Manager/Admin Office"
 ];
 
-function StatusRow({ label, status, isPositive }: { label: string; status: string; isPositive: boolean }) {
+function StatusRow({ label, status, isPositive }: { label: string; status: string; isPositive: boolean | null }) {
+  const unanswered = isPositive === null;
   return (
     <div className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors">
       <span className="text-sm font-medium text-foreground">{label}</span>
       <span className={cn(
         "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border",
-        isPositive 
-          ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20"
-          : "bg-destructive/10 text-destructive dark:text-red-400 border-destructive/20"
+        unanswered
+          ? "bg-muted text-muted-foreground border-border"
+          : isPositive
+            ? "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20"
+            : "bg-destructive/10 text-destructive dark:text-red-400 border-destructive/20"
       )}>
-        {isPositive ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+        {unanswered
+          ? <HelpCircle className="w-3.5 h-3.5" />
+          : isPositive ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
         {status}
       </span>
     </div>
@@ -371,11 +377,11 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
                 <span className="text-sm font-medium text-foreground">Existing MOT Approval Number</span>
                 <span className="font-mono text-xs font-semibold bg-secondary px-2.5 py-1 rounded border">{app.existingApprovalNum || "None Recorded"}</span>
               </div>
-              <StatusRow label="Maintains Daily Passenger Manifest" status={app.maintainsManifest ? "Yes (Compliant)" : "No (Non-Compliant)"} isPositive={app.maintainsManifest} />
-              <StatusRow label="All Operators & Drivers Registered with MOT" status={app.operatorsRegistered ? "Yes (Compliant)" : "No (Non-Compliant)"} isPositive={app.operatorsRegistered} />
-              <StatusRow label="State Revenue Payments Up-to-Date" status={app.paymentsUpToDate ? "Yes (Compliant)" : "No (Non-Compliant)"} isPositive={app.paymentsUpToDate} />
-              <StatusRow label="Visible Safety Signages Installed in Park" status={app.safetySignages ? "Yes (Compliant)" : "No (Non-Compliant)"} isPositive={app.safetySignages} />
-              <StatusRow label="Any Pending Sanctions from Ministry of Transport?" status={app.pendingSanctions ? "Yes (Flagged Sanction)" : "No (Clean Record)"} isPositive={!app.pendingSanctions} />
+              <StatusRow label="Maintains Daily Passenger Manifest" status={app.maintainsManifest === null ? "Not stated" : app.maintainsManifest ? "Yes (Compliant)" : "No (Non-Compliant)"} isPositive={app.maintainsManifest} />
+              <StatusRow label="All Operators & Drivers Registered with MOT" status={app.operatorsRegistered === null ? "Not stated" : app.operatorsRegistered ? "Yes (Compliant)" : "No (Non-Compliant)"} isPositive={app.operatorsRegistered} />
+              <StatusRow label="State Revenue Payments Up-to-Date" status={app.paymentsUpToDate === null ? "Not stated" : app.paymentsUpToDate ? "Yes (Compliant)" : "No (Non-Compliant)"} isPositive={app.paymentsUpToDate} />
+              <StatusRow label="Visible Safety Signages Installed in Park" status={app.safetySignages === null ? "Not stated" : app.safetySignages ? "Yes (Compliant)" : "No (Non-Compliant)"} isPositive={app.safetySignages} />
+              <StatusRow label="Any Pending Sanctions from Ministry of Transport?" status={app.pendingSanctions === null ? "Not stated" : app.pendingSanctions ? "Yes (Flagged Sanction)" : "No (Clean Record)"} isPositive={app.pendingSanctions === null ? null : !app.pendingSanctions} />
               
               {(app.pendingSanctions || app.sanctionDetails) && (
                 <div className="mt-2 p-4 bg-destructive/10 border border-destructive/30 rounded-xl">

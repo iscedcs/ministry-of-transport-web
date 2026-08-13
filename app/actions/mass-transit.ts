@@ -424,7 +424,7 @@ export type FleetApplicationDetail = {
   commissionerApprovedAt: Date | null;
   approvedAt: Date | null;
   approvedByUserId: string | null;
-  applicant: { id: string; firstName: string; lastName: string; email: string };
+  applicant: { id: string; firstName: string; lastName: string; email: string | null };
   vehicles: {
     id: string;
     registrationNumber: string;

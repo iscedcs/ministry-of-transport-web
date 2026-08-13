@@ -31,7 +31,7 @@ export interface RevalidationCertificateData {
   ownerName: string;
   representativeName: string | null;
   residentialAddress: string | null;
-  physicalLocation: string;
+  physicalLocation: string | null;
   townCommunity: string | null;
   lga: string | null;
   /** "Public" | "Private" | "Loading Bay" — drives the wording. */
