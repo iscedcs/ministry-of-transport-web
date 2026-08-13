@@ -7,6 +7,8 @@
  */
 
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
 import { authorize } from "@/lib/auth";
 import { SIGNATURES } from "@/lib/signatures";
@@ -53,6 +55,7 @@ export default async function RevalidationCertificatePage({
       previousMonthlyFeeAmount: true,
       requiredFacilities: true,
       commissionerApprovedAt: true,
+      approvalType: true,
     },
   });
 
@@ -60,6 +63,12 @@ export default async function RevalidationCertificatePage({
 
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-slate-900/5 dark:bg-slate-950 flex flex-col items-center print:p-0 print:min-h-0">
+      <Link
+        href={`/admin/revalidation-queue/${application.id}`}
+        className="mb-4 inline-flex w-full max-w-[210mm] items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground print:hidden">
+        <ArrowLeft className="h-4 w-4" />
+        Back to application
+      </Link>
       <RevalidationCertificate
         application={application}
         showActions

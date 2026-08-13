@@ -35,7 +35,6 @@ export interface RoleDashboard {
 /** Revalidation stages, and who clears each one. */
 const REVALIDATION_STAGES = {
   HOD_INTAKE: ["SUBMITTED", "UNDER_REVIEW"],
-  PS_INSPECTION: ["PENDING_PS_INSPECTION_APPROVAL"],
   INSPECTOR: ["INSPECTION_SCHEDULED", "INSPECTION_IN_PROGRESS"],
   HOD_APPROVAL: ["PENDING_HOD_APPROVAL", "INSPECTION_COMPLETED"],
   PS_APPROVAL: ["PENDING_PS_APPROVAL"],
@@ -78,19 +77,99 @@ export async function getRoleDashboard(
   const actions: WorkItem[] = [];
   const overview: WorkItem[] = [];
 
-  const isHodParks = role === "HOD_PARKS" || role === "HOD_PARKS_REVALIDATION";
+  /** Schedules the visit, leads the team, gives the first recommendation. */
+  const isHodOps = role === "HOD_TRANSPORT_OPS";
+  /** The second review, after HOD Operations. */
+  const isHodReval = role === "HOD_PARKS_REVALIDATION";
+  /** Motor parks and monitors only — no longer part of revalidation. */
+  const isHodParks = role === "HOD_PARKS";
   const isPs = role === "PERMANENT_SECRETARY";
   const isCommissioner = role === "COMMISSIONER";
   const isAdmin = role === "SYSTEM_ADMIN";
-  const isInspector = role === "FIELD_INSPECTOR";
+  const isInspector =
+    role === "FIELD_INSPECTOR" ||
+    role === "VEHICLE_INSPECTION_OFFICER" ||
+    role === "PARK_MONITOR";
   const isVio = role === "VEHICLE_INSPECTION_OFFICER" || role === "HOD_VIS";
 
-  // ── Parks: intake, inspection reports, monitors ──────────────────────────
+  // ── HOD Operations: schedule visits, then recommend ──────────────────────
+  if (isHodOps || isAdmin) {
+    const [intake, awaitingRecommendation, returned] = await Promise.all([
+      revalidations(REVALIDATION_STAGES.HOD_INTAKE),
+      revalidations(["INSPECTION_COMPLETED"]),
+      db.revalidationApplication.count({
+        where: { status: "SUBMITTED", psRejectionReason: { not: null } },
+      }),
+    ]);
+
+    if (intake)
+      actions.push(
+        item(
+          "ops-intake",
+          "Revalidations awaiting inspection",
+          "Pick an inspection team and set a date",
+          intake,
+          "/admin/revalidation-queue?status=SUBMITTED",
+          intake > 50 ? "urgent" : "action",
+        ),
+      );
+    if (awaitingRecommendation)
+      actions.push(
+        item(
+          "ops-recommend",
+          "Inspection reports awaiting your recommendation",
+          "The team has reported — record your recommendation",
+          awaitingRecommendation,
+          "/admin/revalidation-queue?status=APPROVALS",
+        ),
+      );
+    if (returned)
+      actions.push(
+        item(
+          "ops-returned",
+          "Returned by the Permanent Secretary",
+          "Reschedule the inspection, or reject so the applicant can reapply",
+          returned,
+          "/admin/revalidation-queue?status=SUBMITTED",
+          "urgent",
+        ),
+      );
+  }
+
+  // ── HOD Parks Revalidation: the second review ────────────────────────────
+  if (isHodReval || isAdmin) {
+    const [review, revalTotal] = await Promise.all([
+      revalidations(["PENDING_HOD_APPROVAL"]),
+      db.revalidationApplication.count(),
+    ]);
+
+    if (review)
+      actions.push(
+        item(
+          "reval-review",
+          "Revalidations awaiting your review",
+          "Review the checklist, comments and HOD Operations' recommendation",
+          review,
+          "/admin/revalidation-queue?status=APPROVALS",
+        ),
+      );
+
+    overview.push(
+      item(
+        "reval-total",
+        "Revalidations on the register",
+        "All applications, every stage",
+        revalTotal,
+        "/admin/revalidation-queue",
+        "info",
+      ),
+    );
+  }
+
+  // ── HOD Parks: motor parks and monitors ──────────────────────────────────
   if (isHodParks || isAdmin) {
-    const [intake, hodApproval, parkIntake, monitors, revalTotal] =
+    const [parkIntake, monitors] =
       await Promise.all([
-        revalidations(REVALIDATION_STAGES.HOD_INTAKE),
-        revalidations(REVALIDATION_STAGES.HOD_APPROVAL),
         motorParks(["SUBMITTED", "UNDER_REVIEW"]),
         db.parkMonitorApplication.count({
           where: {
@@ -100,30 +179,8 @@ export async function getRoleDashboard(
             ],
           },
         }),
-        db.revalidationApplication.count(),
       ]);
 
-    if (intake)
-      actions.push(
-        item(
-          "reval-intake",
-          "Revalidations awaiting review",
-          "Review the application and schedule an inspection",
-          intake,
-          "/admin/revalidation-queue",
-          intake > 50 ? "urgent" : "action",
-        ),
-      );
-    if (hodApproval)
-      actions.push(
-        item(
-          "reval-hod",
-          "Inspection reports to sign off",
-          "The inspector has reported — record your recommendation",
-          hodApproval,
-          "/admin/revalidation-queue",
-        ),
-      );
     if (parkIntake)
       actions.push(
         item(
@@ -144,43 +201,21 @@ export async function getRoleDashboard(
           "/admin/park-monitors",
         ),
       );
-
-    overview.push(
-      item(
-        "reval-total",
-        "Revalidations on the register",
-        "All applications, every stage",
-        revalTotal,
-        "/admin/revalidation-queue",
-        "info",
-      ),
-    );
   }
 
   // ── Permanent Secretary: two distinct revalidation gates ────────────────
   if (isPs || isAdmin) {
-    const [inspectionClearance, psApproval, parkApproval] = await Promise.all([
-      revalidations(REVALIDATION_STAGES.PS_INSPECTION),
+    const [psApproval, parkApproval] = await Promise.all([
       revalidations(REVALIDATION_STAGES.PS_APPROVAL),
       motorParks(["PENDING_PS_APPROVAL"]),
     ]);
 
-    if (inspectionClearance)
-      actions.push(
-        item(
-          "ps-inspection",
-          "Inspection schedules to clear",
-          "Approve the date and officer before the inspection goes ahead",
-          inspectionClearance,
-          "/admin/revalidation-queue",
-        ),
-      );
     if (psApproval)
       actions.push(
         item(
           "ps-approval",
-          "Revalidations awaiting your recommendation",
-          "Sign off before it reaches the Commissioner",
+          "Revalidations awaiting your approval",
+          "Approve, or return to HOD Operations with a reason",
           psApproval,
           "/admin/revalidation-queue",
         ),
@@ -253,7 +288,7 @@ export async function getRoleDashboard(
     const [assigned, inspections] = await Promise.all([
       db.revalidationApplication.count({
         where: {
-          inspectionOfficerId: userId,
+          inspectionTeam: { some: { userId } },
           status: { in: ["INSPECTION_SCHEDULED", "INSPECTION_IN_PROGRESS"] },
         },
       }),
@@ -266,8 +301,8 @@ export async function getRoleDashboard(
       actions.push(
         item(
           "insp-reval",
-          "Park inspections assigned to you",
-          "Complete the checklist and upload evidence",
+          "Park inspections you are on",
+          "Fill the checklist if you are lead, otherwise leave a comment",
           assigned,
           "/admin/revalidation-queue",
         ),

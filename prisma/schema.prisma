@@ -200,6 +200,7 @@ model User {
   parkMonitorApp         ParkMonitorApplication?
   revalidationApps       RevalidationApplication[] @relation("RevalidationApplicant")
   inspectedRevalidations RevalidationApplication[] @relation("RevalidationInspector")
+  revalidationTeams      RevalidationInspector[]   @relation("RevalidationTeamMember")
   revalidationDraft      RevalidationDraft?
 
   @@index([email])
@@ -1419,9 +1420,23 @@ model RevalidationApplication {
   /// Facilities the park must provide within six months, free text.
   requiredFacilities       String?   @db.Text
 
+  // ── HOD Operations: schedules the visit, then recommends ──
+  /// Free-text recommendation recorded by the HOD of Operations once the
+  /// inspection team has filed its checklist and comments.
+  hodOpsRecommendation   String?   @db.Text
+  hodOpsApprovedAt       DateTime?
+  hodOpsApprovedByUserId String?
+
+  /// HOD Parks Revalidation — the second review, after HOD Operations.
   hodApprovedAt          DateTime?
   commissionerApprovedAt DateTime?
   psApprovedAt           DateTime?
+  /// Recorded when the PS sends the application back to HOD Operations.
+  psRejectionReason      String?   @db.Text
+
+  /// "TEMPORAL" | "PERMANENT" — chosen by the Commissioner at final approval.
+  /// Drives the certificate wording and the validity period.
+  approvalType           String?   @db.VarChar(20)
 
   validUntil DateTime?
   approvedAt DateTime?
@@ -1433,6 +1448,7 @@ model RevalidationApplication {
   inspectionOfficer  User?               @relation("RevalidationInspector", fields: [inspectionOfficerId], references: [id])
   motorPark          MotorPark?          @relation("MotorParkRevalidation", fields: [motorParkId], references: [id], onDelete: SetNull)
   massTransitCompany MassTransitCompany? @relation("MassTransitRevalidation", fields: [massTransitCompanyId], references: [id], onDelete: SetNull)
+  inspectionTeam     RevalidationInspector[]
 
   @@index([applicantUserId])
   @@index([status])
@@ -1443,6 +1459,28 @@ model RevalidationApplication {
 }
 
 // ==================== MARITIME / BOAT MODULE ====================
+
+/// A revalidation inspection is carried out by a team of 2-4 officers: the HOD
+/// of Operations (always included) plus up to three others. Exactly one member
+/// is the LEAD and owns the checklist; the rest contribute a comment only.
+model RevalidationInspector {
+  id            String    @id @default(cuid())
+  applicationId String
+  userId        String
+  /// The lead fills the checklist, findings and evidence. Everyone else
+  /// leaves a comment that the HOD reads before recommending.
+  isLead        Boolean   @default(false)
+  comment       String?   @db.Text
+  commentedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  application RevalidationApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  user        User                    @relation("RevalidationTeamMember", fields: [userId], references: [id])
+
+  @@unique([applicationId, userId])
+  @@index([applicationId])
+  @@index([userId])
+}
 
 model BoatSticker {
   id             String    @id @default(cuid())

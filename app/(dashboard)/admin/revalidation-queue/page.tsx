@@ -1,65 +1,229 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardTitle, CardDescription } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/badge";
+import { Pagination } from "@/components/ui/pagination";
 import Link from "next/link";
-import { CheckSquare, Building2 } from "lucide-react";
+import { CheckSquare, Building2, Search } from "lucide-react";
+import type { Prisma } from "@prisma/client";
+import { QueueFilters } from "./queue-filters";
 
-function getClaimedFacilitiesCount(facilitiesJson: any): number {
+const PER_PAGE = 25;
+
+/** Groups the workflow's many statuses into the tabs staff actually think in. */
+const STATUS_TABS: { value: string; label: string; match: string[] }[] = [
+  { value: "", label: "All", match: [] },
+  { value: "SUBMITTED", label: "Awaiting review", match: ["SUBMITTED", "UNDER_REVIEW"] },
+  {
+    value: "INSPECTION",
+    label: "Inspection",
+    match: [
+      "PENDING_PS_INSPECTION_APPROVAL",
+      "INSPECTION_SCHEDULED",
+      "INSPECTION_IN_PROGRESS",
+    ],
+  },
+  {
+    value: "APPROVALS",
+    label: "In approval",
+    match: [
+      "INSPECTION_COMPLETED",
+      "PENDING_HOD_APPROVAL",
+      "PENDING_PS_APPROVAL",
+      "PENDING_COMMISSIONER_APPROVAL",
+    ],
+  },
+  { value: "APPROVED", label: "Approved", match: ["APPROVED"] },
+  { value: "REJECTED", label: "Rejected", match: ["REJECTED", "REVOKED"] },
+];
+
+function getClaimedFacilitiesCount(facilitiesJson: unknown): number {
   if (!facilitiesJson) return 0;
   try {
-    const obj = typeof facilitiesJson === "string" ? JSON.parse(facilitiesJson) : facilitiesJson;
-    return Object.entries(obj || {}).filter(([_, v]) => Boolean(v)).length;
+    const obj =
+      typeof facilitiesJson === "string"
+        ? JSON.parse(facilitiesJson)
+        : facilitiesJson;
+    if (Array.isArray(obj)) return obj.length;
+    return Object.values(obj || {}).filter(Boolean).length;
   } catch {
     return 0;
   }
 }
 
-export default async function RevalidationQueuePage() {
+interface PageProps {
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    lga?: string;
+    page?: string;
+  }>;
+}
+
+export default async function RevalidationQueuePage({ searchParams }: PageProps) {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  // Only allow relevant roles to view the queue
   const allowedRoles = [
-    "HOD_PARKS_REVALIDATION", 
-    "HOD_PARKS", 
-    "COMMISSIONER", 
-    "PERMANENT_SECRETARY", 
+    "HOD_PARKS_REVALIDATION",
+    "HOD_TRANSPORT_OPS",
+    "HOD_VIS",
+    "COMMISSIONER",
+    "PERMANENT_SECRETARY",
     "SYSTEM_ADMIN",
     "FIELD_INSPECTOR",
-    "VEHICLE_INSPECTION_OFFICER"
+    "VEHICLE_INSPECTION_OFFICER",
   ];
   if (!allowedRoles.includes(session.role)) {
     redirect("/dashboard");
   }
 
-  // If user is an inspector, only show applications assigned to them
-  const isInspector = session.role === "FIELD_INSPECTOR" || session.role === "VEHICLE_INSPECTION_OFFICER";
-  
-  const applications = await db.revalidationApplication.findMany({
-    where: isInspector ? { inspectionOfficerId: session.userId } : undefined,
-    orderBy: { createdAt: "desc" },
-    include: { applicant: true },
-  });
+  const sp = await searchParams;
+  const q = (sp.q ?? "").trim();
+  const statusTab = STATUS_TABS.find((t) => t.value && t.value === sp.status);
+  const lga = (sp.lga ?? "").trim();
+  const page = Math.max(1, Number(sp.page ?? 1) || 1);
+
+  // Inspectors only ever see their own assignments.
+  const isInspector =
+    session.role === "FIELD_INSPECTOR" ||
+    session.role === "VEHICLE_INSPECTION_OFFICER";
+
+  const where: Prisma.RevalidationApplicationWhereInput = {
+    ...(isInspector
+      ? { inspectionTeam: { some: { userId: session.userId } } }
+      : {}),
+    ...(statusTab
+      ? { status: { in: statusTab.match as Prisma.EnumApplicationStatusFilter["in"] } }
+      : {}),
+    ...(lga ? { lga } : {}),
+    ...(q
+      ? {
+          OR: [
+            { parkName: { contains: q, mode: "insensitive" } },
+            { ownerName: { contains: q, mode: "insensitive" } },
+            { townCommunity: { contains: q, mode: "insensitive" } },
+            { phoneNumber: { contains: q } },
+            { asinNumber: { contains: q } },
+            { revalidationNumber: { contains: q, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+
+  // Tab counts respect the search and LGA filters but not the status filter —
+  // otherwise every tab but the active one would read zero.
+  const countScope: Prisma.RevalidationApplicationWhereInput = {
+    ...where,
+    status: undefined,
+  };
+
+  const [applications, total, grandTotal, statusGroups, lgaGroups] =
+    await Promise.all([
+      db.revalidationApplication.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * PER_PAGE,
+        take: PER_PAGE,
+      }),
+      db.revalidationApplication.count({ where }),
+      db.revalidationApplication.count({
+        where: isInspector
+          ? { inspectionTeam: { some: { userId: session.userId } } }
+          : {},
+      }),
+      db.revalidationApplication.groupBy({
+        by: ["status"],
+        _count: true,
+        where: countScope,
+      }),
+      db.revalidationApplication.groupBy({
+        by: ["lga"],
+        _count: true,
+        where: isInspector
+          ? { inspectionTeam: { some: { userId: session.userId } } }
+          : {},
+      }),
+    ]);
+
+  const countFor = (match: string[]) =>
+    match.length === 0
+      ? statusGroups.reduce((n, g) => n + g._count, 0)
+      : statusGroups
+          .filter((g) => match.includes(g.status))
+          .reduce((n, g) => n + g._count, 0);
+
+  const statuses = STATUS_TABS.map((t) => ({
+    value: t.value,
+    label: t.label,
+    count: countFor(t.match),
+  }));
+
+  const lgas = lgaGroups
+    .filter((g): g is typeof g & { lga: string } => Boolean(g.lga))
+    .map((g) => ({ value: g.lga, count: g._count }))
+    .sort((a, b) => b.count - a.count);
+
+  const totalPages = Math.ceil(total / PER_PAGE);
+  const filtered = Boolean(q || statusTab || lga);
+
+  const carry: Record<string, string> = {};
+  if (q) carry.q = q;
+  if (sp.status) carry.status = sp.status;
+  if (lga) carry.lga = lga;
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold font-display tracking-tight">Revalidation Queue</h1>
-          <p className="text-sm text-muted-foreground mt-1">Review, compare, and process park and facility revalidation applications.</p>
+          <h1 className="text-2xl font-bold font-display tracking-tight">
+            Revalidation Queue
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Review, compare, and process park and facility revalidation
+            applications.
+          </p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-center bg-muted/60 px-3 py-1.5 rounded-lg border text-xs font-medium text-muted-foreground">
-          <span>Total Submissions: <strong className="text-foreground">{applications.length}</strong></span>
+          <span>
+            {filtered ? (
+              <>
+                Showing <strong className="text-foreground">{total}</strong> of{" "}
+                {grandTotal}
+              </>
+            ) : (
+              <>
+                Total Submissions:{" "}
+                <strong className="text-foreground">{grandTotal}</strong>
+              </>
+            )}
+          </span>
         </div>
       </div>
+
+      <QueueFilters statuses={statuses} lgas={lgas} />
 
       <div className="grid gap-4">
         {applications.length === 0 ? (
           <Card className="flex flex-col items-center justify-center p-12 text-center border-dashed border-2">
-            <CardTitle className="text-lg mb-2">No Applications</CardTitle>
-            <CardDescription>There are currently no revalidation applications in the queue.</CardDescription>
+            {filtered ? (
+              <>
+                <Search className="w-8 h-8 text-muted-foreground mb-3" />
+                <CardTitle className="text-lg mb-2">No matches</CardTitle>
+                <CardDescription>
+                  No application matches those filters. Try a different search
+                  term, or clear the filters to see all {grandTotal}.
+                </CardDescription>
+              </>
+            ) : (
+              <>
+                <CardTitle className="text-lg mb-2">No Applications</CardTitle>
+                <CardDescription>
+                  There are currently no revalidation applications in the queue.
+                </CardDescription>
+              </>
+            )}
           </Card>
         ) : (
           <div className="rounded-xl border overflow-hidden shadow-xs bg-card">
@@ -71,7 +235,9 @@ export default async function RevalidationQueuePage() {
                     <th className="py-3.5 px-4">Applicant / Owner</th>
                     <th className="py-3.5 px-4">Park Name</th>
                     <th className="py-3.5 px-4">Facility Type</th>
-                    <th className="py-3.5 px-4 text-center">Facilities Claimed</th>
+                    <th className="py-3.5 px-4 text-center">
+                      Facilities Claimed
+                    </th>
                     <th className="py-3.5 px-4">LGA</th>
                     <th className="py-3.5 px-4">Status</th>
                     <th className="py-3.5 pr-6 pl-4 text-right">Actions</th>
@@ -79,39 +245,66 @@ export default async function RevalidationQueuePage() {
                 </thead>
                 <tbody className="divide-y divide-border/60">
                   {applications.map((app) => {
-                    const claimedCount = getClaimedFacilitiesCount(app.facilitiesAvailable);
+                    const claimedCount = getClaimedFacilitiesCount(
+                      app.facilitiesAvailable,
+                    );
                     return (
-                      <tr key={app.id} className="hover:bg-muted/40 transition-colors group">
+                      <tr
+                        key={app.id}
+                        className="hover:bg-muted/40 transition-colors group">
                         <td className="py-4 pl-6 pr-4 text-xs font-mono text-muted-foreground whitespace-nowrap">
-                          {app.createdAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                          {app.createdAt.toLocaleDateString("en-GB", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
                         </td>
                         <td className="py-4 px-4 font-semibold text-foreground">
                           {app.ownerName}
-                          <span className="block text-xs font-normal text-muted-foreground mt-0.5">{app.phoneNumber}</span>
+                          <span className="block text-xs font-normal text-muted-foreground mt-0.5">
+                            {app.phoneNumber ?? "No phone on file"}
+                          </span>
                         </td>
                         <td className="py-4 px-4 font-medium text-foreground">
                           <span className="flex items-center gap-1.5">
-                            <Building2 className="w-3.5 h-3.5 text-primary shrink-0" /> {app.parkName}
+                            <Building2 className="w-3.5 h-3.5 text-primary shrink-0" />{" "}
+                            {app.parkName}
                           </span>
                         </td>
                         <td className="py-4 px-4 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-secondary text-secondary-foreground border">
-                            {app.facilityType}
-                          </span>
+                          {app.facilityType ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-secondary text-secondary-foreground border">
+                              {app.facilityType}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              Not stated
+                            </span>
+                          )}
                         </td>
                         <td className="py-4 px-4 text-center whitespace-nowrap">
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
-                            <CheckSquare className="w-3.5 h-3.5" /> {claimedCount} Available
+                            <CheckSquare className="w-3.5 h-3.5" />{" "}
+                            {claimedCount} Available
                           </span>
                         </td>
-                        <td className="py-4 px-4 text-muted-foreground font-medium">{app.lga}</td>
-                        <td className="py-4 px-4 whitespace-nowrap"><StatusPill status={app.status as any} /></td>
+                        <td className="py-4 px-4 text-muted-foreground font-medium">
+                          {app.lga ?? "—"}
+                        </td>
+                        <td className="py-4 px-4 whitespace-nowrap">
+                          <StatusPill
+                            status={
+                              app.status as Parameters<
+                                typeof StatusPill
+                              >[0]["status"]
+                            }
+                          />
+                        </td>
                         <td className="py-4 pr-6 pl-4 text-right whitespace-nowrap">
-                          <Link 
-                            href={`/admin/revalidation-queue/${app.id}`} 
-                            className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-medium text-xs transition-all shadow-2xs"
-                          >
-                            Compare & Review
+                          <Link
+                            href={`/admin/revalidation-queue/${app.id}`}
+                            className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-medium text-xs transition-all shadow-2xs">
+                            Compare &amp; Review
                           </Link>
                         </td>
                       </tr>
@@ -120,6 +313,22 @@ export default async function RevalidationQueuePage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              Page {page} of {totalPages} · showing{" "}
+              {(page - 1) * PER_PAGE + 1}–
+              {Math.min(page * PER_PAGE, total)} of {total}
+            </p>
+            <Pagination
+              page={page}
+              totalPages={totalPages}
+              baseUrl="/admin/revalidation-queue"
+              searchParams={carry}
+            />
           </div>
         )}
       </div>

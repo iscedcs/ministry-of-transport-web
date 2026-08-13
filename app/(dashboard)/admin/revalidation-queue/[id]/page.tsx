@@ -23,7 +23,9 @@ import {
   User, 
   CheckSquare, 
   ExternalLink, 
-  FileText 
+  FileText,
+  ArrowLeft,
+  Star
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -70,12 +72,13 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
 
   const allowedRoles = [
     "HOD_PARKS_REVALIDATION",
-    "HOD_PARKS",
+    "HOD_TRANSPORT_OPS",
+    "HOD_VIS",
     "COMMISSIONER",
     "PERMANENT_SECRETARY",
     "SYSTEM_ADMIN",
     "FIELD_INSPECTOR",
-    "VEHICLE_INSPECTION_OFFICER"
+    "VEHICLE_INSPECTION_OFFICER",
   ];
   if (!allowedRoles.includes(session.role)) {
     redirect("/dashboard");
@@ -86,6 +89,12 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
     include: {
       applicant: true,
       inspectionOfficer: true,
+      inspectionTeam: {
+        orderBy: [{ isLead: "desc" }, { createdAt: "asc" }],
+        include: {
+          user: { select: { firstName: true, lastName: true, role: true } },
+        },
+      },
     },
   });
 
@@ -107,7 +116,15 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
   const inspectors = await db.user.findMany({
     where: {
       role: {
-        in: ["FIELD_INSPECTOR", "VEHICLE_INSPECTION_OFFICER"],
+        in: [
+          "FIELD_INSPECTOR",
+          "VEHICLE_INSPECTION_OFFICER",
+          "HOD_VIS",
+          "HOD_TRANSPORT_OPS",
+          "HOD_PARKS",
+          "HOD_PARKS_REVALIDATION",
+          "PARK_MONITOR",
+        ],
       },
       isActive: true,
     },
@@ -115,8 +132,31 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
       id: true,
       firstName: true,
       lastName: true,
+      role: true,
+      stationLocation: true,
     },
+    orderBy: [{ role: "asc" }, { firstName: "asc" }],
   });
+
+  const canEdit =
+    session.role === "HOD_TRANSPORT_OPS" ||
+    session.role === "HOD_PARKS_REVALIDATION" ||
+    session.role === "SYSTEM_ADMIN";
+
+  const incompleteSections = Array.isArray(app.incompleteSections)
+    ? (app.incompleteSections as unknown[]).filter(
+        (x): x is string => typeof x === "string",
+      )
+    : [];
+
+  const team = app.inspectionTeam.map((m) => ({
+    userId: m.userId,
+    isLead: m.isLead,
+    comment: m.comment,
+    commentedAt: m.commentedAt,
+    name: `${m.user.firstName} ${m.user.lastName}`,
+    role: m.user.role as string,
+  }));
 
   const facilitiesObj = safeParseJson(app.facilitiesAvailable, {});
   const facilitySubTypesList = Array.isArray(safeParseJson(app.facilitySubTypes, [])) 
@@ -132,6 +172,13 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
 
   return (
     <div className="flex flex-col gap-8 max-w-6xl">
+      <Link
+        href="/admin/revalidation-queue"
+        className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" />
+        Back to Revalidation Queue
+      </Link>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-xl bg-card border shadow-xs">
         <div>
           <div className="flex items-center gap-3">
@@ -147,6 +194,20 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
           </p>
         </div>
         <div className="flex items-center gap-3 self-start sm:self-center">
+          {canEdit && app.status !== "APPROVED" && (
+            <Link
+              href={`/admin/revalidation-queue/${app.id}/edit`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary">
+              <FileText className="h-3.5 w-3.5" />
+              Edit application
+              {incompleteSections.length > 0 && (
+                <span className="ml-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                  {incompleteSections.length} section
+                  {incompleteSections.length === 1 ? "" : "s"} incomplete
+                </span>
+              )}
+            </Link>
+          )}
           <StatusPill status={app.status as any} />
           {app.revalidationNumber && (
             <span className="text-xs font-mono font-bold bg-green-500/10 text-green-700 dark:text-green-300 px-3 py-1.5 rounded-md border border-green-500/30">
@@ -478,11 +539,39 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
               <CardDescription>Assigned field inspection officer, evaluation findings, and executive sign-offs.</CardDescription>
             </CardHeader>
             <CardContent className="pt-6 grid sm:grid-cols-2 gap-y-5 gap-x-8 text-sm">
-              <div>
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">Inspection Officer</span>
-                <p className="font-semibold text-foreground">
-                  {app.inspectionOfficer ? `${app.inspectionOfficer.firstName} ${app.inspectionOfficer.lastName}` : "Not Assigned Yet"}
-                </p>
+              {/* The team, its lead, and every member's comment. The HOD of
+                  Operations and the reviewers above them decide on the basis
+                  of all of it, not the lead's checklist alone. */}
+              <div className="sm:col-span-2">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1.5">
+                  Inspection Team ({team.length})
+                </span>
+                {team.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No team assigned yet.</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {team.map((m) => (
+                      <div key={m.userId} className="rounded-lg border bg-secondary/30 p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-semibold text-foreground">{m.name}</span>
+                          {m.isLead && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                              <Star className="w-3 h-3" /> Lead — filed the checklist
+                            </span>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {m.role.replace(/_/g, " ").toLowerCase().replace(/\w/g, (c) => c.toUpperCase())}
+                          </span>
+                        </div>
+                        {m.isLead ? null : m.comment ? (
+                          <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{m.comment}</p>
+                        ) : (
+                          <p className="mt-2 text-sm italic text-muted-foreground">No comment recorded yet.</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">Inspection Scheduled Date</span>
@@ -496,6 +585,26 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
                   {app.findings || "No inspection findings recorded yet."}
                 </div>
               </div>
+              {app.hodOpsRecommendation && (
+                <div className="sm:col-span-2">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1.5">
+                    HOD of Operations&apos; Recommendation
+                  </span>
+                  <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+                    {app.hodOpsRecommendation}
+                  </div>
+                </div>
+              )}
+              {app.psRejectionReason && (
+                <div className="sm:col-span-2">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1.5">
+                    Returned by the Permanent Secretary
+                  </span>
+                  <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+                    {app.psRejectionReason}
+                  </div>
+                </div>
+              )}
               <div>
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">Inspector Recommendation</span>
                 <span className={cn(
@@ -671,8 +780,10 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
             }}
             status={app.status}
             role={session.role}
+            currentUserId={session.userId}
             inspectors={inspectors}
-            assignedInspectorId={app.inspectionOfficerId}
+            team={team}
+            psRejectionReason={app.psRejectionReason}
           />
 
           <Card className="bg-muted/30 border-border/60">
