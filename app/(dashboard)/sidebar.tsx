@@ -58,8 +58,6 @@ const NAV_ITEMS: NavItem[] = [
 
   // ── Motor Park Module ──
 
-
-
   // ── Enumeration Module ──
   {
     label: "Enumeration",
@@ -148,7 +146,6 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
 
-
   // ── Revalidation Module ──
   {
     label: "Revalidation",
@@ -208,18 +205,18 @@ const NAV_ITEMS: NavItem[] = [
   },
 
   // ── AVIR (EPIC-006, future) ──
-  {
-    label: "AVIR Reports",
-    href: "/avir",
-    icon: "🚨",
-    allowedRoles: [
-      "COMMISSIONER",
-      "PERMANENT_SECRETARY",
-      "VEHICLE_INSPECTION_OFFICER",
-      "SYSTEM_ADMIN",
-      "ADMIN",
-    ],
-  },
+  // {
+  //   label: "AVIR Reports",
+  //   href: "/avir",
+  //   icon: "🚨",
+  //   allowedRoles: [
+  //     "COMMISSIONER",
+  //     "PERMANENT_SECRETARY",
+  //     "VEHICLE_INSPECTION_OFFICER",
+  //     "SYSTEM_ADMIN",
+  //     "ADMIN",
+  //   ],
+  // },
 
   // ── Park Monitors ──
   {
@@ -240,13 +237,18 @@ const NAV_ITEMS: NavItem[] = [
     label: "Staff & Users",
     href: "/admin/users",
     icon: "👥",
-    allowedRoles: ["PERMANENT_SECRETARY", "COMMISSIONER", "SYSTEM_ADMIN", "ADMIN"],
+    allowedRoles: ["PERMANENT_SECRETARY", "SYSTEM_ADMIN", "ADMIN"],
   },
   {
     label: "Audit Trail",
     href: "/admin/audit",
     icon: "📋",
-    allowedRoles: ["COMMISSIONER", "PERMANENT_SECRETARY", "SYSTEM_ADMIN", "ADMIN"],
+    allowedRoles: [
+      "COMMISSIONER",
+      "PERMANENT_SECRETARY",
+      "SYSTEM_ADMIN",
+      "ADMIN",
+    ],
   },
   {
     label: "Fee Schedule",
