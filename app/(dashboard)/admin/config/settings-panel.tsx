@@ -112,28 +112,43 @@ export function SettingsPanel({
 
                   <div className="shrink-0">
                     {def.type === "boolean" ? (
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={value === "true"}
-                        aria-label={def.label}
-                        disabled={busy}
-                        onClick={() =>
-                          save(def, value === "true" ? "false" : "true")
-                        }
-                        className={cn(
-                          "relative h-6 w-11 rounded-full transition-colors disabled:opacity-50",
-                          value === "true" ? "bg-primary" : "bg-muted-foreground/30",
-                        )}>
+                      // The word matters more than the switch: an admin should
+                      // never have to infer On or Off from a knob position.
+                      <div className="flex items-center gap-2.5">
                         <span
                           className={cn(
-                            "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                            "text-xs font-semibold tabular-nums",
                             value === "true"
-                              ? "translate-x-[1.375rem]"
-                              : "translate-x-0.5",
-                          )}
-                        />
-                      </button>
+                              ? "text-primary"
+                              : "text-muted-foreground",
+                          )}>
+                          {value === "true" ? "On" : "Off"}
+                        </span>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={value === "true"}
+                          aria-label={def.label}
+                          disabled={busy}
+                          onClick={() =>
+                            save(def, value === "true" ? "false" : "true")
+                          }
+                          className={cn(
+                            "relative h-6 w-11 shrink-0 rounded-full border transition-colors disabled:opacity-50",
+                            value === "true"
+                              ? "border-primary bg-primary"
+                              : "border-border bg-muted",
+                          )}>
+                          <span
+                            className={cn(
+                              "absolute top-0.5 h-5 w-5 rounded-full shadow transition-transform",
+                              value === "true"
+                                ? "translate-x-[1.375rem] bg-white"
+                                : "translate-x-0.5 bg-muted-foreground/70",
+                            )}
+                          />
+                        </button>
+                      </div>
                     ) : (
                       <div className="flex items-center gap-2">
                         <Input
