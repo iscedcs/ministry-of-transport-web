@@ -9,8 +9,15 @@
  */
 
 import { revalidatePath } from "next/cache";
+import {
+  canManageAccount,
+  canAssignRole,
+  canDeactivate,
+  STAFF_ADMIN_ROLES,
+} from "@/lib/account-policy";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { MAX_EXPORT_ROWS } from "@/lib/query-limits";
 import { requireRole } from "@/lib/auth";
 import type { ActionResult } from "@/lib/server-actions-pattern";
 import { UserRole } from "@prisma/client";
@@ -87,7 +94,7 @@ export interface SystemConfigEntry {
 // ── STORY-080/081: Staff User Management ─────────────────────────────────────
 
 export async function listStaffUsers(): Promise<ActionResult<StaffUser[]>> {
-  await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+  await requireRole([...STAFF_ADMIN_ROLES]);
 
   const users = await db.user.findMany({
     where: { role: { not: "EXTERNAL_APPLICANT" } },
@@ -114,7 +121,7 @@ export async function listStaffUsers(): Promise<ActionResult<StaffUser[]>> {
 export async function getStaffUser(
   userId: string,
 ): Promise<ActionResult<StaffUser>> {
-  await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+  await requireRole([...STAFF_ADMIN_ROLES]);
 
   const user = await db.user.findUnique({
     where: { id: userId },
@@ -156,7 +163,7 @@ export async function updateStaffUser(
   prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const session = await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+  const session = await requireRole([...STAFF_ADMIN_ROLES]);
 
   const validated = updateStaffSchema.safeParse({
     userId: formData.get("userId"),
@@ -193,6 +200,15 @@ export async function updateStaffUser(
     return { success: false, error: "User not found" };
   }
 
+  // Checked against the role the account holds TODAY...
+  const mayManage = canManageAccount(session.role, existing.role);
+  if (!mayManage.ok) return { success: false, error: mayManage.reason };
+
+  // ...and against the role being assigned, so an Administrator cannot promote
+  // a junior account into a protected role and then act through it.
+  const mayAssign = canAssignRole(session.role, role as typeof existing.role);
+  if (!mayAssign.ok) return { success: false, error: mayAssign.reason };
+
   const updated = await db.user.update({
     where: { id: userId },
     data: {
@@ -226,7 +242,7 @@ export async function toggleStaffActive(
   userId: string,
   activate: boolean,
 ): Promise<ActionResult> {
-  const session = await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+  const session = await requireRole([...STAFF_ADMIN_ROLES]);
 
   const user = await db.user.findUnique({
     where: { id: userId },
@@ -235,6 +251,25 @@ export async function toggleStaffActive(
 
   if (!user || user.role === "EXTERNAL_APPLICANT") {
     return { success: false, error: "User not found" };
+  }
+
+  if (activate) {
+    const allowed = canManageAccount(session.role, user.role);
+    if (!allowed.ok) return { success: false, error: allowed.reason };
+  } else {
+    // Count the System Admins that would REMAIN active if this one goes.
+    const remainingActiveSystemAdmins = await db.user.count({
+      where: { role: "SYSTEM_ADMIN", isActive: true, id: { not: userId } },
+    });
+
+    const allowed = canDeactivate({
+      actorId: session.userId,
+      actorRole: session.role,
+      targetId: user.id,
+      targetRole: user.role,
+      remainingActiveSystemAdmins,
+    });
+    if (!allowed.ok) return { success: false, error: allowed.reason };
   }
 
   await db.user.update({
@@ -267,7 +302,7 @@ export async function listAuditLogs(
   entityType?: string,
   action?: string,
 ): Promise<ActionResult<{ logs: AuditLogEntry[]; total: number }>> {
-  await requireRole(["COMMISSIONER", "PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+  await requireRole(["COMMISSIONER", "PERMANENT_SECRETARY", "SYSTEM_ADMIN", "ADMIN"]);
 
   // `action` is filtered by prefix: the UI offers families like
   // "TRACAS_VEHICLE" while stored actions are specific
@@ -320,6 +355,9 @@ export async function listFeeSchedules(): Promise<
     "COMMISSIONER",
     "PERMANENT_SECRETARY",
     "SYSTEM_ADMIN",
+    // Read only — createFeeSchedule and toggleFeeScheduleActive below stay
+    // with the PS, and the page hides those controls for this role.
+    "ADMIN",
   ]);
 
   const fees = await db.feeSchedule.findMany({
@@ -423,7 +461,7 @@ export async function toggleFeeScheduleActive(
 export async function listChecklistTemplates(): Promise<
   ActionResult<ChecklistTemplate[]>
 > {
-  await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+  await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN", "ADMIN"]);
 
   const templates = await db.inspectionChecklistTemplate.findMany({
     include: {
@@ -529,7 +567,7 @@ export interface SystemHealth {
 }
 
 export async function getSystemHealth(): Promise<ActionResult<SystemHealth>> {
-  await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+  await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN", "ADMIN"]);
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -617,6 +655,9 @@ export async function getExportData(
           createdAt: true,
         },
         orderBy: { createdAt: "asc" },
+        // An export should be complete, but not unbounded — a runaway CSV
+        // would exhaust memory before it ever reached the browser.
+        take: MAX_EXPORT_ROWS,
       });
       return {
         success: true,
@@ -660,6 +701,9 @@ export async function getExportData(
           createdAt: true,
         },
         orderBy: { createdAt: "asc" },
+        // An export should be complete, but not unbounded — a runaway CSV
+        // would exhaust memory before it ever reached the browser.
+        take: MAX_EXPORT_ROWS,
       });
       return {
         success: true,
@@ -704,6 +748,9 @@ export async function getExportData(
           },
         },
         orderBy: { createdAt: "asc" },
+        // An export should be complete, but not unbounded — a runaway CSV
+        // would exhaust memory before it ever reached the browser.
+        take: MAX_EXPORT_ROWS,
       });
       return {
         success: true,
@@ -782,6 +829,9 @@ export async function getExportData(
           },
         },
         orderBy: { createdAt: "asc" },
+        // An export should be complete, but not unbounded — a runaway CSV
+        // would exhaust memory before it ever reached the browser.
+        take: MAX_EXPORT_ROWS,
       });
       return {
         success: true,

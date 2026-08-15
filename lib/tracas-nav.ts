@@ -37,6 +37,9 @@ export const TRACAS_TABS: TracasTab[] = [
       "SYSTEM_ADMIN",
       "TRACAS_MD",
       "ENUMERATOR",
+      // Oversight of the register. The onboarding and reassignment ACTIONS on
+      // these pages keep their own narrower role lists.
+      "ADMIN",
     ],
   },
   {
@@ -50,6 +53,7 @@ export const TRACAS_TABS: TracasTab[] = [
       "COMMISSIONER",
       "SYSTEM_ADMIN",
       "PERMANENT_SECRETARY",
+      "ADMIN",
     ],
   },
   {
@@ -63,6 +67,7 @@ export const TRACAS_TABS: TracasTab[] = [
       "COMMISSIONER",
       "SYSTEM_ADMIN",
       "PERMANENT_SECRETARY",
+      "ADMIN",
     ],
   },
   {

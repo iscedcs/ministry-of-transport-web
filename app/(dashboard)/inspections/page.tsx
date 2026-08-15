@@ -70,6 +70,7 @@ export default async function InspectionsPage({ searchParams }: PageProps) {
       "HOD_PARKS_REVALIDATION",
       "FIELD_INSPECTOR",
       "SYSTEM_ADMIN",
+      "ADMIN",
     ]);
   } catch {
     redirect("/dashboard");

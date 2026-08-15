@@ -29,7 +29,7 @@ function fmt(d: Date | null) {
 
 export default async function StaffUsersPage() {
   try {
-    await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+    await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN", "ADMIN"]);
   } catch {
     redirect("/dashboard");
   }

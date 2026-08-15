@@ -26,7 +26,7 @@ import { getActionBadgeClass as actionBadgeClass } from "@/lib/utils/labels";
 
 export default async function MonitoringPage() {
   try {
-    await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+    await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN", "ADMIN"]);
   } catch {
     redirect("/dashboard");
   }

@@ -19,7 +19,6 @@ import {
   Users, 
   CarFront, 
   Activity, 
-  Download, 
   MapPin, 
   AlertCircle, 
   CheckCircle2,
@@ -30,7 +29,9 @@ import {
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { StatusPill } from "@/components/ui/badge";
+import { BroadcastDialog } from "./broadcast-dialog";
 
 // Mock Data
 const revenueData = [
@@ -50,13 +51,7 @@ const sectorData = [
   { name: "Ticketing", count: 200, fill: "#a855f7" },
 ];
 
-const recentActivities = [
-  { id: 1, type: "payment", text: "Park Monitor ID payment received", time: "2 mins ago", amount: "₦2,500", status: "success" },
-  { id: 2, type: "application", text: "New Mass Transit route proposed", time: "1 hr ago", location: "Onitsha South", status: "pending" },
-  { id: 3, type: "alert", text: "Compliance drop detected in Zone 4", time: "3 hrs ago", severity: "high", status: "warning" },
-  { id: 4, type: "payment", text: "Motor Park Registration fee", time: "5 hrs ago", amount: "₦50,000", status: "success" },
-  { id: 5, type: "approval", text: "Revalidation Batch #22 Approved", time: "Yesterday", count: 45, status: "success" },
-];
+
 
 export function ExecutiveDashboard({ initialStats, error }: { initialStats?: any, error?: string | null }) {
   const [dateRange, setDateRange] = useState("This Month");
@@ -67,7 +62,9 @@ export function ExecutiveDashboard({ initialStats, error }: { initialStats?: any
   const transport = initialStats?.totalRegisteredTransport ?? 8302;
   const compliance = initialStats?.complianceRate ?? 78;
   const sectors = initialStats?.sectorData?.length > 0 ? initialStats.sectorData : sectorData;
-  const activities = initialStats?.activities?.length > 0 ? initialStats.activities : recentActivities;
+  // No fallback: an empty feed means nothing has happened, and saying so is
+  // more useful than inventing five events that never occurred.
+  const activities = initialStats?.activities ?? [];
   const chartsData = initialStats?.revenueData ?? revenueData;
 
   return (
@@ -94,14 +91,7 @@ export function ExecutiveDashboard({ initialStats, error }: { initialStats?: any
           </select>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-2">
-            <Download className="w-4 h-4" />
-            Export Brief
-          </Button>
-          <Button size="sm" className="gap-2">
-            <BellRing className="w-4 h-4" />
-            Broadcast Alert
-          </Button>
+          <BroadcastDialog />
         </div>
       </div>
 
@@ -227,6 +217,12 @@ export function ExecutiveDashboard({ initialStats, error }: { initialStats?: any
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border">
+              {activities.length === 0 && (
+                <p className="p-8 text-center text-sm text-muted-foreground">
+                  No recorded activity yet. Onboarding, approvals and staff
+                  changes appear here as they happen.
+                </p>
+              )}
               {activities.map((act: any) => (
                 <div key={act.id} className="p-4 hover:bg-muted/30 transition-colors flex items-start gap-4">
                   <div className="mt-0.5">
@@ -241,14 +237,15 @@ export function ExecutiveDashboard({ initialStats, error }: { initialStats?: any
                       <span>{act.time}</span>
                       {act.amount && <><span className="text-border">•</span><span className="font-medium text-foreground">{act.amount}</span></>}
                       {act.location && <><span className="text-border">•</span><span className="flex items-center gap-1"><MapPin className="w-3 h-3"/>{act.location}</span></>}
+                      {act.actor && <><span className="text-border">•</span><span>{act.actor}</span></>}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
             <div className="p-3 border-t text-center bg-muted/10">
-              <Button variant="ghost" size="sm" className="w-full text-xs text-primary">
-                View Full Activity Log
+              <Button asChild variant="ghost" size="sm" className="w-full text-xs text-primary">
+                <Link href="/admin/audit">View Full Activity Log</Link>
               </Button>
             </div>
           </CardContent>

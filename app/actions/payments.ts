@@ -19,6 +19,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { MAX_LIST_ROWS } from "@/lib/query-limits";
 import { requireAuth, requireRole } from "@/lib/auth";
 import {
   initializeTransaction,
@@ -626,6 +627,7 @@ export async function listPayments(
     "COMMISSIONER",
     "PERMANENT_SECRETARY",
     "SYSTEM_ADMIN",
+    "ADMIN",
   ]);
 
   const where = {
@@ -873,10 +875,13 @@ export async function getRevenueStats(): Promise<ActionResult<RevenueStats>> {
       _count: { _all: true },
       orderBy: { paymentType: "asc" },
     }),
+    // Feeds a chart. Every completed payment ever would be read otherwise —
+    // the totals beside it already come from aggregates, not this list.
     db.payment.findMany({
       where: { status: "COMPLETED" },
       select: { amount: true, completedAt: true },
-      orderBy: { completedAt: "asc" },
+      orderBy: { completedAt: "desc" },
+      take: MAX_LIST_ROWS,
     }),
   ]);
 

@@ -35,7 +35,8 @@ enum UserRole {
   VEHICLE_INSPECTION_OFFICER // Mechanical assessment; AVIR completion
   EXTERNAL_APPLICANT // Public user: park owners, transit companies, driving schools
   PARK_MONITOR // Field staff who monitor parks and transit operations
-  SYSTEM_ADMIN // Platform administration (internal)
+  SYSTEM_ADMIN // Platform administration (internal) — full technical control
+  ADMIN // Ministry administrator: staff & records, no system-level controls
   ICT_OFFICER // ICT Officer — Ministry Printing Center (sees every queue)
   ICT_OFFICER_TRACAS // ICT Officer scoped to TRACAS only (driver IDs + letters of authority)
   ENUMERATOR // Field enumeration — onboards vehicles & drivers across all modules

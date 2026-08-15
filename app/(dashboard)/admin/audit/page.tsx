@@ -73,7 +73,7 @@ interface PageProps {
 
 export default async function AuditTrailPage({ searchParams }: PageProps) {
   try {
-    await requireRole(["COMMISSIONER", "PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+    await requireRole(["COMMISSIONER", "PERMANENT_SECRETARY", "SYSTEM_ADMIN", "ADMIN"]);
   } catch {
     redirect("/dashboard");
   }

@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { checkStoredUrl } from "@/lib/media-url";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
@@ -140,6 +141,9 @@ export async function reviewParkMonitorApplication(
 
 export async function updateParkMonitorPhoto(photoUrl: string) {
   try {
+    const photoProblem = checkStoredUrl(photoUrl, "ID card photograph");
+    if (photoProblem) return { success: false, error: photoProblem };
+
     const session = await getSession();
     if (!session || (session.role !== "EXTERNAL_APPLICANT" && session.role !== "PARK_MONITOR")) {
       return { success: false, error: "Unauthorized" };

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getTracasAuthorityLetterData } from "@/app/actions/tracas";
 import { LetterOfAuthorityDocument } from "@/components/tracas/letter-of-authority";
 import { SIGNATURES } from "@/lib/signatures";
+import { getBoolSettings } from "@/lib/system-config";
 
 export default async function TracasLetterPage({
   params,
@@ -10,6 +11,12 @@ export default async function TracasLetterPage({
 }) {
   const { id } = await params;
   const res = await getTracasAuthorityLetterData(id);
+
+  const display = await getBoolSettings([
+    "tracas.letter.showOwnerName",
+    "tracas.letter.showDriverName",
+    "tracas.letter.showQrCode",
+  ]);
 
   if (!res.success || !res.vehicle) {
     notFound();
@@ -20,6 +27,11 @@ export default async function TracasLetterPage({
       <LetterOfAuthorityDocument
         vehicle={res.vehicle as any}
         showActions={true}
+        display={{
+          showOwnerName: display["tracas.letter.showOwnerName"],
+          showDriverName: display["tracas.letter.showDriverName"],
+          showQrCode: display["tracas.letter.showQrCode"],
+        }}
         // Signatures are injected here, from this authenticated server route,
         // rather than imported by the client component — so the images never
         // land in a public bundle or become fetchable by URL.

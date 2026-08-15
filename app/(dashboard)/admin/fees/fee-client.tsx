@@ -33,8 +33,16 @@ import { formatNaira as fmt, fmtDate } from "@/lib/utils/format";
 
 export function FeeScheduleClient({
   initialFees,
+  canManage = true,
 }: {
   initialFees: FeeScheduleItem[];
+  /**
+   * False for the Ministry Administrator, who may consult the fee schedule but
+   * not set it — creating and toggling stay with the Permanent Secretary. The
+   * server enforces this too; hiding the controls just avoids offering a
+   * button that would fail.
+   */
+  canManage?: boolean;
 }) {
   const [fees, setFees] = useState<FeeScheduleItem[]>(initialFees);
   const [showForm, setShowForm] = useState(false);
@@ -83,14 +91,16 @@ export function FeeScheduleClient({
             {fees.length} fee record{fees.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Button size="sm" onClick={() => setShowForm((v) => !v)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Fee
-        </Button>
+        {canManage && (
+          <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Fee
+          </Button>
+        )}
       </div>
 
       {/* Add Fee Form */}
-      {showForm && (
+      {canManage && showForm && (
         <Card className="border-primary/30">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">New Fee Record</CardTitle>
@@ -191,7 +201,7 @@ export function FeeScheduleClient({
         <CardContent className="p-0">
           {fees.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-10">
-              No fee records yet. Add the first one above.
+              No fee records yet.
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -248,13 +258,19 @@ export function FeeScheduleClient({
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleToggle(fee.id, fee.isActive)}
-                          className={fee.isActive ? "text-destructive" : ""}>
-                          {fee.isActive ? "Deactivate" : "Activate"}
-                        </Button>
+                        {canManage ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggle(fee.id, fee.isActive)}
+                            className={fee.isActive ? "text-destructive" : ""}>
+                            {fee.isActive ? "Deactivate" : "Activate"}
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            View only
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}

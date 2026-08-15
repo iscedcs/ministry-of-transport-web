@@ -15,6 +15,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   FINANCE_OFFICER: "Finance Officer",
   VEHICLE_INSPECTION_OFFICER: "Vehicle Inspection Officer (VIO)",
   SYSTEM_ADMIN: "System Administrator",
+  ADMIN: "Administrator (Ministry)",
   ICT_OFFICER: "ICT Officer — Ministry Printing Center",
   ICT_OFFICER_TRACAS: "ICT Officer — TRACAS Printing",
   ENUMERATOR: "Enumerator (Fleet & Driver Onboarding)",

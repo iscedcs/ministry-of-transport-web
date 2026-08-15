@@ -77,6 +77,7 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
     "COMMISSIONER",
     "PERMANENT_SECRETARY",
     "SYSTEM_ADMIN",
+    "ADMIN",
     "FIELD_INSPECTOR",
     "VEHICLE_INSPECTION_OFFICER",
   ];

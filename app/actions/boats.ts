@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { MAX_LIST_ROWS } from "@/lib/query-limits";
 import { revalidatePath } from "next/cache";
 import { authorize, FLEET_WRITE_ROLES } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
@@ -78,6 +79,7 @@ export async function getAvailableStickers() {
     const stickers = await db.boatSticker.findMany({
       where: { isAssigned: false },
       orderBy: { createdAt: "desc" },
+      take: MAX_LIST_ROWS,
     });
     return { success: true, data: stickers };
   } catch (error: any) {
@@ -376,6 +378,7 @@ export async function getBoatsList(query?: string) {
         sticker: true,
       },
       orderBy: { createdAt: "desc" },
+          take: MAX_LIST_ROWS,
     });
 
     return { success: true, data: boats };

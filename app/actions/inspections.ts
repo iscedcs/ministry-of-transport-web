@@ -45,6 +45,8 @@ const ALLOWED_ROLES = [
   "HOD_PARKS_REVALIDATION",
   "FIELD_INSPECTOR",
   "SYSTEM_ADMIN",
+  // Oversight only — the schedule/approve actions in this file gate separately.
+  "ADMIN",
 ] as const;
 
 import { revalidatePath } from "next/cache";
