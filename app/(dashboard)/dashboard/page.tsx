@@ -124,7 +124,7 @@ export default async function DashboardPage() {
 
       {/* Stats grid */}
       {isExecutive ? (
-        <ExecutiveDashboard initialStats={execStats} error={execError} />
+        <ExecutiveDashboard initialStats={execStats} error={execError} userRole={session.role} />
       ) : (
         stats &&
         !isParkMonitor &&
