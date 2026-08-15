@@ -43,6 +43,7 @@ export default async function PaymentsPage({ searchParams }: PageProps) {
       "COMMISSIONER",
       "PERMANENT_SECRETARY",
       "SYSTEM_ADMIN",
+      "ADMIN",
     ]);
   } catch {
     redirect("/dashboard");

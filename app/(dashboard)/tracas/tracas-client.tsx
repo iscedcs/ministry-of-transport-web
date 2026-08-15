@@ -1,9 +1,9 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -138,9 +138,34 @@ interface StickerItem {
 }
 
 interface TracasClientProps {
+  /** The current page of the ACTIVE tab. The other two arrive empty. */
   initialVehicles: VehicleItem[];
   initialDrivers: DriverItem[];
   initialStickers: StickerItem[];
+  /**
+   * Assignment options, fetched whole rather than per page — a dialog that
+   * only offered the visible rows would be wrong.
+   */
+  pools: {
+    availableDrivers: DriverItem[];
+    availableStickers: StickerItem[];
+  };
+  /** Headline figures, counted in the database rather than from a list. */
+  stats: {
+    vehicleTotal: number;
+    driverTotal: number;
+    stickerTotal: number;
+    newJoinerCount: number;
+    activeVehicleCount: number;
+    availableStickerCount: number;
+  };
+  pagination: {
+    tab: "vehicles" | "drivers" | "stickers";
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
   currentUserRole: string | null;
 }
 
@@ -148,6 +173,9 @@ export default function TracasClient({
   initialVehicles,
   initialDrivers,
   initialStickers,
+  pools,
+  stats,
+  pagination,
   currentUserRole,
 }: TracasClientProps) {
   /** Sticker inventory loading is System Admin only. */
@@ -163,13 +191,53 @@ export default function TracasClient({
   /** Attaching a driver to a vehicle that has none is part of onboarding. */
   const canAssignDriver = canWrite;
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<
-    "vehicles" | "drivers" | "stickers"
-  >("vehicles");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [enrollmentFilter, setEnrollmentFilter] = useState<
-    "ALL" | "EXISTING" | "NEW_JOINER"
-  >("ALL");
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const [isNavigating, startNavigation] = useTransition();
+
+  // Tab, page, search term and enrolment filter are URL state; the server
+  // reads them to fetch one page. Searching therefore covers the whole
+  // register rather than whichever rows happened to be loaded.
+  const activeTab = pagination.tab;
+  const enrollmentFilter = (params.get("enrollment") ?? "ALL") as
+    | "ALL"
+    | "EXISTING"
+    | "NEW_JOINER";
+  const appliedSearch = params.get("q") ?? "";
+  const [searchQuery, setSearchQuery] = useState(appliedSearch);
+
+  // Keep the box in step with the URL on back/forward, without an effect.
+  const [syncedSearch, setSyncedSearch] = useState(appliedSearch);
+  if (appliedSearch !== syncedSearch) {
+    setSyncedSearch(appliedSearch);
+    setSearchQuery(appliedSearch);
+  }
+
+  /** Writes URL state. Any change other than paging returns to page 1. */
+  function navigate(patch: Record<string, string | null>, keepPage = false) {
+    const next = new URLSearchParams(params.toString());
+    for (const [k, v] of Object.entries(patch)) {
+      if (v) next.set(k, v);
+      else next.delete(k);
+    }
+    if (!keepPage) next.delete("page");
+    startNavigation(() => router.push(`${pathname}?${next.toString()}`));
+  }
+
+  const setActiveTab = (tab: "vehicles" | "drivers" | "stickers") =>
+    navigate({ tab: tab === "vehicles" ? null : tab, q: null });
+
+  const setEnrollmentFilter = (v: "ALL" | "EXISTING" | "NEW_JOINER") =>
+    navigate({ enrollment: v === "ALL" ? null : v });
+
+  /** Search runs on submit — never on keystroke. */
+  const submitSearch = () => {
+    const q = searchQuery.trim();
+    if (q === appliedSearch) return;
+    navigate({ q: q || null });
+  };
+
+  const goToPage = (n: number) => navigate({ page: String(n) }, true);
 
   // Modals
   const [isOnboardVehicleOpen, setIsOnboardVehicleOpen] = useState(false);
@@ -331,7 +399,7 @@ export default function TracasClient({
   };
 
   /** Photo replacement inside the edit modal, same 5 MB / image-only rule. */
-  const handleEditPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEditPhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
@@ -342,15 +410,24 @@ export default function TracasClient({
       toast.error("Image file size must be less than 5MB.");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result) {
-        setEditDriverForm((prev) => ({ ...prev, photoUrl: result }));
-        toast.success("New passport photograph loaded.");
+    // The photograph goes to object storage and only its URL is stored.
+    // Reading it as a data URI put the whole image in the database — 133 of
+    // those came to 198 MB and made this page take two minutes to open.
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("folder", "tracas-driver-photos");
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok || !json?.url) {
+        toast.error(json?.error ?? "Photograph upload failed. Try again.");
+        return;
       }
-    };
-    reader.readAsDataURL(file);
+      setEditDriverForm((prev) => ({ ...prev, photoUrl: json.url }));
+      toast.success("New passport photograph loaded.");
+    } catch {
+      toast.error("Photograph upload failed. Check your connection.");
+    }
   };
 
   const handleUpdateDriver = async (e: React.FormEvent) => {
@@ -374,7 +451,7 @@ export default function TracasClient({
     }
   };
 
-  const handlePhotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -388,82 +465,62 @@ export default function TracasClient({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result) {
-        setDriverForm((prev) => ({ ...prev, photoUrl: result }));
-        toast.success("Passport photograph loaded successfully!");
+    // Stored in object storage; the database keeps only the URL.
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("folder", "tracas-driver-photos");
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok || !json?.url) {
+        toast.error(json?.error ?? "Photograph upload failed. Try again.");
+        return;
       }
-    };
-    reader.readAsDataURL(file);
+      setDriverForm((prev) => ({ ...prev, photoUrl: json.url }));
+      toast.success("Passport photograph uploaded successfully!");
+    } catch {
+      toast.error("Photograph upload failed. Check your connection.");
+    }
   };
 
   // Filtered lists
 
-  const availableStickers = initialStickers.filter((s) => !s.isAssigned);
+  const availableStickers = pools.availableStickers;
 
-  const newJoinerCount = initialVehicles.filter(
-    (v) => v.enrollmentType === "NEW_JOINER",
-  ).length;
+  const newJoinerCount = stats.newJoinerCount;
 
   /**
    * Drivers with no vehicle attached. A driver may only operate one vehicle,
    * so anyone already holding one is not offered for a new assignment.
    */
-  const availableDrivers = initialDrivers.filter(
-    (d) => !d.vehicles || d.vehicles.length === 0,
-  );
+  const availableDrivers = pools.availableDrivers;
 
   /**
    * Options for the reassign modal: the unassigned pool, plus whichever
    * driver currently holds THIS vehicle so the active selection still renders.
    */
-  const vehicleCurrentDriverId =
-    initialVehicles.find((v) => v.id === reassignForm.vehicleId)
-      ?.assignedDriverId ?? null;
+  const reassignVehicle = initialVehicles.find(
+    (v) => v.id === reassignForm.vehicleId,
+  );
+  const vehicleCurrentDriverId = reassignVehicle?.assignedDriverId ?? null;
 
   const reassignDriverOptions = (() => {
-    const current = initialDrivers.find(
-      (d) => d.id === vehicleCurrentDriverId,
-    );
+    // The current holder is not in the unassigned pool, so take them from
+    // the vehicle row itself, or the active selection renders blank.
+    const current = reassignVehicle?.assignedDriver
+      ? (reassignVehicle.assignedDriver as unknown as DriverItem)
+      : undefined;
     if (!current || availableDrivers.some((d) => d.id === current.id)) {
       return availableDrivers;
     }
     return [current, ...availableDrivers];
   })();
 
-  const filteredVehicles = initialVehicles.filter((v) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      v.registrationNumber.toLowerCase().includes(q) ||
-      v.fleetNumber.toLowerCase().includes(q) ||
-      v.authorityRef.toLowerCase().includes(q) ||
-      Boolean(v.assignedDriver?.fullName.toLowerCase().includes(q));
-
-    // Legacy rows written before enrollmentType existed read as EXISTING.
-    const enrollment =
-      v.enrollmentType === "NEW_JOINER" ? "NEW_JOINER" : "EXISTING";
-    const matchesEnrollment =
-      enrollmentFilter === "ALL" || enrollment === enrollmentFilter;
-
-    return matchesSearch && matchesEnrollment;
-  });
-
-  const filteredDrivers = initialDrivers.filter(
-    (d) =>
-      d.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      d.phoneNumber.includes(searchQuery) ||
-      (d.licenseNumber &&
-        d.licenseNumber.toLowerCase().includes(searchQuery.toLowerCase())),
-  );
-
-  const filteredStickers = initialStickers.filter(
-    (s) =>
-      s.stickerUrl.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (s.stickerCode &&
-        s.stickerCode.toLowerCase().includes(searchQuery.toLowerCase())),
-  );
+  // Filtering, searching and paging all run in the database now, so these are
+  // simply the page the server sent.
+  const filteredVehicles = initialVehicles;
+  const filteredDrivers = initialDrivers;
+  const filteredStickers = initialStickers;
 
   // Submit Vehicle Form
   const handleOnboardVehicle = async (e: React.FormEvent) => {
@@ -739,10 +796,10 @@ export default function TracasClient({
                 Total Fleet Vehicles
               </p>
               <h3 className="text-2xl font-bold text-foreground mt-1">
-                {initialVehicles.length}
+                {stats.vehicleTotal}
               </h3>
               <p className="text-[11px] text-muted-foreground mt-1 font-medium">
-                {initialVehicles.length - newJoinerCount} existing ·{" "}
+                {stats.vehicleTotal - newJoinerCount} existing ·{" "}
                 <span className="text-amber-500 font-bold">
                   {newJoinerCount} new
                 </span>
@@ -761,7 +818,7 @@ export default function TracasClient({
                 Enumerated Drivers
               </p>
               <h3 className="text-2xl font-bold text-foreground mt-1">
-                {initialDrivers.length}
+                {stats.driverTotal}
               </h3>
             </div>
             <div className="p-3 bg-emerald-500/10 rounded-2xl">
@@ -793,7 +850,7 @@ export default function TracasClient({
                 Active Authority Letters
               </p>
               <h3 className="text-2xl font-bold text-foreground mt-1">
-                {initialVehicles.filter((v) => v.status === "ACTIVE").length}
+                {stats.activeVehicleCount}
               </h3>
             </div>
             <div className="p-3 bg-blue-500/10 rounded-2xl">
@@ -812,7 +869,7 @@ export default function TracasClient({
             onClick={() => setActiveTab("vehicles")}
             className="rounded-lg gap-2 cursor-pointer text-xs font-medium">
             <Bus className="w-3.5 h-3.5" />
-            Vehicles Fleet ({initialVehicles.length})
+            Vehicles Fleet ({stats.vehicleTotal})
           </Button>
 
           <Button
@@ -821,7 +878,7 @@ export default function TracasClient({
             onClick={() => setActiveTab("drivers")}
             className="rounded-lg gap-2 cursor-pointer text-xs font-medium">
             <UserCheck className="w-3.5 h-3.5" />
-            Enumerated Drivers ({initialDrivers.length})
+            Enumerated Drivers ({stats.driverTotal})
           </Button>
 
           <Button
@@ -830,7 +887,7 @@ export default function TracasClient({
             onClick={() => setActiveTab("stickers")}
             className="rounded-lg gap-2 cursor-pointer text-xs font-medium">
             <QrCode className="w-3.5 h-3.5" />
-            Sticker Inventory ({initialStickers.length})
+            Sticker Inventory ({stats.stickerTotal})
           </Button>
         </div>
 
@@ -857,14 +914,48 @@ export default function TracasClient({
             </div>
           )}
 
-          <div className="relative max-w-xs w-full">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search reg, fleet no, driver..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 bg-background/50 text-xs rounded-xl"
-            />
+          {/* Searches the whole register, on submit. Nothing is queried
+              while typing. */}
+          <div className="flex items-center gap-2">
+            <div className="relative max-w-xs w-full">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search reg, fleet no, driver..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    submitSearch();
+                  }
+                  if (e.key === "Escape") {
+                    setSearchQuery("");
+                    if (appliedSearch) navigate({ q: null });
+                  }
+                }}
+                className="pl-9 bg-background/50 text-xs rounded-xl"
+              />
+            </div>
+            <Button
+              size="sm"
+              variant={searchQuery.trim() !== appliedSearch ? "default" : "outline"}
+              onClick={submitSearch}
+              disabled={isNavigating || searchQuery.trim() === appliedSearch}
+              className="rounded-xl text-xs">
+              Search
+            </Button>
+            {appliedSearch && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setSearchQuery("");
+                  navigate({ q: null });
+                }}
+                className="rounded-xl text-xs text-muted-foreground">
+                Clear
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -1105,6 +1196,11 @@ export default function TracasClient({
               </tbody>
             </table>
           </div>
+          <TracasPager
+            pagination={pagination}
+            busy={isNavigating}
+            onPage={goToPage}
+          />
         </Card>
       )}
 
@@ -1252,6 +1348,11 @@ export default function TracasClient({
               </tbody>
             </table>
           </div>
+          <TracasPager
+            pagination={pagination}
+            busy={isNavigating}
+            onPage={goToPage}
+          />
         </Card>
       )}
 
@@ -1320,6 +1421,11 @@ export default function TracasClient({
               </tbody>
             </table>
           </div>
+          <TracasPager
+            pagination={pagination}
+            busy={isNavigating}
+            onPage={goToPage}
+          />
         </Card>
       )}
 
@@ -2706,6 +2812,65 @@ function Field({
         required={required}
         onChange={(e) => onChange(e.target.value)}
       />
+    </div>
+  );
+}
+
+/**
+ * Page controls for the active tab. Rendered only when there is more than one
+ * page — a single page of results does not need navigation.
+ */
+function TracasPager({
+  pagination,
+  busy,
+  onPage,
+}: {
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+  busy: boolean;
+  onPage: (n: number) => void;
+}) {
+  const { page, pageSize, total, totalPages } = pagination;
+  if (total === 0) return null;
+
+  const first = (page - 1) * pageSize + 1;
+  const last = Math.min(page * pageSize, total);
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border/60 px-4 py-3">
+      <p className="text-xs text-muted-foreground">
+        Showing <span className="font-medium text-foreground">{first}</span>–
+        <span className="font-medium text-foreground">{last}</span> of{" "}
+        <span className="font-medium text-foreground">{total}</span>
+      </p>
+
+      {totalPages > 1 && (
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-lg text-xs"
+            disabled={busy || page <= 1}
+            onClick={() => onPage(page - 1)}>
+            Previous
+          </Button>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            Page {page} of {totalPages}
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-lg text-xs"
+            disabled={busy || page >= totalPages}
+            onClick={() => onPage(page + 1)}>
+            Next
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

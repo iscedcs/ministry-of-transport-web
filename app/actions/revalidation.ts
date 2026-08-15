@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { checkStoredUrl } from "@/lib/media-url";
 import { getSession } from "@/lib/auth";
 import { clearRevalidationDraft } from "./revalidation-draft";
 
@@ -55,6 +56,13 @@ export async function submitRevalidationApplication(_prevState: any, formData: F
 
     const asinNumber = formData.get("asinNumber") as string;
     const existingApprovalNum = formData.get("existingApprovalNum") as string;
+
+    // Photographs belong in object storage; the column holds a URL only.
+    const photoProblem = checkStoredUrl(
+      formData.get("passportPhotoUrl") as string,
+      "Passport photograph",
+    );
+    if (photoProblem) return { success: false, error: photoProblem };
     let motorParkId = (formData.get("motorParkId") as string) || null;
 
     // Auto-detect existing MotorPark if not explicitly passed

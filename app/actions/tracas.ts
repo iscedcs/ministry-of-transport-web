@@ -1,6 +1,14 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
+import { getNumberSetting, getBoolSetting } from "@/lib/system-config";
+import {
+  MAX_LIST_ROWS,
+  TRACAS_PAGE_SIZE,
+  type TracasTabKey,
+} from "@/lib/query-limits";
+import { checkStoredUrl } from "@/lib/media-url";
 import { revalidatePath } from "next/cache";
 import { extractStickerCode } from "@/lib/tracas-sticker";
 import {
@@ -124,7 +132,12 @@ export async function getAvailableTracasStickers() {
   try {
     const stickers = await db.tracasSticker.findMany({
       where: { isAssigned: false },
+      select: { id: true, stickerCode: true, stickerUrl: true, createdAt: true },
       orderBy: { createdAt: "desc" },
+      // Stickers are pre-loaded in bulk, so this list grows in jumps. The cap
+      // is far above any realistic batch; it exists so the query cannot run
+      // away as the register grows.
+      take: MAX_LIST_ROWS,
     });
     return { success: true, data: stickers };
   } catch (error: any) {
@@ -136,12 +149,19 @@ export async function getAvailableTracasStickers() {
 export async function getTracasStickersList() {
   try {
     const stickers = await db.tracasSticker.findMany({
-      include: {
+      select: {
+        id: true,
+        stickerCode: true,
+        stickerUrl: true,
+        isAssigned: true,
+        assignedAt: true,
+        createdAt: true,
         assignedVehicle: {
           select: { id: true, registrationNumber: true, fleetNumber: true },
         },
       },
       orderBy: { createdAt: "desc" },
+      take: MAX_LIST_ROWS,
     });
     return { success: true, data: stickers };
   } catch (error: any) {
@@ -152,26 +172,59 @@ export async function getTracasStickersList() {
 
 // ─── Auto Generators ───────────────────────────────────────────────────────
 
+/**
+ * The next free fleet number for a prefix.
+ *
+ * Three things are now admin-controlled rather than hard-coded (see
+ * lib/system-config.ts): where the sequence resumes, how wide the number is
+ * padded, and whether gaps left by removed vehicles are reused. The counter
+ * override exists because a mis-assigned number used to require a developer.
+ *
+ * Whatever the settings say, a number already in use is never handed out.
+ */
 async function generateNextFleetNumber(ownershipType?: string): Promise<string> {
   const isGov = ownershipType === "GOVERNMENT_OWNED";
   const prefix = isGov ? "FT" : "LV";
 
-  const vehicles = await db.tracasVehicle.findMany({
-    select: { fleetNumber: true },
-  });
+  const [vehicles, padding, override, fillGaps] = await Promise.all([
+    // Only the series being issued from. This used to read every vehicle in
+    // the register to compute one number.
+    db.tracasVehicle.findMany({
+      where: { fleetNumber: { startsWith: prefix } },
+      select: { fleetNumber: true },
+    }),
+    getNumberSetting("tracas.fleet.padding"),
+    getNumberSetting(
+      isGov ? "tracas.fleet.ft.nextNumber" : "tracas.fleet.lv.nextNumber",
+    ),
+    getBoolSetting("tracas.fleet.fillGaps"),
+  ]);
 
+  const pad = padding > 0 ? padding : 3;
+  const used = new Set<number>();
   let maxNum = 0;
+
   for (const v of vehicles) {
-    if (v.fleetNumber && v.fleetNumber.toUpperCase().startsWith(prefix)) {
-      const numPart = parseInt(v.fleetNumber.toUpperCase().replace(prefix, ""), 10);
-      if (!isNaN(numPart) && numPart > maxNum) {
-        maxNum = numPart;
-      }
-    }
+    const m = /^([A-Za-z]+)(\d+)$/.exec((v.fleetNumber ?? "").trim());
+    if (!m || m[1].toUpperCase() !== prefix) continue;
+    const n = Number(m[2]);
+    used.add(n);
+    if (n > maxNum) maxNum = n;
   }
 
-  const nextNum = maxNum + 1;
-  return `${prefix}${nextNum.toString().padStart(3, "0")}`;
+  let candidate: number;
+
+  if (fillGaps) {
+    candidate = 1;
+    while (used.has(candidate)) candidate++;
+  } else {
+    // An override of 0 means "carry on from the highest in use".
+    candidate = override > 0 ? override : maxNum + 1;
+    // Never collide, even if the override points at an occupied number.
+    while (used.has(candidate)) candidate++;
+  }
+
+  return `${prefix}${candidate.toString().padStart(pad, "0")}`;
 }
 
 async function generateDriverSecurityCode(): Promise<string> {
@@ -566,6 +619,11 @@ export async function onboardTracasDriver(input: OnboardTracasDriverInput) {
       }
     }
 
+    // Photographs live in object storage; the column holds a URL. See
+    // lib/media-url.ts — embedding images here once cost us 198 MB.
+    const photoProblem = checkStoredUrl(input.photoUrl, "Driver photograph");
+    if (photoProblem) return { success: false, error: photoProblem };
+
     const securityCode = await generateDriverSecurityCode();
 
     const driver = await db.tracasDriver.create({
@@ -665,38 +723,255 @@ export async function getTracasDriverData(identifier: string) {
 
 // ─── Fetch Fleet & Authority Letter Data ─────────────────────────────────
 
-export async function getTracasFleetData() {
+/**
+ * Everything the TRACAS hub renders, in one round trip.
+ *
+ * This used to run three sequential `include`-everything queries, which pulled
+ * every column of every row — including TracasDriver.photoUrl, where photos
+ * were stored as base64. That made a single page load transfer ~280 MB and
+ * take around two minutes.
+ *
+ * Two changes: the queries run together rather than one after another, and
+ * each one names the columns it needs. `photoUrl` is included because it is
+ * rendered as an avatar, but see scripts/migrate-driver-photos.ts — it must
+ * hold a URL, not an embedded image, or this page is slow again.
+ */
+/**
+ * One page of the TRACAS hub.
+ *
+ * Only the ACTIVE tab is queried — opening the fleet no longer reads every
+ * driver and sticker as well. Search and the enrolment filter run in the
+ * database, so they cover the whole register rather than whichever rows
+ * happened to be loaded.
+ *
+ * The assignment pools (unassigned drivers, unassigned stickers) are fetched
+ * in full: both are naturally small, and a dialog that only offered the
+ * current page would be wrong.
+ */
+export async function getTracasFleetData(params?: {
+  tab?: TracasTabKey;
+  page?: number;
+  search?: string;
+  enrollment?: "ALL" | "EXISTING" | "NEW_JOINER";
+}) {
+  const tab: TracasTabKey = params?.tab ?? "vehicles";
+  const page = Math.max(1, params?.page ?? 1);
+  const search = (params?.search ?? "").trim();
+  const enrollment = params?.enrollment ?? "ALL";
+  const skip = (page - 1) * TRACAS_PAGE_SIZE;
+
   try {
-    const vehicles = await db.tracasVehicle.findMany({
-      include: {
-        assignedDriver: true,
-        sticker: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const vehicleWhere: Prisma.TracasVehicleWhereInput = {
+      ...(search
+        ? {
+            OR: [
+              { registrationNumber: { contains: search, mode: "insensitive" as const } },
+              { fleetNumber: { contains: search, mode: "insensitive" as const } },
+              { authorityRef: { contains: search, mode: "insensitive" as const } },
+              {
+                assignedDriver: {
+                  fullName: { contains: search, mode: "insensitive" as const },
+                },
+              },
+            ],
+          }
+        : {}),
+      // Rows written before enrollmentType existed count as EXISTING.
+      ...(enrollment === "NEW_JOINER"
+        ? { enrollmentType: "NEW_JOINER" }
+        : enrollment === "EXISTING"
+          ? { NOT: { enrollmentType: "NEW_JOINER" } }
+          : {}),
+    };
 
-    const drivers = await db.tracasDriver.findMany({
-      include: {
-        vehicles: {
-          select: { id: true, registrationNumber: true, fleetNumber: true },
+    const driverWhere: Prisma.TracasDriverWhereInput = search
+      ? {
+          OR: [
+            { fullName: { contains: search, mode: "insensitive" as const } },
+            { phoneNumber: { contains: search } },
+            { licenseNumber: { contains: search, mode: "insensitive" as const } },
+          ],
+        }
+      : {};
+
+    const stickerWhere: Prisma.TracasStickerWhereInput = search
+      ? {
+          OR: [
+            { stickerUrl: { contains: search, mode: "insensitive" as const } },
+            { stickerCode: { contains: search, mode: "insensitive" as const } },
+          ],
+        }
+      : {};
+
+    const VEHICLE_SELECT = {
+      id: true,
+      registrationNumber: true,
+      fleetNumber: true,
+      category: true,
+      capacity: true,
+      ownershipType: true,
+      enrollmentType: true,
+      joinedCompanyAt: true,
+      status: true,
+      letterStatus: true,
+      authorityRef: true,
+      authorityIssueDate: true,
+      authorityExpiryDate: true,
+      particularsIssueDate: true,
+      particularsExpiryDate: true,
+      assignedRoute: true,
+      ownerName: true,
+      ownerPhone: true,
+      createdAt: true,
+      assignedDriverId: true,
+      assignedDriver: {
+        select: {
+          id: true,
+          fullName: true,
+          phoneNumber: true,
+          photoUrl: true,
+          securityCode: true,
+          idCardStatus: true,
         },
       },
-      orderBy: { createdAt: "desc" },
-    });
+      sticker: { select: { id: true, stickerCode: true, stickerUrl: true } },
+    };
 
-    const stickers = await db.tracasSticker.findMany({
-      include: {
-        assignedVehicle: {
-          select: { id: true, registrationNumber: true, fleetNumber: true },
-        },
+    const DRIVER_SELECT = {
+      id: true,
+      fullName: true,
+      phoneNumber: true,
+      photoUrl: true,
+      securityCode: true,
+      licenseNumber: true,
+      licenseIssueDate: true,
+      licenseExpiryDate: true,
+      operatorAssociation: true,
+      status: true,
+      idCardStatus: true,
+      residentialAddress: true,
+      nextOfKinName: true,
+      nextOfKinPhone: true,
+      createdAt: true,
+      vehicles: {
+        select: { id: true, registrationNumber: true, fleetNumber: true },
       },
-      orderBy: { createdAt: "desc" },
-    });
+    };
 
-    return { success: true, vehicles, drivers, stickers };
-  } catch (error: any) {
+    const STICKER_SELECT = {
+      id: true,
+      stickerUrl: true,
+      stickerCode: true,
+      isAssigned: true,
+      assignedAt: true,
+      createdAt: true,
+      assignedVehicle: {
+        select: { id: true, registrationNumber: true, fleetNumber: true },
+      },
+    };
+
+    const [
+      vehicles,
+      drivers,
+      stickers,
+      filteredCount,
+      vehicleTotal,
+      driverTotal,
+      stickerTotal,
+      newJoinerCount,
+      activeVehicleCount,
+      availableDrivers,
+      availableStickers,
+    ] = await Promise.all([
+      tab === "vehicles"
+        ? db.tracasVehicle.findMany({
+            where: vehicleWhere,
+            select: VEHICLE_SELECT,
+            orderBy: { createdAt: "desc" },
+            skip,
+            take: TRACAS_PAGE_SIZE,
+          })
+        : Promise.resolve([]),
+      tab === "drivers"
+        ? db.tracasDriver.findMany({
+            where: driverWhere,
+            select: DRIVER_SELECT,
+            orderBy: { createdAt: "desc" },
+            skip,
+            take: TRACAS_PAGE_SIZE,
+          })
+        : Promise.resolve([]),
+      tab === "stickers"
+        ? db.tracasSticker.findMany({
+            where: stickerWhere,
+            select: STICKER_SELECT,
+            orderBy: { createdAt: "desc" },
+            skip,
+            take: TRACAS_PAGE_SIZE,
+          })
+        : Promise.resolve([]),
+
+      // Rows matching the current filters — drives the pager.
+      tab === "vehicles"
+        ? db.tracasVehicle.count({ where: vehicleWhere })
+        : tab === "drivers"
+          ? db.tracasDriver.count({ where: driverWhere })
+          : db.tracasSticker.count({ where: stickerWhere }),
+
+      // Headline figures are counts, not row reads.
+      db.tracasVehicle.count(),
+      db.tracasDriver.count(),
+      db.tracasSticker.count(),
+      db.tracasVehicle.count({ where: { enrollmentType: "NEW_JOINER" } }),
+      db.tracasVehicle.count({ where: { status: "ACTIVE" } }),
+
+      // Assignment pools. Small by definition — a driver leaves the pool the
+      // moment they hold a vehicle, and a sticker the moment it is assigned.
+      db.tracasDriver.findMany({
+        where: { vehicles: { none: {} } },
+        select: {
+          id: true,
+          fullName: true,
+          phoneNumber: true,
+          securityCode: true,
+          photoUrl: true,
+        },
+        orderBy: { fullName: "asc" },
+        take: MAX_LIST_ROWS,
+      }),
+      db.tracasSticker.findMany({
+        where: { isAssigned: false },
+        select: { id: true, stickerCode: true, stickerUrl: true, isAssigned: true },
+        orderBy: { createdAt: "desc" },
+        take: MAX_LIST_ROWS,
+      }),
+    ]);
+
+    return {
+      success: true,
+      vehicles,
+      drivers,
+      stickers,
+      pools: { availableDrivers, availableStickers },
+      stats: {
+        vehicleTotal,
+        driverTotal,
+        stickerTotal,
+        newJoinerCount,
+        activeVehicleCount,
+        availableStickerCount: availableStickers.length,
+      },
+      pagination: {
+        tab,
+        page,
+        pageSize: TRACAS_PAGE_SIZE,
+        total: filteredCount,
+        totalPages: Math.max(1, Math.ceil(filteredCount / TRACAS_PAGE_SIZE)),
+      },
+    };
+  } catch (error: unknown) {
     console.error("Error fetching TRACAS fleet data:", error);
-    return { success: false, error: "Failed to load TRACAS data." };
+    return { success: false as const, error: "Failed to load TRACAS data." };
   }
 }
 
@@ -785,6 +1060,9 @@ export async function updateTracasDriver(
       v === undefined ? undefined : v.trim() || null;
     const date = (v: string | undefined) =>
       v === undefined ? undefined : v ? new Date(v) : null;
+
+    const photoProblem = checkStoredUrl(input.photoUrl, "Driver photograph");
+    if (photoProblem) return { success: false, error: photoProblem };
 
     const data = {
       fullName: input.fullName?.trim(),

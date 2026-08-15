@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { Card, CardTitle, CardDescription } from "@/components/ui/card";
@@ -10,6 +11,22 @@ import type { Prisma } from "@prisma/client";
 import { QueueFilters } from "./queue-filters";
 
 const PER_PAGE = 25;
+
+/**
+ * The LGA dropdown scans every application to build a list that changes only
+ * when a park in a brand-new LGA is added — roughly never. Caching it for five
+ * minutes removes one full-table aggregate from every page view, including
+ * every pagination click.
+ *
+ * Only used for the unscoped view; an inspector's list is scoped to their own
+ * assignments and is small enough to query directly.
+ */
+const getCachedLgaCounts = unstable_cache(
+  async () =>
+    db.revalidationApplication.groupBy({ by: ["lga"], _count: true }),
+  ["revalidation-lga-counts"],
+  { revalidate: 300, tags: ["revalidation-lgas"] },
+);
 
 /** Groups the workflow's many statuses into the tabs staff actually think in. */
 const STATUS_TABS: { value: string; label: string; match: string[] }[] = [
@@ -72,6 +89,7 @@ export default async function RevalidationQueuePage({ searchParams }: PageProps)
     "COMMISSIONER",
     "PERMANENT_SECRETARY",
     "SYSTEM_ADMIN",
+    "ADMIN",
     "FIELD_INSPECTOR",
     "VEHICLE_INSPECTION_OFFICER",
   ];
@@ -112,6 +130,8 @@ export default async function RevalidationQueuePage({ searchParams }: PageProps)
       : {}),
   };
 
+  const filtered = Boolean(q || statusTab || lga);
+
   // Tab counts respect the search and LGA filters but not the status filter —
   // otherwise every tab but the active one would read zero.
   const countScope: Prisma.RevalidationApplicationWhereInput = {
@@ -119,33 +139,36 @@ export default async function RevalidationQueuePage({ searchParams }: PageProps)
     status: undefined,
   };
 
-  const [applications, total, grandTotal, statusGroups, lgaGroups] =
+  const [applications, total, statusGroups, lgaGroups, filteredTotal] =
     await Promise.all([
-      db.revalidationApplication.findMany({
-        where,
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * PER_PAGE,
-        take: PER_PAGE,
-      }),
-      db.revalidationApplication.count({ where }),
-      db.revalidationApplication.count({
-        where: isInspector
-          ? { inspectionTeam: { some: { userId: session.userId } } }
-          : {},
-      }),
-      db.revalidationApplication.groupBy({
-        by: ["status"],
-        _count: true,
-        where: countScope,
-      }),
-      db.revalidationApplication.groupBy({
-        by: ["lga"],
-        _count: true,
-        where: isInspector
-          ? { inspectionTeam: { some: { userId: session.userId } } }
-          : {},
-      }),
-    ]);
+    db.revalidationApplication.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * PER_PAGE,
+      take: PER_PAGE,
+    }),
+    db.revalidationApplication.count({ where }),
+    db.revalidationApplication.groupBy({
+      by: ["status"],
+      _count: true,
+      where: countScope,
+    }),
+    isInspector
+      ? db.revalidationApplication.groupBy({
+          by: ["lga"],
+          _count: true,
+          where: { inspectionTeam: { some: { userId: session.userId } } },
+        })
+      : getCachedLgaCounts(),
+    // Only needed to render "showing X of Y". With no filters applied, Y is X.
+    filtered
+      ? db.revalidationApplication.count({
+          where: isInspector
+            ? { inspectionTeam: { some: { userId: session.userId } } }
+            : {},
+        })
+      : Promise.resolve(null),
+  ]);
 
   const countFor = (match: string[]) =>
     match.length === 0
@@ -165,8 +188,8 @@ export default async function RevalidationQueuePage({ searchParams }: PageProps)
     .map((g) => ({ value: g.lga, count: g._count }))
     .sort((a, b) => b.count - a.count);
 
+  const grandTotal = filteredTotal ?? total;
   const totalPages = Math.ceil(total / PER_PAGE);
-  const filtered = Boolean(q || statusTab || lga);
 
   const carry: Record<string, string> = {};
   if (q) carry.q = q;

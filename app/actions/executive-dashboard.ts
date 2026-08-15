@@ -53,72 +53,75 @@ export async function getExecutiveDashboardStats() {
     // 6. Recent Activities Feed
     // We'll combine recent payments, recent applications, and recent monitors
     
-    const recentPayments = await db.payment.findMany({
-      where: { status: "COMPLETED" },
-      orderBy: { completedAt: "desc" },
-      take: 2,
-      select: {
-        id: true,
-        paymentType: true,
-        amount: true,
-        completedAt: true,
-      }
-    });
-
-    const recentApps = await db.motorPark.findMany({
+    // ── Live operations feed ────────────────────────────────────────────
+    // Drawn from the audit log, which is where every action on the platform
+    // is already recorded — onboarding, approvals, renumbering, staff
+    // changes, imports. Reading only payments and motor parks meant the feed
+    // was empty on a platform whose activity is TRACAS and revalidation, and
+    // the client quietly substituted mock rows.
+    const auditEvents = await db.auditLog.findMany({
       orderBy: { createdAt: "desc" },
-      take: 2,
+      take: 12,
       select: {
         id: true,
-        businessName: true,
-        lga: true,
+        action: true,
+        entityType: true,
+        changeDescription: true,
         createdAt: true,
-      }
+        performedBy: { select: { firstName: true, lastName: true, role: true } },
+      },
     });
 
-    const recentRevalidations = await db.revalidationApplication.findMany({
-      where: { status: "APPROVED" },
-      orderBy: { approvedAt: "desc" },
-      take: 1,
-      select: {
-        id: true,
-        parkName: true,
-        approvedAt: true,
-      }
-    });
+    /** Which icon the row gets, inferred from the action name. */
+    const kindOf = (action: string): string => {
+      const a = action.toUpperCase();
+      if (a.includes("PAYMENT") || a.includes("FEE")) return "payment";
+      if (a.includes("APPROVED") || a.includes("ISSUED") || a.includes("COMPLETED"))
+        return "approval";
+      if (
+        a.includes("DECLINED") ||
+        a.includes("REJECTED") ||
+        a.includes("REVOKED") ||
+        a.includes("DEACTIVATED")
+      )
+        return "alert";
+      return "application";
+    };
 
-    // Normalize activities to a single format
-    const activities = [
-      ...recentPayments.map(p => ({
-        id: `pay_${p.id}`,
-        type: "payment",
-        text: `Payment received for ${p.paymentType}`,
-        time: p.completedAt ? p.completedAt.toLocaleDateString() : "Recently",
-        amount: `₦${(p.amount / 100).toLocaleString()}`,
-        status: "success",
-        date: p.completedAt || new Date(0)
-      })),
-      ...recentApps.map(a => ({
-        id: `app_${a.id}`,
-        type: "application",
-        text: `New Motor Park Application: ${a.businessName}`,
-        time: a.createdAt.toLocaleDateString(),
-        location: a.lga,
-        status: "pending",
-        date: a.createdAt
-      })),
-      ...recentRevalidations.map(r => ({
-        id: `rev_${r.id}`,
-        type: "approval",
-        text: `Revalidation Approved: ${r.parkName}`,
-        time: r.approvedAt ? r.approvedAt.toLocaleDateString() : "Recently",
-        status: "success",
-        date: r.approvedAt || new Date(0)
-      }))
-    ];
+    /** "TRACAS_FLEET_RENUMBERED" -> "Tracas fleet renumbered" */
+    const humanise = (action: string) => {
+      const t = action.replace(/_/g, " ").toLowerCase();
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    };
 
-    // Sort combined activities by date descending
-    activities.sort((a, b) => b.date.getTime() - a.date.getTime());
+    const relative = (d: Date) => {
+      const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+      if (mins < 1) return "just now";
+      if (mins < 60) return `${mins} min${mins === 1 ? "" : "s"} ago`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `${hrs} hr${hrs === 1 ? "" : "s"} ago`;
+      const days = Math.floor(hrs / 24);
+      if (days === 1) return "yesterday";
+      if (days < 30) return `${days} days ago`;
+      return d.toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    };
+
+    const activities = auditEvents.map((e) => ({
+      id: e.id,
+      type: kindOf(e.action),
+      text: e.changeDescription || humanise(e.action),
+      time: relative(e.createdAt),
+      actor: e.performedBy
+        ? `${e.performedBy.firstName} ${e.performedBy.lastName}`
+        : undefined,
+      entity: e.entityType,
+      status: "success",
+      date: e.createdAt,
+    }));
 
     // 7. Dummy Revenue Data for the Line Chart since real historical aggregation requires complex SQL
     // We will just return the dummy structure for now, but in a real app we'd aggregate `Payment` by month
@@ -140,7 +143,7 @@ export async function getExecutiveDashboardStats() {
         totalRegisteredTransport,
         complianceRate,
         sectorData,
-        activities: activities.slice(0, 5), // Keep top 5
+        activities: activities.slice(0, 8),
         revenueData
       }
     };

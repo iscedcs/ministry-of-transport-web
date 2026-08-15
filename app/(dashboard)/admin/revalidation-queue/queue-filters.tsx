@@ -1,17 +1,23 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Search, X, Loader2 } from "lucide-react";
+import { Search, X, Loader2, CornerDownLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
  * Filter bar for the revalidation queue.
  *
- * With 257 applications on the register, scrolling is not a way to find a
- * park. Search runs against name, owner, phone, ASIN and revalidation number;
- * status and LGA narrow it further. Everything lives in the URL so a filtered
- * view can be bookmarked or shared with a colleague.
+ * SEARCH RUNS ON SUBMIT, NOT ON TYPING. It used to fire a debounced query on
+ * every pause in typing, so "Onitsha" could cost several full-table queries
+ * for one search. Typing is now free — nothing reaches the database until the
+ * officer presses Enter or clicks Search.
+ *
+ * Status and LGA still apply immediately: those are single clicks, one query
+ * each, not one per keystroke.
+ *
+ * Everything lives in the URL, so a filtered view can be bookmarked or sent to
+ * a colleague.
  */
 
 interface Props {
@@ -25,17 +31,22 @@ export function QueueFilters({ statuses, lgas }: Props) {
   const params = useSearchParams();
   const [pending, startTransition] = useTransition();
 
-  const urlTerm = params.get("q") ?? "";
-  const [term, setTerm] = useState(urlTerm);
+  /** The query currently applied — what the results on screen reflect. */
+  const applied = params.get("q") ?? "";
 
-  // Keep the box in step when the URL changes underneath it — back/forward, or
-  // "Clear filters". Adjusting during render rather than in an effect avoids a
-  // second render pass (https://react.dev/learn/you-might-not-need-an-effect).
-  const [syncedTerm, setSyncedTerm] = useState(urlTerm);
-  if (urlTerm !== syncedTerm) {
-    setSyncedTerm(urlTerm);
-    setTerm(urlTerm);
+  /** What is in the box. Local until submitted. */
+  const [term, setTerm] = useState(applied);
+
+  // Keep the box in step when the URL changes underneath it (back/forward, or
+  // "Clear filters"). Adjusting during render rather than in an effect avoids
+  // a second render pass.
+  const [syncedTerm, setSyncedTerm] = useState(applied);
+  if (applied !== syncedTerm) {
+    setSyncedTerm(applied);
+    setTerm(applied);
   }
+
+  const dirty = term.trim() !== applied;
 
   function push(next: URLSearchParams) {
     next.delete("page"); // any filter change returns to the first page
@@ -51,28 +62,29 @@ export function QueueFilters({ statuses, lgas }: Props) {
     push(next);
   }
 
-  // Debounced so a 257-row query does not run on every keystroke.
-  useEffect(() => {
-    const current = params.get("q") ?? "";
-    if (term === current) return;
-    const t = setTimeout(() => {
-      const next = new URLSearchParams(params.toString());
-      if (term.trim()) next.set("q", term.trim());
-      else next.delete("q");
-      push(next);
-    }, 350);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [term]);
+  /** The only thing that starts a search query. */
+  function submitSearch() {
+    const q = term.trim();
+    if (q === applied) return; // nothing changed — do not re-query
+    const next = new URLSearchParams(params.toString());
+    if (q) next.set("q", q);
+    else next.delete("q");
+    push(next);
+  }
+
+  function clearSearch() {
+    setTerm("");
+    if (applied) setParam("q", null);
+  }
 
   const status = params.get("status") ?? "";
   const lga = params.get("lga") ?? "";
-  const hasFilters = Boolean(term || status || lga);
+  const hasFilters = Boolean(applied || status || lga);
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[16rem]">
+        <div className="relative flex-1 min-w-[18rem]">
           {pending ? (
             <Loader2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />
           ) : (
@@ -81,20 +93,50 @@ export function QueueFilters({ statuses, lgas }: Props) {
           <input
             value={term}
             onChange={(e) => setTerm(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                submitSearch();
+              }
+              if (e.key === "Escape") clearSearch();
+            }}
             placeholder="Search park, owner, phone, ASIN or certificate number…"
             aria-label="Search revalidation applications"
-            className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-9 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+            className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-24 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
           />
-          {term && (
-            <button
-              type="button"
-              onClick={() => setTerm("")}
-              aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground">
-              <X className="h-4 w-4" />
-            </button>
-          )}
+
+          <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+            {term && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                aria-label="Clear search"
+                className="rounded p-1 text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+            {dirty && (
+              <span className="hidden items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:flex">
+                <CornerDownLeft className="h-3 w-3" />
+                Enter
+              </span>
+            )}
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={submitSearch}
+          disabled={pending || !dirty}
+          className={cn(
+            "h-10 rounded-lg border px-4 text-sm font-medium transition-colors",
+            dirty
+              ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15"
+              : "border-border text-muted-foreground",
+            "disabled:cursor-default disabled:opacity-60",
+          )}>
+          Search
+        </button>
 
         <select
           value={lga}
@@ -118,6 +160,18 @@ export function QueueFilters({ statuses, lgas }: Props) {
           </button>
         )}
       </div>
+
+      {/* What the results on screen actually reflect, so a half-typed box is
+          never mistaken for an applied filter. */}
+      {applied && (
+        <p className="text-xs text-muted-foreground">
+          Showing results for{" "}
+          <span className="font-medium text-foreground">
+            &ldquo;{applied}&rdquo;
+          </span>
+          {dirty && " — press Enter to apply your new search"}
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         {statuses.map((s) => {

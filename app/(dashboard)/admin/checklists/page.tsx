@@ -23,7 +23,7 @@ import { CHECKLIST_ENTITY_LABELS as ENTITY_LABELS } from "@/lib/utils/labels";
 
 export default async function ChecklistsPage() {
   try {
-    await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+    await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN", "ADMIN"]);
   } catch {
     redirect("/dashboard");
   }

@@ -22,6 +22,11 @@ import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import {
+  canAssignRole,
+  canDeactivate,
+  STAFF_ADMIN_ROLES,
+} from "@/lib/account-policy";
 import { UserRole } from "@prisma/client";
 import { createSession, deleteSession } from "@/lib/session";
 import { requireAuth, requireRole } from "@/lib/auth";
@@ -503,14 +508,19 @@ export async function logout(): Promise<never> {
 export async function provisionStaffAccount(
   data: z.infer<typeof provisionStaffSchema>,
 ): Promise<ActionResult<{ userId: string; email: string }>> {
-  // 1. Verify caller is PS or SYSTEM_ADMIN
-  const session = await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+  // 1. Verify caller may administer staff at all
+  const session = await requireRole([...STAFF_ADMIN_ROLES]);
 
   // 2. Validate input
   const validated = provisionStaffSchema.safeParse(data);
   if (!validated.success) {
     return { success: false, error: validated.error.issues[0].message };
   }
+
+  // 3. ...and may assign the role being requested. Without this an
+  // Administrator could create a System Admin and act through it.
+  const mayAssign = canAssignRole(session.role, validated.data.role);
+  if (!mayAssign.ok) return { success: false, error: mayAssign.reason };
 
   const {
     firstName,
@@ -670,12 +680,7 @@ export async function changePassword(
 export async function deactivateStaffAccount(
   targetUserId: string,
 ): Promise<ActionResult> {
-  const session = await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
-
-  // Prevent self-deactivation
-  if (targetUserId === session.userId) {
-    return { success: false, error: "You cannot deactivate your own account" };
-  }
+  const session = await requireRole([...STAFF_ADMIN_ROLES]);
 
   const target = await db.user.findUnique({
     where: { id: targetUserId },
@@ -693,6 +698,19 @@ export async function deactivateStaffAccount(
       error: "Commissioner account cannot be deactivated through this action",
     };
   }
+
+  // Self-deactivation, last-System-Admin lockout, and who may act on whom.
+  const remainingActiveSystemAdmins = await db.user.count({
+    where: { role: "SYSTEM_ADMIN", isActive: true, id: { not: targetUserId } },
+  });
+  const allowed = canDeactivate({
+    actorId: session.userId,
+    actorRole: session.role,
+    targetId: targetUserId,
+    targetRole: target.role,
+    remainingActiveSystemAdmins,
+  });
+  if (!allowed.ok) return { success: false, error: allowed.reason };
 
   await db.user.update({
     where: { id: targetUserId },

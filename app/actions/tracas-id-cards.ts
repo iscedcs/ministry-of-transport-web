@@ -17,6 +17,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { MAX_LIST_ROWS } from "@/lib/query-limits";
 import { authorize } from "@/lib/auth";
 import type { UserRole } from "@prisma/client";
 import { recordAudit } from "@/lib/audit";
@@ -352,6 +353,9 @@ export async function getIdCardQueue(): Promise<
     "TRACAS_MD",
     "COMMISSIONER",
     "SYSTEM_ADMIN",
+    // Read-only oversight. The approve/decline actions in this file keep their
+    // own narrower role lists and do NOT include ADMIN.
+    "ADMIN",
     "PERMANENT_SECRETARY",
   ]);
   if (!authz.ok) return { success: false, error: authz.error };
@@ -398,6 +402,7 @@ export async function getIdCardQueue(): Promise<
               },
             },
         orderBy: { createdAt: "asc" },
+        take: MAX_LIST_ROWS,
         select: QUEUE_SELECT,
       }),
       db.tracasDriver.findMany({

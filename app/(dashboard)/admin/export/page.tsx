@@ -4,7 +4,8 @@
  *
  * Client-side CSV download for Ministry data exports.
  * Server action fetches data; client converts to CSV and triggers download.
- * Access: PERMANENT_SECRETARY, SYSTEM_ADMIN
+ * Access: PERMANENT_SECRETARY, SYSTEM_ADMIN, ADMIN
+ * (enforced in getExportData, since this is a client component)
  */
 
 "use client";

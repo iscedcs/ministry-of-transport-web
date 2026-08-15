@@ -73,6 +73,7 @@ const MINISTRY_ROLES = [
   "FINANCE_OFFICER",
   "VEHICLE_INSPECTION_OFFICER",
   "SYSTEM_ADMIN",
+  "ADMIN",
   "ICT_OFFICER",
   "ICT_OFFICER_TRACAS",
   "ENUMERATOR",
@@ -102,6 +103,10 @@ const ENUMERATOR_DENIED_PREFIXES = [
  */
 const ROLE_DENIED_PREFIXES: Record<string, string[]> = {
   ENUMERATOR: ENUMERATOR_DENIED_PREFIXES,
+  // Blocked from system-level controls only; everything else stays open.
+  // Data Export and system controls stay with the System Admin. The export
+  // page is a client component, so the route itself must be blocked.
+  ADMIN: ["/admin/config", "/admin/export"],
   TRACAS_MD: ["/admin/", "/payments/", "/payment/", "/inspections/"],
   ICT_OFFICER_TRACAS: [
     "/admin/",

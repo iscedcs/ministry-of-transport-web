@@ -1761,6 +1761,8 @@ export async function verifyDocument(
     "HOD_VIS",
     "HOD_TRANSPORT_OPS",
     "SYSTEM_ADMIN",
+    // Deliberately NOT ADMIN — an Administrator has oversight of records but
+    // does not sign off documents. Approval stays with the named offices.
   ];
 
   if (!allowedRoles.includes(session.role)) {

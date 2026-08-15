@@ -51,6 +51,7 @@ export function LetterOfAuthorityDocument({
   vehicle,
   showActions = true,
   signatures,
+  display,
 }: {
   vehicle: LetterVehicleData;
   showActions?: boolean;
@@ -60,8 +61,25 @@ export function LetterOfAuthorityDocument({
    * public bundle — see lib/signatures.ts.
    */
   signatures?: { commissioner: string; tracasMd: string };
+  /**
+   * Which optional blocks to print, from the admin settings screen. Resolved
+   * server-side and passed in so this stays a pure render. Defaults match the
+   * declared defaults in lib/system-config.ts, so a caller that has not been
+   * updated still prints the currently-agreed letter.
+   */
+  display?: {
+    showOwnerName?: boolean;
+    showDriverName?: boolean;
+    showQrCode?: boolean;
+  };
 }) {
   const driver = vehicle.assignedDriver;
+
+  // TRACAS asked for the owner to come off the letter; it is a setting rather
+  // than a deletion so the Ministry can put it back without a deployment.
+  const showOwnerName = display?.showOwnerName ?? false;
+  const showDriverName = display?.showDriverName ?? true;
+  const showQrCode = display?.showQrCode ?? true;
 
   // A signature only appears once that office has actually signed.
   const status = vehicle.letterStatus ?? "PENDING_MD_APPROVAL";
@@ -427,20 +445,25 @@ export function LetterOfAuthorityDocument({
           <div
             data-lp="ref-row"
             className="flex items-start justify-between my-4 px-2">
-            <div className="flex flex-col items-center">
-              <div
-                data-lp="qr"
-                className="w-28 h-28 border border-slate-900 p-1 bg-white shadow-xs">
-                <img
-                  src={qrImageUrl}
-                  alt="Verification QR Code"
-                  className="w-full h-full object-contain"
-                />
+            {showQrCode ? (
+              <div className="flex flex-col items-center">
+                <div
+                  data-lp="qr"
+                  className="w-28 h-28 border border-slate-900 p-1 bg-white shadow-xs">
+                  <img
+                    src={qrImageUrl}
+                    alt="Verification QR Code"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <span className="text-[10px] font-sans text-slate-600 mt-1 uppercase font-semibold">
+                  Scan to Verify
+                </span>
               </div>
-              <span className="text-[10px] font-sans text-slate-600 mt-1 uppercase font-semibold">
-                Scan to Verify
-              </span>
-            </div>
+            ) : (
+              // Keeps the row's three-way spacing when the QR is switched off.
+              <div aria-hidden />
+            )}
 
             <div className="flex flex-col items-center space-y-2">
               <div className="h-10 flex items-center justify-center">
@@ -503,14 +526,16 @@ export function LetterOfAuthorityDocument({
             </p>
 
             <div data-lp="particulars" className="space-y-2 py-2 font-serif">
-              <p>
-                <span className="font-semibold">Driver&apos;s Name:</span>{" "}
-                <span className="font-bold text-slate-950">
-                  {driver?.fullName || "Unassigned"}
-                </span>
-              </p>
+              {showDriverName && (
+                <p>
+                  <span className="font-semibold">Driver&apos;s Name:</span>{" "}
+                  <span className="font-bold text-slate-950">
+                    {driver?.fullName || "Unassigned"}
+                  </span>
+                </p>
+              )}
 
-              {vehicle.ownerName && (
+              {showOwnerName && vehicle.ownerName && (
                 <p>
                   <span className="font-semibold">Vehicle Owner:</span>{" "}
                   <span className="font-bold text-slate-950">

@@ -18,8 +18,9 @@ export default async function ParkMonitorsAdminPage() {
 
   const isExecutive = session.role === "COMMISSIONER" || session.role === "PERMANENT_SECRETARY";
   const isHod = session.role === "HOD_PARKS" || session.role === "SYSTEM_ADMIN";
+  const isMinistryAdmin = session.role === "ADMIN";
 
-  if (!isExecutive && !isHod) {
+  if (!isExecutive && !isHod && !isMinistryAdmin) {
     redirect("/dashboard");
   }
 

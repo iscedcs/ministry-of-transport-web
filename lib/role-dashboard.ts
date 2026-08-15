@@ -86,6 +86,8 @@ export async function getRoleDashboard(
   const isPs = role === "PERMANENT_SECRETARY";
   const isCommissioner = role === "COMMISSIONER";
   const isAdmin = role === "SYSTEM_ADMIN";
+  /** Ministry Administrator — oversight of every queue, approves nothing. */
+  const isMinistryAdmin = role === "ADMIN";
   const isInspector =
     role === "FIELD_INSPECTOR" ||
     role === "VEHICLE_INSPECTION_OFFICER" ||
@@ -346,6 +348,72 @@ export async function getRoleDashboard(
           "/id-card-approvals",
         ),
       );
+  }
+
+  // ── Ministry Administrator: oversight, not action ───────────────────────
+  if (isMinistryAdmin) {
+    const [revalIntake, revalApprovals, letters, idCards, monitors, staff] =
+      await Promise.all([
+        revalidations(REVALIDATION_STAGES.HOD_INTAKE),
+        revalidations([
+          "INSPECTION_COMPLETED",
+          "PENDING_HOD_APPROVAL",
+          "PENDING_PS_APPROVAL",
+          "PENDING_COMMISSIONER_APPROVAL",
+        ]),
+        tracasLetters("PENDING_VIO_APPROVAL"),
+        tracasIdCards("PENDING_VIO_APPROVAL"),
+        db.parkMonitorApplication.count({
+          where: { status: { in: ["SUBMITTED", "UNDER_REVIEW", "WAITLISTED"] } },
+        }),
+        db.user.count({ where: { role: { not: "EXTERNAL_APPLICANT" }, isActive: true } }),
+      ]);
+
+    if (monitors)
+      actions.push(
+        item(
+          "adm-monitors",
+          "Park monitor applications",
+          "Applications requiring review",
+          monitors,
+          "/admin/park-monitors",
+        ),
+      );
+
+    overview.push(
+      item(
+        "adm-reval-intake",
+        "Revalidations awaiting inspection",
+        "With the HOD of Operations",
+        revalIntake,
+        "/admin/revalidation-queue?status=SUBMITTED",
+        "info",
+      ),
+      item(
+        "adm-reval-approvals",
+        "Revalidations in approval",
+        "Moving through HOD, PS and Commissioner",
+        revalApprovals,
+        "/admin/revalidation-queue?status=APPROVALS",
+        "info",
+      ),
+      item(
+        "adm-tracas",
+        "TRACAS items at the first gate",
+        "Letters and ID cards awaiting VIO verification",
+        letters + idCards,
+        "/tracas-approvals",
+        "info",
+      ),
+      item(
+        "adm-staff",
+        "Active staff accounts",
+        "Ministry staff you administer",
+        staff,
+        "/admin/users",
+        "info",
+      ),
+    );
   }
 
   // ── Finance ─────────────────────────────────────────────────────────────

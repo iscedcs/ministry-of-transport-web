@@ -68,6 +68,7 @@ const NAV_ITEMS: NavItem[] = [
     allowedRoles: [
       "ENUMERATOR",
       "SYSTEM_ADMIN",
+      "ADMIN",
       "COMMISSIONER",
       "PERMANENT_SECRETARY",
       "HOD_TRANSPORT_OPS",
@@ -89,6 +90,7 @@ const NAV_ITEMS: NavItem[] = [
       "FINANCE_OFFICER",
       "EXTERNAL_APPLICANT",
       "SYSTEM_ADMIN",
+      "ADMIN",
       "ENUMERATOR",
     ],
   },
@@ -109,6 +111,7 @@ const NAV_ITEMS: NavItem[] = [
       "FINANCE_OFFICER",
       "EXTERNAL_APPLICANT",
       "SYSTEM_ADMIN",
+      "ADMIN",
       "ENUMERATOR",
     ],
   },
@@ -125,6 +128,7 @@ const NAV_ITEMS: NavItem[] = [
       "HOD_PARKS",
       "FIELD_INSPECTOR",
       "SYSTEM_ADMIN",
+      "ADMIN",
       "ENUMERATOR",
     ],
   },
@@ -140,6 +144,7 @@ const NAV_ITEMS: NavItem[] = [
       "ICT_OFFICER",
       "ICT_OFFICER_TRACAS",
       "SYSTEM_ADMIN",
+      "ADMIN",
     ],
   },
 
@@ -166,6 +171,7 @@ const NAV_ITEMS: NavItem[] = [
       "FIELD_INSPECTOR",
       "VEHICLE_INSPECTION_OFFICER",
       "SYSTEM_ADMIN",
+      "ADMIN",
     ],
   },
 
@@ -179,6 +185,7 @@ const NAV_ITEMS: NavItem[] = [
       "PERMANENT_SECRETARY",
       "FINANCE_OFFICER",
       "SYSTEM_ADMIN",
+      "ADMIN",
     ],
   },
 
@@ -196,6 +203,7 @@ const NAV_ITEMS: NavItem[] = [
       "HOD_PARKS_REVALIDATION",
       "FIELD_INSPECTOR",
       "SYSTEM_ADMIN",
+      "ADMIN",
     ],
   },
 
@@ -209,6 +217,7 @@ const NAV_ITEMS: NavItem[] = [
       "PERMANENT_SECRETARY",
       "VEHICLE_INSPECTION_OFFICER",
       "SYSTEM_ADMIN",
+      "ADMIN",
     ],
   },
 
@@ -222,6 +231,7 @@ const NAV_ITEMS: NavItem[] = [
       "PERMANENT_SECRETARY",
       "HOD_PARKS",
       "SYSTEM_ADMIN",
+      "ADMIN",
     ],
   },
 
@@ -230,25 +240,25 @@ const NAV_ITEMS: NavItem[] = [
     label: "Staff & Users",
     href: "/admin/users",
     icon: "👥",
-    allowedRoles: ["PERMANENT_SECRETARY", "COMMISSIONER", "SYSTEM_ADMIN"],
+    allowedRoles: ["PERMANENT_SECRETARY", "COMMISSIONER", "SYSTEM_ADMIN", "ADMIN"],
   },
   {
     label: "Audit Trail",
     href: "/admin/audit",
     icon: "📋",
-    allowedRoles: ["COMMISSIONER", "PERMANENT_SECRETARY", "SYSTEM_ADMIN"],
+    allowedRoles: ["COMMISSIONER", "PERMANENT_SECRETARY", "SYSTEM_ADMIN", "ADMIN"],
   },
   {
     label: "Fee Schedule",
     href: "/admin/fees",
     icon: "💰",
-    allowedRoles: ["PERMANENT_SECRETARY", "SYSTEM_ADMIN"],
+    allowedRoles: ["PERMANENT_SECRETARY", "SYSTEM_ADMIN", "ADMIN"],
   },
   {
     label: "Checklists",
     href: "/admin/checklists",
     icon: "✅",
-    allowedRoles: ["PERMANENT_SECRETARY", "SYSTEM_ADMIN"],
+    allowedRoles: ["PERMANENT_SECRETARY", "SYSTEM_ADMIN", "ADMIN"],
   },
   {
     label: "System Config",
@@ -260,7 +270,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Monitoring",
     href: "/admin/monitoring",
     icon: "📡",
-    allowedRoles: ["PERMANENT_SECRETARY", "SYSTEM_ADMIN"],
+    allowedRoles: ["PERMANENT_SECRETARY", "SYSTEM_ADMIN", "ADMIN"],
   },
   {
     label: "Data Export",
