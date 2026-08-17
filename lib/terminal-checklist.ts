@@ -135,6 +135,8 @@ export function checklistSummary(items: ChecklistItem[]) {
     verified: items.filter((i) => i.verified === "YES").length,
     partial: items.filter((i) => i.verified === "PARTIAL").length,
     failed: items.filter((i) => i.verified === "NO").length,
+    // Answered as "does not apply" — neither a pass nor a failure.
+    notApplicable: items.filter((i) => i.verified === "N_A").length,
     unanswered: items.filter((i) => i.verified == null).length,
   };
 }

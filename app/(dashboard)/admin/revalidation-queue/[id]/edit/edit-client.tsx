@@ -15,11 +15,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateRevalidationApplication } from "@/app/actions/revalidation-edit";
+import { FACILITY_OPTIONS } from "@/lib/revalidation-checklist";
+import { cn } from "@/lib/utils";
 
 type Field =
   | { name: string; label: string; type: "text" | "number" | "date" }
   | { name: string; label: string; type: "boolean" }
-  | { name: string; label: string; type: "select"; options: string[] };
+  | { name: string; label: string; type: "select"; options: string[] }
+  /** A tick list of every facility the Ministry recognises. */
+  | { name: string; label: string; type: "facilities" };
 
 const SECTIONS: { key: string; title: string; blurb: string; fields: Field[] }[] = [
   {
@@ -100,6 +104,19 @@ const SECTIONS: { key: string; title: string; blurb: string; fields: Field[] }[]
     ],
   },
   {
+    key: "E",
+    title: "Section E — Facilities available",
+    blurb:
+      "Tick everything present at the park. This is what the inspector verifies item by item on site.",
+    fields: [
+      {
+        name: "facilitiesAvailable",
+        label: "Facilities present",
+        type: "facilities",
+      },
+    ],
+  },
+  {
     key: "F",
     title: "Section F — Regulatory compliance",
     blurb: "Not supplied by the previous vendor — needs completing.",
@@ -141,6 +158,70 @@ const SECTIONS: { key: string; title: string; blurb: string; fields: Field[] }[]
     ],
   },
 ];
+
+/**
+ * Every facility the Ministry recognises, as a tick list.
+ *
+ * The edit form had no facilities section at all — Section E was simply
+ * absent, so an officer could not correct what a park had declared. The list
+ * is the same FACILITY_OPTIONS the inspector's checklist is built from, so the
+ * two can never fall out of step.
+ */
+function FacilityPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  let selected: string[] = [];
+  try {
+    const parsed = JSON.parse(value || "[]");
+    selected = Array.isArray(parsed)
+      ? parsed.filter((x): x is string => typeof x === "string")
+      : [];
+  } catch {
+    selected = [];
+  }
+
+  function toggle(label: string) {
+    const next = selected.includes(label)
+      ? selected.filter((x) => x !== label)
+      : [...selected, label];
+    onChange(JSON.stringify(next));
+  }
+
+  return (
+    <div className="sm:col-span-2">
+      <div className="grid gap-2 sm:grid-cols-2">
+        {FACILITY_OPTIONS.map((label) => {
+          const on = selected.includes(label);
+          return (
+            <label
+              key={label}
+              className={cn(
+                "flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors",
+                on
+                  ? "border-primary/40 bg-primary/5 font-medium"
+                  : "border-border hover:bg-secondary",
+              )}>
+              <input
+                type="checkbox"
+                checked={on}
+                onChange={() => toggle(label)}
+                className="h-4 w-4"
+              />
+              {label}
+            </label>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        {selected.length} of {FACILITY_OPTIONS.length} selected
+      </p>
+    </div>
+  );
+}
 
 export function EditRevalidationClient({
   applicationId,
@@ -245,7 +326,12 @@ export function EditRevalidationClient({
                       {f.label}
                     </label>
 
-                    {f.type === "boolean" ? (
+                    {f.type === "facilities" ? (
+                      <FacilityPicker
+                        value={values[f.name] ?? "[]"}
+                        onChange={(next) => set(f.name, next)}
+                      />
+                    ) : f.type === "boolean" ? (
                       <select
                         id={f.name}
                         value={values[f.name] ?? ""}

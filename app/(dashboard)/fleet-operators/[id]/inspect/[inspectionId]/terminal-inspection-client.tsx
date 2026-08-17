@@ -24,6 +24,7 @@ import {
 const VERDICTS: { value: Verified; label: string; tone: string }[] = [
   { value: "YES", label: "Verified", tone: "border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
   { value: "PARTIAL", label: "Partial", tone: "border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  { value: "N_A", label: "N/A", tone: "border-slate-500/50 bg-slate-500/10 text-slate-500 dark:text-slate-400" },
   { value: "NO", label: "Not present", tone: "border-destructive/50 bg-destructive/10 text-destructive" },
 ];
 

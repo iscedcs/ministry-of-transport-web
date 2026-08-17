@@ -596,6 +596,16 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
                   </div>
                 </div>
               )}
+              {app.rejectionReason && (
+                <div className="sm:col-span-2">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1.5">
+                    Sent back — reason given
+                  </span>
+                  <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/5 text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+                    {app.rejectionReason}
+                  </div>
+                </div>
+              )}
               {app.psRejectionReason && (
                 <div className="sm:col-span-2">
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1.5">

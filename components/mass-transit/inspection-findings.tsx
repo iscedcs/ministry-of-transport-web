@@ -1,4 +1,10 @@
-import { CheckCircle2, AlertCircle, HelpCircle, Camera } from "lucide-react";
+import {
+  CheckCircle2,
+  AlertCircle,
+  HelpCircle,
+  MinusCircle,
+  Camera,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   TERMINAL_SECTION_TITLES,
@@ -57,6 +63,11 @@ const VERDICT = {
     icon: AlertCircle,
     cls: "text-destructive",
   },
+  N_A: {
+    label: "Not applicable",
+    icon: MinusCircle,
+    cls: "text-muted-foreground",
+  },
 } as const;
 
 export function TerminalInspectionFindings({
@@ -103,6 +114,12 @@ export function TerminalInspectionFindings({
             <span className="flex items-center gap-1.5 text-destructive">
               <AlertCircle className="h-4 w-4" />
               <strong>{summary.failed}</strong> not present
+            </span>
+          )}
+          {summary.notApplicable > 0 && (
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <MinusCircle className="h-4 w-4" />
+              <strong>{summary.notApplicable}</strong> n/a
             </span>
           )}
           {summary.unanswered > 0 && (

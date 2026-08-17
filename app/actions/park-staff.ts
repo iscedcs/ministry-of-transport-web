@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { authorize } from "@/lib/auth";
 import { checkStoredUrl } from "@/lib/media-url";
+import { buildStaffSecurityCode } from "@/lib/staff-code";
 
 export async function onboardParkStaff(data: {
   motorParkId: string;
@@ -28,7 +29,12 @@ export async function onboardParkStaff(data: {
 
     const park = await db.motorPark.findUnique({
       where: { id: data.motorParkId },
-      select: { id: true, businessName: true, applicationStatus: true },
+      select: {
+        id: true,
+        businessName: true,
+        townCity: true,
+        applicationStatus: true,
+      },
     });
 
     if (!park || (park.applicationStatus !== "APPROVED" && park.applicationStatus !== "TEMPORAL_APPROVAL")) {
@@ -42,11 +48,14 @@ export async function onboardParkStaff(data: {
     });
     
     const nextSerial = (maxSerial._max.parkSerialNumber || 0) + 1;
-    const formattedSerial = nextSerial.toString().padStart(4, '0');
-    
-    // Create security code
-    const safeParkName = park.businessName.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 15);
-    const securityCode = `MOT-${safeParkName}-${formattedSerial}`;
+
+    // MOT/Awk/Isc./001 — the format printed on the reflective vest, so the
+    // code an officer reads aloud matches the one worn. See lib/staff-code.ts.
+    const securityCode = buildStaffSecurityCode(
+      park.businessName,
+      park.townCity,
+      nextSerial,
+    );
 
     const staff = await db.parkStaff.create({
       data: {

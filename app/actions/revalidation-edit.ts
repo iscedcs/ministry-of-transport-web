@@ -40,6 +40,7 @@ const SECTION_FIELDS = {
   B: ["asinNumber", "nin", "tin"],
   C: ["parkName", "facilityType", "physicalLocation", "townCommunity", "lga"],
   D: ["yearEstablished", "operationalStatus", "dailyVehiclesCount", "vehicleTypes"],
+  E: ["facilitiesAvailable"],
   F: [
     "existingApprovalNum",
     "maintainsManifest",
@@ -132,6 +133,25 @@ export async function updateRevalidationApplication(
 
   for (const [key, raw] of Object.entries(values)) {
     const value = typeof raw === "string" ? raw.trim() : raw;
+
+    // Section E is a list of facility labels, sent as JSON.
+    if (key === "facilitiesAvailable") {
+      try {
+        const parsed = JSON.parse(String(value ?? "[]"));
+        data[key] = Array.isArray(parsed)
+          ? parsed.filter((x) => typeof x === "string")
+          : [];
+      } catch {
+        return { success: false, error: "Facilities list was not readable." };
+      }
+      if (
+        JSON.stringify(data[key]) !==
+        JSON.stringify((current as Record<string, unknown>)[key])
+      ) {
+        changed.push(key);
+      }
+      continue;
+    }
 
     if (TEXT_FIELDS.has(key)) {
       data[key] = value === "" || value == null ? null : value;

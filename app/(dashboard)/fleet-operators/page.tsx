@@ -186,7 +186,7 @@ export default async function FleetOperatorsPage({ searchParams }: PageProps) {
                   Contact
                 </th>
                 <th className="text-center px-4 py-3 font-medium text-muted-foreground">
-                  Fleet Size
+                  Fleet Submitted
                 </th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">
                   Status
@@ -229,8 +229,26 @@ export default async function FleetOperatorsPage({ searchParams }: PageProps) {
                     <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
                       {co.contactPhone}
                     </td>
+                    {/* Submitted against declared, so this reads the same way
+                        the operator's own screen does. It previously showed a
+                        bare running count that went UP as vehicles arrived,
+                        which looked like the opposite of progress. */}
                     <td className="px-4 py-3 text-center font-medium">
-                      {co.currentFleetSize}
+                      <span className="tabular-nums">
+                        {co.currentFleetSize}
+                        {co.minFleetSize > 0 && (
+                          <span className="text-muted-foreground">
+                            {" / "}
+                            {co.minFleetSize}
+                          </span>
+                        )}
+                      </span>
+                      {co.minFleetSize > 0 &&
+                        co.currentFleetSize < co.minFleetSize && (
+                          <span className="mt-0.5 block text-[11px] font-normal text-amber-600 dark:text-amber-400">
+                            {co.minFleetSize - co.currentFleetSize} outstanding
+                          </span>
+                        )}
                     </td>
                     <td className="px-4 py-3">
                       <StatusPill status={co.applicationStatus} />

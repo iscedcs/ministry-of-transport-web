@@ -1,6 +1,12 @@
 "use client";
 
 import { PrintButton } from "@/components/ui/print-button";
+import {
+  LetterheadFrame,
+  LetterheadHeader,
+  LetterheadFooter,
+  letterheadPrintCss,
+} from "@/components/ui/ministry-letterhead";
 
 /**
  * Mass transit APPROVAL LETTER.
@@ -31,7 +37,6 @@ export interface MassTransitLetterData {
   validityMonths: number;
 }
 
-const MINISTRY_EMAIL = "mot@anambrastate.gov.ng";
 const GREEN = "#1f5138";
 
 const fmt = (d: Date | string | null | undefined) =>
@@ -78,40 +83,17 @@ export function MassTransitApprovalLetter({
         </div>
       )}
 
-      <style>{`
-        @media print {
-          @page { size: A4 portrait; margin: 0; }
-          body * { visibility: hidden !important; }
-          #mt-letter-sheet, #mt-letter-sheet * { visibility: visible !important; }
-          #mt-letter-sheet {
-            position: absolute !important;
-            top: 0 !important; left: 0 !important;
-            width: 210mm !important;
-            min-height: 290mm !important;
-            box-shadow: none !important;
-            padding: 22px 20px 0 20px !important;
-            font-size: 10.5pt !important;
-            line-height: 1.32 !important;
-            print-color-adjust: exact !important;
-            -webkit-print-color-adjust: exact !important;
-          }
-        }
-      `}</style>
+      <style
+        dangerouslySetInnerHTML={{
+          __html: letterheadPrintCss("mt-letter-sheet"),
+        }}
+      />
 
       <div
         id="mt-letter-sheet"
-        className="relative mx-auto flex w-full max-w-[210mm] flex-col bg-white px-8 py-10 text-black shadow-xl"
-        style={{ minHeight: "290mm", printColorAdjust: "exact" }}>
-        {/* Ruled frame with the heading straddling its top edge */}
-        <div
-          className="pointer-events-none absolute inset-3 rounded-[2.25rem] border-[1.5px] sm:inset-5"
-          style={{ borderColor: GREEN }}>
-          <h1
-            className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap bg-white px-3 text-center text-[13px] font-bold uppercase leading-none tracking-tight text-slate-900 sm:text-[17px]"
-            style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
-            Government of Anambra State of Nigeria
-          </h1>
-        </div>
+        className="relative flex min-h-[1050px] w-full max-w-[800px] flex-col justify-between border border-slate-300 bg-white p-8 text-slate-900 shadow-2xl sm:p-12 print:m-0 print:min-h-0 print:w-full print:max-w-none print:border-none print:p-0 print:shadow-none"
+        style={{ fontFamily: "'Times New Roman', Times, serif" }}>
+        <LetterheadFrame />
 
         {!issued && (
           <div
@@ -124,45 +106,10 @@ export function MassTransitApprovalLetter({
         )}
 
         <div className="relative z-0 flex flex-1 flex-col">
-          <h2
-            className="mt-1 text-center text-[12px] font-bold uppercase tracking-wide sm:text-[15px]"
-            style={{ fontFamily: "Arial, Helvetica, sans-serif", color: "#8a6d1f" }}>
-            Ministry of Transport
-          </h2>
-
-          <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-start gap-3 px-2">
-            <div
-              className="space-y-1.5 text-[10px] text-slate-700 sm:text-[11px]"
-              style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
-              <p>
-                <span>E-mail:</span>{" "}
-                <span className="text-slate-900">{MINISTRY_EMAIL}</span>
-              </p>
-              <p className="flex items-baseline gap-1">
-                <span className="whitespace-nowrap">Our Ref:</span>
-                <span className="font-mono font-bold text-slate-900">
-                  {data.permitNumber ?? "MOT/PTO/"}
-                </span>
-                <span className="flex-1 border-b border-dotted border-slate-400" />
-              </p>
-            </div>
-
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/letter-head/coat-of-arms.png"
-              alt="Coat of Arms"
-              className="mt-0.5 h-[74px] w-[74px] object-contain"
-            />
-
-            <div className="space-y-1.5 text-right text-[10px] text-slate-700 sm:text-[11px]">
-              <p>Ministry of Transport</p>
-              <p>Secretariat, Awka</p>
-              <p>Anambra State</p>
-              <p className="font-semibold text-slate-900">
-                {fmt(data.permitIssuedAt ?? new Date())}
-              </p>
-            </div>
-          </div>
+          <LetterheadHeader
+            ourRef={data.permitNumber}
+            date={data.permitIssuedAt}
+          />
 
           {/* Addressee */}
           <div className="mt-6 space-y-0.5 text-[13px] font-semibold">
@@ -292,6 +239,7 @@ export function MassTransitApprovalLetter({
             </div>
           </div>
         </div>
+        <LetterheadFooter />
       </div>
     </>
   );
