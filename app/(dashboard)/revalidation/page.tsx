@@ -18,6 +18,7 @@ export default async function RevalidationDashboardPage() {
   const applications = await db.revalidationApplication.findMany({
     where: { applicantUserId: session.userId },
     orderBy: { createdAt: "desc" },
+    take: 50,
   });
 
   return (
@@ -45,8 +46,13 @@ export default async function RevalidationDashboardPage() {
       ) : (
         <div className="grid gap-4">
           {applications.map((app) => (
-            <Card key={app.id}>
-              <CardContent className="flex items-center justify-between p-6">
+            <Card
+              key={app.id}
+              className={
+                app.status === "REJECTED" ? "border-destructive/40" : undefined
+              }>
+              <CardContent className="flex flex-col gap-4 p-6">
+                <div className="flex items-center justify-between gap-4">
                 <div>
                   <h3 className="font-semibold text-lg">{app.parkName}</h3>
                   <p className="text-sm text-muted-foreground mb-2">{app.physicalLocation}, {app.lga}</p>
@@ -65,7 +71,26 @@ export default async function RevalidationDashboardPage() {
                       {app.revalidationNumber}
                     </span>
                   )}
+                  </div>
                 </div>
+
+                {/* Why it came back. Without this the applicant sees only a
+                    red pill and has nothing to act on. */}
+                {app.status === "REJECTED" && app.rejectionReason && (
+                  <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-destructive">
+                      Returned by the Ministry — what to correct
+                    </p>
+                    <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                      {app.rejectionReason}
+                    </p>
+                    <Button asChild size="sm" className="mt-3">
+                      <Link href="/revalidation/apply">
+                        Correct and resubmit
+                      </Link>
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

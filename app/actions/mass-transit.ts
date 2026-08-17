@@ -22,6 +22,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { SCHEDULE_ROLES } from "@/lib/workflow-roles";
 import { getNumberSetting } from "@/lib/system-config";
 import { nextParkIds, terminalDesignation } from "@/lib/park-id";
 import { sendInspectionApprovalNotification } from "@/lib/email";
@@ -315,6 +316,8 @@ export type FleetApplicationListItem = {
   applicationStatus: string;
   permitStatus: string | null;
   currentFleetSize: number;
+  /** What the operator declared, so progress reads as submitted / declared. */
+  minFleetSize: number;
   appliedAt: Date;
   permitExpiresAt: Date | null;
 };
@@ -369,6 +372,7 @@ export async function listFleetApplications(filters?: {
         applicationStatus: true,
         permitStatus: true,
         currentFleetSize: true,
+        minFleetSize: true,
         appliedAt: true,
         permitExpiresAt: true,
       },
@@ -839,7 +843,9 @@ export async function scheduleTerminalInspection(
   prevState: ActionResult<{ inspectionId: string }> | undefined,
   formData: FormData,
 ): Promise<ActionResult<{ inspectionId: string }>> {
-  const session = await requireAuth();
+  // Only the HOD of Operations schedules inspections. This previously
+  // accepted any authenticated caller.
+  const session = await requireRole([...SCHEDULE_ROLES]);
 
   if (!canScheduleInspections(session.role)) {
     return {

@@ -42,6 +42,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { MotorParkWorkflowActions } from "./motor-park-workflow-actions";
+import { canSchedule as canScheduleInspectionRole } from "@/lib/workflow-roles";
 
 // ── Status-based workflow actions ──────────────────────────────────────────────
 
@@ -52,12 +53,7 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
     (f) => f.feeType === "APPLICATION" && f.status === "PENDING",
   );
   const canSchedule =
-    [
-      "HOD_PARKS",
-      "HOD_VIS",
-      "HOD_TRANSPORT_OPS",
-      "HOD_PARKS_REVALIDATION",
-    ].includes(role) &&
+    canScheduleInspectionRole(role) &&
     ["SUBMITTED", "UNDER_REVIEW", "INSPECTION_COMPLETED"].includes(status) &&
     !pendingApplicationFee;
 

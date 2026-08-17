@@ -216,12 +216,17 @@ export function WorkflowActions({
   };
 
   const handleReject = () => {
-    const reason = prompt("Why is this application being rejected?");
+    const reason = prompt(
+      "Why is this being sent back? The reason is shown to whoever receives it.",
+    );
     if (reason === null) return;
+    if (!reason.trim()) return toast.error("A reason is required");
     startTransition(async () => {
       const res = await rejectRevalidation(applicationId, reason);
-      if (res.success) toast.success("Application rejected");
-      else toast.error(res.error ?? "Failed to reject application");
+      // The application goes back a stage, not always to the applicant, so
+      // say which.
+      if (res.success) toast.success(`Sent back to ${res.data?.sentTo ?? "the previous stage"}`);
+      else toast.error(res.error ?? "Failed to send back");
     });
   };
 
@@ -533,7 +538,7 @@ export function WorkflowActions({
               variant="destructive"
               onClick={handleReject}
               disabled={isPending}>
-              Reject outright
+              Reject to applicant
             </Button>
           </CardContent>
         </Card>

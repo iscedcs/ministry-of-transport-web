@@ -38,6 +38,7 @@ import { RowGrid as Row } from "@/components/ui/row";
 import { fmtDateShort as fmt } from "@/lib/utils/format";
 import { FileText, Download, ShieldCheck } from "lucide-react";
 import { FleetWorkflowActions } from "./fleet-workflow-actions";
+import { canSchedule as canScheduleInspectionRole } from "@/lib/workflow-roles";
 
 // ── Action Bar ─────────────────────────────────────────────────────────────────
 
@@ -54,14 +55,7 @@ function ActionBar({
   );
 
   const canScheduleInspection =
-    [
-      "HOD_PARKS",
-      "HOD_VIS",
-      "HOD_TRANSPORT_OPS",
-      "HOD_PARKS_REVALIDATION",
-      "COMMISSIONER",
-      "PERMANENT_SECRETARY",
-    ].includes(role) &&
+    canScheduleInspectionRole(role) &&
     ["SUBMITTED", "UNDER_REVIEW", "INSPECTION_COMPLETED"].includes(status);
 
   const canInspect =

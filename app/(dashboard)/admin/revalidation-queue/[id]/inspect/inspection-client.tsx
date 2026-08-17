@@ -40,6 +40,12 @@ const VERDICTS: { value: Verified; label: string; className: string }[] = [
       "data-[on=true]:bg-amber-500/15 data-[on=true]:text-amber-500 data-[on=true]:border-amber-500/40",
   },
   {
+    value: "N_A",
+    label: "N/A",
+    className:
+      "data-[on=true]:bg-slate-500/15 data-[on=true]:text-slate-400 data-[on=true]:border-slate-500/40",
+  },
+  {
     value: "NO",
     label: "Not found",
     className:

@@ -24,6 +24,7 @@
 
 import { db } from "@/lib/db";
 import { getNumberSetting } from "@/lib/system-config";
+import { REJECT_ROLES } from "@/lib/workflow-roles";
 import { nextParkId } from "@/lib/park-id";
 import { requireRole, requireAuth, authorize } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
@@ -687,34 +688,94 @@ export async function commissionerApproveRevalidation(
 
 // ── Outright rejection ──────────────────────────────────────────────────────
 
-export async function rejectRevalidation(applicationId: string, reason?: string) {
-  const authz = await authorize([
-    "HOD_PARKS_REVALIDATION",
-    "HOD_TRANSPORT_OPS",
-    "COMMISSIONER",
-    "PERMANENT_SECRETARY",
-    "SYSTEM_ADMIN",
-  ]);
+/**
+ * Send an application back with a reason.
+ *
+ * A rejection returns it to WHOEVER IT CAME FROM, not to the applicant every
+ * time:
+ *
+ *   HOD Operations rejects   ->  back to the APPLICANT, who resubmits
+ *   HOD Revalidation rejects ->  back to HOD OPERATIONS, who can correct it
+ *                                and resend, or reject on to the applicant
+ *   PS rejects               ->  back to HOD Operations (psRejectRevalidation)
+ *   Commissioner rejects     ->  back to HOD Revalidation
+ *
+ * The reason travels with it and is shown to whoever receives it, so nobody
+ * has to guess what to fix.
+ */
+export async function rejectRevalidation(
+  applicationId: string,
+  reason?: string,
+) {
+  const authz = await authorize([...REJECT_ROLES]);
   if (!authz.ok) return { success: false, error: authz.error };
+
+  if (!reason?.trim()) {
+    return {
+      success: false,
+      error: "A reason is required — whoever receives this needs to know what to fix.",
+    };
+  }
+
+  const current = await db.revalidationApplication.findUnique({
+    where: { id: applicationId },
+    select: { status: true, parkName: true },
+  });
+  if (!current) return { success: false, error: "Application not found." };
+
+  const role = authz.session.role;
+  const note = reason.trim();
+
+  // Where it goes back to, and what the receiving officer is told.
+  let nextStatus: string;
+  let sentTo: string;
+  const data: Record<string, unknown> = {};
+
+  if (role === "HOD_PARKS_REVALIDATION") {
+    // Back one stage, to the HOD who ran the inspection.
+    nextStatus = "INSPECTION_COMPLETED";
+    sentTo = "HOD of Operations";
+    data.hodApprovedAt = null;
+    data.hodOpsApprovedAt = null;
+    data.hodOpsApprovedByUserId = null;
+    data.rejectionReason = note;
+  } else if (role === "COMMISSIONER") {
+    nextStatus = "PENDING_HOD_APPROVAL";
+    sentTo = "HOD of Parks Revalidation";
+    data.psApprovedAt = null;
+    data.hodApprovedAt = null;
+    data.rejectionReason = note;
+  } else if (role === "PERMANENT_SECRETARY") {
+    nextStatus = "SUBMITTED";
+    sentTo = "HOD of Operations";
+    data.psRejectionReason = note;
+    data.hodApprovedAt = null;
+    data.hodOpsApprovedAt = null;
+    data.hodOpsApprovedByUserId = null;
+  } else {
+    // HOD Operations (or System Admin acting): the application goes back to
+    // the applicant to correct and resubmit.
+    nextStatus = "REJECTED";
+    sentTo = "the applicant";
+    data.rejectionReason = note;
+  }
 
   const app = await db.revalidationApplication.update({
     where: { id: applicationId },
-    data: {
-      status: "REJECTED",
-      ...(reason?.trim() ? { rejectionReason: reason.trim() } : {}),
-    },
+    data: { ...data, status: nextStatus as never },
   });
 
   await recordAudit({
     action: "REVALIDATION_REJECTED",
     entityType: "REVALIDATION",
     entityId: applicationId,
-    changeDescription: `Revalidation rejected for ${app.parkName}${reason?.trim() ? `: ${reason.trim()}` : ""}`,
-    newValues: { status: "REJECTED" },
+    changeDescription: `${role} returned ${app.parkName} to ${sentTo}: ${note}`,
+    oldValues: { status: current.status },
+    newValues: { status: nextStatus, sentTo },
   });
 
   touch(applicationId);
-  return { success: true, data: app };
+  return { success: true, data: { sentTo, status: nextStatus } };
 }
 
 // ── Certificate terms ───────────────────────────────────────────────────────

@@ -21,6 +21,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { SCHEDULE_ROLES } from "@/lib/workflow-roles";
 import { sendInspectionApprovalNotification } from "@/lib/email";
 import {
   requireAuth,
@@ -630,7 +631,9 @@ export async function scheduleParkInspection(
   prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult<{ inspectionId: string }>> {
-  const session = await requireAuth();
+  // Only the HOD of Operations schedules inspections. This previously
+  // accepted any authenticated caller.
+  const session = await requireRole([...SCHEDULE_ROLES]);
 
   if (!canScheduleInspections(session.role)) {
     return {

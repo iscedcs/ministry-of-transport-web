@@ -25,7 +25,13 @@ export const FACILITY_OPTIONS = [
   "Manager/Admin Office",
 ];
 
-export type Verified = "YES" | "NO" | "PARTIAL";
+/**
+ * "N_A" is a deliberate verdict, not a blank. An item that does not apply to
+ * this facility — a loading bay has no passenger waiting area — must be
+ * distinguishable from one the inspector simply did not answer, or the HOD
+ * reads an unanswered checklist as a complete one.
+ */
+export type Verified = "YES" | "NO" | "PARTIAL" | "N_A";
 
 export interface ChecklistItem {
   key: string;

@@ -124,7 +124,9 @@ export function LetterheadFooter() {
   return (
     <div
       data-lp="footer"
-      className="-mx-8 -mb-8 mt-6 rounded-b-[2rem] px-4 py-2.5 text-center text-[11px] font-bold italic tracking-wide text-white sm:-mx-12 sm:-mb-12"
+      // Pulled out to the FRAME inset (3 / sm:5), not to the sheet edge —
+      // aligning to the edge left it square and outside the curve.
+      className="relative z-10 -mx-5 -mb-5 mt-6 rounded-b-[2.15rem] px-4 py-2 text-center font-sans text-[11px] font-semibold italic tracking-wide text-white sm:-mx-7 sm:-mb-7"
       style={{ backgroundColor: "#1f5138" }}>
       All replies to be addressed to the Hon. Commissioner
     </div>
@@ -191,8 +193,9 @@ export function letterheadPrintCss(sheetId: string): string {
       /* The footer is pulled outward with negative margins to meet the screen
          padding; in print the padding differs, so it is squared off instead. */
       #${sheetId} [data-lp="footer"] {
-        margin: 0 -20px 0 -20px !important;
-        border-radius: 0 !important;
+        margin: 12px -10px 0 -10px !important;
+        border-bottom-left-radius: 2.15rem !important;
+        border-bottom-right-radius: 2.15rem !important;
       }
 
       * {

@@ -45,6 +45,7 @@ const EDITABLE = [
   "estimatedDailyRevenue",
   "estimatedMonthlyRev",
   "revenueCollectionMethod",
+  "facilitiesAvailable",
 ] as const;
 
 export default async function EditRevalidationPage({
@@ -73,12 +74,17 @@ export default async function EditRevalidationPage({
   const initial: Record<string, string> = {};
   for (const key of EDITABLE) {
     const v = record[key];
+    // Section E is a list, carried as JSON so the picker can read it back.
     initial[key] =
       v === null || v === undefined
-        ? ""
-        : typeof v === "boolean"
-          ? String(v)
-          : String(v);
+        ? key === "facilitiesAvailable"
+          ? "[]"
+          : ""
+        : Array.isArray(v)
+          ? JSON.stringify(v)
+          : typeof v === "boolean"
+            ? String(v)
+            : String(v);
   }
 
   const incompleteSections = Array.isArray(app.incompleteSections)
