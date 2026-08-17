@@ -51,7 +51,15 @@ export default async function StaffIdCardPage({
           <ArrowLeft className="h-4 w-4" />
           Back to park staff
         </Link>
-        <PrintButton />
+        <div className="flex items-center gap-2">
+          {/* The vest is printed from separate artwork by a garment printer. */}
+          <Link
+            href={`/motor-parks/${id}/staff/${staff.id}/vest-qr`}
+            className="inline-flex h-9 items-center rounded-lg border border-border px-3 text-sm font-medium transition-colors hover:bg-secondary">
+            Vest QR artwork
+          </Link>
+          <PrintButton />
+        </div>
       </div>
 
       <p className="rounded-xl border border-border bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground print:hidden">

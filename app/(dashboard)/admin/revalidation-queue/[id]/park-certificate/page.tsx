@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
+import { authorizeDocument } from "@/lib/document-access";
 import { authorize } from "@/lib/auth";
 import { getNumberSetting } from "@/lib/system-config";
 import { SIGNATURES } from "@/lib/signatures";
@@ -22,16 +23,8 @@ export default async function ParkCertificatePage({
 }) {
   const { id } = await params;
 
-  const authz = await authorize([
-    "COMMISSIONER",
-    "PERMANENT_SECRETARY",
-    "HOD_PARKS_REVALIDATION",
-    "HOD_TRANSPORT_OPS",
-    "SYSTEM_ADMIN",
-    "ADMIN",
-    "ICT_OFFICER",
-  ]);
-  if (!authz.ok) redirect("/unauthorized");
+  // Ministry staff, or the applicant this document belongs to.
+  await authorizeDocument({ kind: "revalidation", id });
 
   const app = await db.revalidationApplication.findUnique({
     where: { id },
@@ -40,6 +33,8 @@ export default async function ParkCertificatePage({
       revalidationNumber: true,
       parkName: true,
       ownerName: true,
+      ownershipType: true,
+      representativeName: true,
       physicalLocation: true,
       townCommunity: true,
       lga: true,
@@ -88,6 +83,12 @@ export default async function ParkCertificatePage({
       ? services.join(", ")
       : "Commercial Passenger Transport";
 
+  // A public park is owned by the State, so the useful name on the paper is
+  // the manager's, not the owner's. Private parks already name their owner.
+  const isPublic = /public|government|state|lga|council/i.test(
+    `${app.ownershipType ?? ""} ${app.facilityType ?? ""} ${app.ownerName}`,
+  );
+
   const commissioner = await db.user.findFirst({
     where: { role: "COMMISSIONER", isActive: true },
     select: { firstName: true, lastName: true },
@@ -111,6 +112,8 @@ export default async function ParkCertificatePage({
           parkId: app.motorPark?.parkId ?? null,
           parkName: app.parkName,
           ownerName: app.ownerName,
+          managerName:
+            isPublic && app.representativeName ? app.representativeName : null,
           location,
           parkType,
           category,

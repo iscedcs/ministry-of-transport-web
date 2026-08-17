@@ -137,7 +137,9 @@ export function MassTransitApprovalLetter({
               ) : (
                 <>approved the application of</>
               )}{" "}
-              <span className="font-semibold uppercase">{data.companyName}</span>{" "}
+              <span className="font-semibold uppercase">
+                {data.companyName}
+              </span>{" "}
               to operate mass transit services within Anambra State, with effect
               from{" "}
               <span className="font-semibold">{fmt(data.permitIssuedAt)}</span>.
@@ -191,15 +193,23 @@ export function MassTransitApprovalLetter({
                 <table className="mt-2 w-full border-collapse text-[12px]">
                   <thead>
                     <tr className="border-y border-slate-400">
-                      <th className="py-1 pr-2 text-left font-bold">Terminal</th>
-                      <th className="py-1 pr-2 text-left font-bold">Location</th>
+                      <th className="py-1 pr-2 text-left font-bold">
+                        Terminal
+                      </th>
+                      <th className="py-1 pr-2 text-left font-bold">
+                        Location
+                      </th>
                       <th className="py-1 text-left font-bold">Park ID</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.terminals.map((t) => (
-                      <tr key={t.designation} className="border-b border-slate-200">
-                        <td className="py-1 pr-2 font-semibold">{t.designation}</td>
+                      <tr
+                        key={t.designation}
+                        className="border-b border-slate-200">
+                        <td className="py-1 pr-2 font-semibold">
+                          {t.designation}
+                        </td>
                         <td className="py-1 pr-2">{t.location}</td>
                         <td className="py-1 font-mono">{t.parkId ?? "—"}</td>
                       </tr>

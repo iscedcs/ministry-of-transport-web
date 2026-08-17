@@ -388,9 +388,7 @@ export function LetterOfAuthorityDocument({
                 style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
                 <p>
                   <span>E-mail:</span>{" "}
-                  <span className="text-slate-900">
-                    {MINISTRY_EMAIL}
-                  </span>
+                  <span className="text-slate-900">{MINISTRY_EMAIL}</span>
                 </p>
                 <p>
                   <span>Tel:</span>

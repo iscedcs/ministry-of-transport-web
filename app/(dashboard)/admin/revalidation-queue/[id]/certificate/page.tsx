@@ -10,6 +10,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
+import { authorizeDocument } from "@/lib/document-access";
 import { authorize } from "@/lib/auth";
 import { SIGNATURES } from "@/lib/signatures";
 import { RevalidationCertificate } from "@/components/revalidation/revalidation-certificate";
@@ -25,15 +26,8 @@ export default async function RevalidationCertificatePage({
 }) {
   const { id } = await params;
 
-  const authz = await authorize([
-    "COMMISSIONER",
-    "PERMANENT_SECRETARY",
-    "HOD_PARKS_REVALIDATION",
-    "HOD_PARKS",
-    "SYSTEM_ADMIN",
-    "ICT_OFFICER",
-  ]);
-  if (!authz.ok) redirect("/unauthorized");
+  // Ministry staff, or the applicant this document belongs to.
+  await authorizeDocument({ kind: "revalidation", id });
 
   const application = await db.revalidationApplication.findUnique({
     where: { id },

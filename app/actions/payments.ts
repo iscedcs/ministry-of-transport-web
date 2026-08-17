@@ -206,6 +206,12 @@ export async function initiateMotorParkFeePayment(
     orderBy: { createdAt: "desc" },
   });
 
+  // A government-owned park has no applicant account, so there is nobody to
+  // charge online. Send them back rather than failing inside Paystack.
+  if (!fee.motorPark.contactUserId || !fee.motorPark.applicant) {
+    redirect(`/motor-parks/${fee.motorParkId}?error=no-payer-account`);
+  }
+
   const reference = generateReference("MPFEE");
   const callbackUrl = `${getAppUrl()}/api/payment/callback?reference=${reference}&returnTo=/motor-parks/${fee.motorParkId}`;
 

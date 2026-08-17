@@ -293,7 +293,9 @@ model MotorPark {
   parkId                String? @unique @db.VarChar(30)
 
   // Contact person (park owner link)
-  contactUserId String // Links to park owner (User with EXTERNAL_APPLICANT role)
+  // Nullable: a government-owned park has no applicant account, but it is
+  // still a park on the register and still needs a Park ID.
+  contactUserId String?
   contactPerson String
   contactPhone  String
   contactEmail  String
@@ -355,7 +357,7 @@ model MotorPark {
   updatedAt              DateTime  @updatedAt
 
   // Relations
-  applicant     User                      @relation("ApplicationContact", fields: [contactUserId], references: [id])
+  applicant     User?                     @relation("ApplicationContact", fields: [contactUserId], references: [id])
   inspections   Inspection[]
   fees          MotorParkFee[]
   payments      Payment[]                 @relation("MotorParkPayment")

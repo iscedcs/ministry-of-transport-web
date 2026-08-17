@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
+import { authorizeDocument } from "@/lib/document-access";
 import { getSession } from "@/lib/auth";
 import { getNumberSetting } from "@/lib/system-config";
 import { SIGNATURES } from "@/lib/signatures";
@@ -23,8 +24,9 @@ export default async function MotorParkApprovalLetterPage({
 }) {
   const { id } = await params;
 
-  const session = await getSession();
-  if (!session) redirect("/login");
+  // Ministry staff, or the applicant this letter belongs to. Previously any
+  // signed-in account could read any park's letter by editing the URL.
+  await authorizeDocument({ kind: "motorPark", id });
 
   const park = await db.motorPark.findUnique({
     where: { id },

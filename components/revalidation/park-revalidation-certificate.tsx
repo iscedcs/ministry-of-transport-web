@@ -24,6 +24,12 @@ export interface ParkCertificateData {
   parkId: string | null;
   parkName: string;
   ownerName: string;
+  /**
+   * Only for a government-owned (public) park: the officer who runs it.
+   * "Owned by the Anambra State Government" says nothing about who is
+   * answerable on the ground, which is what an inspector needs to see.
+   */
+  managerName?: string | null;
   location: string | null;
   /** "Motor Park" | "Loading Bay" | a mass transit terminal designation */
   parkType: string | null;
@@ -378,6 +384,13 @@ export function ParkRevalidationCertificate({
                 label="Owned / Operated By"
                 value={data.ownerName}
               />
+              {data.managerName && (
+                <Row
+                  icon="user"
+                  label="Park Manager"
+                  value={data.managerName}
+                />
+              )}
               <Row icon="pin" label="Location" value={data.location ?? "—"} />
               <Row icon="badge" label="Park ID" value={data.parkId ?? "—"} />
               <Row
@@ -507,9 +520,7 @@ export function ParkRevalidationCertificate({
                     <br />
                   </>
                 ) : null}
-                <p className=" text-sm sm:text-base">
-                  Hon. Edward Obiefuna Ibuzo
-                </p>
+
                 <p className=" text-sm">Honourable Commissioner</p>
               </span>
             </div>
