@@ -66,6 +66,21 @@ interface WizardData {
   corporateAsinDocumentId: string;
   corporateAsinDocumentUrl: string;
   corporateAsinDocumentName: string;
+  toiletPhotoId: string;
+  toiletPhotoUrl: string;
+  toiletPhotoName: string;
+  waitingAreaPhotoId: string;
+  waitingAreaPhotoUrl: string;
+  waitingAreaPhotoName: string;
+  signagePhotoId: string;
+  signagePhotoUrl: string;
+  signagePhotoName: string;
+  waterFacilityPhotoId: string;
+  waterFacilityPhotoUrl: string;
+  waterFacilityPhotoName: string;
+  cctvPhotoId: string;
+  cctvPhotoUrl: string;
+  cctvPhotoName: string;
 
   // Step 2: Terminals (multiple terminals, each with manager)
   terminals: Terminal[];
@@ -118,6 +133,21 @@ const EMPTY: WizardData = {
   corporateAsinDocumentId: "",
   corporateAsinDocumentUrl: "",
   corporateAsinDocumentName: "",
+  toiletPhotoId: "",
+  toiletPhotoUrl: "",
+  toiletPhotoName: "",
+  waitingAreaPhotoId: "",
+  waitingAreaPhotoUrl: "",
+  waitingAreaPhotoName: "",
+  signagePhotoId: "",
+  signagePhotoUrl: "",
+  signagePhotoName: "",
+  waterFacilityPhotoId: "",
+  waterFacilityPhotoUrl: "",
+  waterFacilityPhotoName: "",
+  cctvPhotoId: "",
+  cctvPhotoUrl: "",
+  cctvPhotoName: "",
   terminals: [emptyTerminal()],
   vehicleTypeCounts: {
     BUS: 0,
@@ -463,6 +493,141 @@ export default function ApplyFleetPage() {
     }));
   }
 
+  const [uploadingToilet, setUploadingToilet] = useState(false);
+
+  async function handleToiletUpload(file: File) {
+    setUploadingToilet(true);
+    const fd = new globalThis.FormData();
+    fd.append("file", file);
+    const result = await uploadCacDocument(fd);
+    if (result.success) {
+      setData((prev) => ({
+        ...prev,
+        toiletPhotoId: result.documentId,
+        toiletPhotoUrl: result.url,
+        toiletPhotoName: file.name,
+      }));
+    }
+    setUploadingToilet(false);
+  }
+
+  function clearToiletPhoto() {
+    setData((prev) => ({
+      ...prev,
+      toiletPhotoId: "",
+      toiletPhotoUrl: "",
+      toiletPhotoName: "",
+    }));
+  }
+
+  const [uploadingWaitingArea, setUploadingWaitingArea] = useState(false);
+
+  async function handleWaitingAreaUpload(file: File) {
+    setUploadingWaitingArea(true);
+    const fd = new globalThis.FormData();
+    fd.append("file", file);
+    const result = await uploadCacDocument(fd);
+    if (result.success) {
+      setData((prev) => ({
+        ...prev,
+        waitingAreaPhotoId: result.documentId,
+        waitingAreaPhotoUrl: result.url,
+        waitingAreaPhotoName: file.name,
+      }));
+    }
+    setUploadingWaitingArea(false);
+  }
+
+  function clearWaitingAreaPhoto() {
+    setData((prev) => ({
+      ...prev,
+      waitingAreaPhotoId: "",
+      waitingAreaPhotoUrl: "",
+      waitingAreaPhotoName: "",
+    }));
+  }
+
+  const [uploadingSignage, setUploadingSignage] = useState(false);
+
+  async function handleSignageUpload(file: File) {
+    setUploadingSignage(true);
+    const fd = new globalThis.FormData();
+    fd.append("file", file);
+    const result = await uploadCacDocument(fd);
+    if (result.success) {
+      setData((prev) => ({
+        ...prev,
+        signagePhotoId: result.documentId,
+        signagePhotoUrl: result.url,
+        signagePhotoName: file.name,
+      }));
+    }
+    setUploadingSignage(false);
+  }
+
+  function clearSignagePhoto() {
+    setData((prev) => ({
+      ...prev,
+      signagePhotoId: "",
+      signagePhotoUrl: "",
+      signagePhotoName: "",
+    }));
+  }
+
+  const [uploadingWaterFacility, setUploadingWaterFacility] = useState(false);
+
+  async function handleWaterFacilityUpload(file: File) {
+    setUploadingWaterFacility(true);
+    const fd = new globalThis.FormData();
+    fd.append("file", file);
+    const result = await uploadCacDocument(fd);
+    if (result.success) {
+      setData((prev) => ({
+        ...prev,
+        waterFacilityPhotoId: result.documentId,
+        waterFacilityPhotoUrl: result.url,
+        waterFacilityPhotoName: file.name,
+      }));
+    }
+    setUploadingWaterFacility(false);
+  }
+
+  function clearWaterFacilityPhoto() {
+    setData((prev) => ({
+      ...prev,
+      waterFacilityPhotoId: "",
+      waterFacilityPhotoUrl: "",
+      waterFacilityPhotoName: "",
+    }));
+  }
+
+  const [uploadingCctv, setUploadingCctv] = useState(false);
+
+  async function handleCctvUpload(file: File) {
+    setUploadingCctv(true);
+    const fd = new globalThis.FormData();
+    fd.append("file", file);
+    const result = await uploadCacDocument(fd);
+    if (result.success) {
+      setData((prev) => ({
+        ...prev,
+        cctvPhotoId: result.documentId,
+        cctvPhotoUrl: result.url,
+        cctvPhotoName: file.name,
+      }));
+    }
+    setUploadingCctv(false);
+  }
+
+  function clearCctvPhoto() {
+    setData((prev) => ({
+      ...prev,
+      cctvPhotoId: "",
+      cctvPhotoUrl: "",
+      cctvPhotoName: "",
+    }));
+  }
+
   // ────────────────────────────────────────────────────────────────────────────
 
   function validateStep(step: number): boolean {
@@ -488,6 +653,13 @@ export default function ApplyFleetPage() {
 
     // Step 3: Terminals & Managers
     if (step === 3) {
+      // A terminal becomes a motor park on approval, so it is asked for the
+      // same facility evidence a park is asked for.
+      if (!data.toiletPhotoId) errors.toiletPhotoId = "Required";
+      if (!data.waitingAreaPhotoId) errors.waitingAreaPhotoId = "Required";
+      if (!data.signagePhotoId) errors.signagePhotoId = "Required";
+      if (!data.waterFacilityPhotoId) errors.waterFacilityPhotoId = "Required";
+      if (!data.cctvPhotoId) errors.cctvPhotoId = "Required";
       if (data.terminals.length === 0) {
         setStepErrors({ ...errors });
         return false;
@@ -556,6 +728,11 @@ export default function ApplyFleetPage() {
       fd.set("cacDocumentId", data.cacDocumentId);
       fd.set("landOwnershipDocId", data.landOwnershipDocId);
       fd.set("corporateAsinDocumentId", data.corporateAsinDocumentId);
+      fd.set("toiletPhotoId", data.toiletPhotoId);
+      fd.set("waitingAreaPhotoId", data.waitingAreaPhotoId);
+      fd.set("signagePhotoId", data.signagePhotoId);
+      fd.set("waterFacilityPhotoId", data.waterFacilityPhotoId);
+      fd.set("cctvPhotoId", data.cctvPhotoId);
       fd.set(
         "terminalsJson",
         JSON.stringify(
@@ -866,6 +1043,76 @@ export default function ApplyFleetPage() {
                   error={asinError || stepErrors.corporateAsinDocumentId}
                   onSelect={handleAsinUpload}
                   onClear={clearAsinDocument}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Facility infrastructure — the same evidence a motor park
+                provides, because an approved terminal becomes one. */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Facility Infrastructure Photos
+                </CardTitle>
+                <CardDescription>
+                  Photographs of the terminal / depot facilities. These are
+                  verified during the terminal inspection.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <FileUploadField
+                  label="Toilet Facilities Photo"
+                  hint="Toilets available to passengers and staff."
+                  documentName={data.toiletPhotoName}
+                  documentUrl={data.toiletPhotoUrl}
+                  uploading={uploadingToilet}
+                  error={stepErrors.toiletPhotoId}
+                  onSelect={handleToiletUpload}
+                  onClear={clearToiletPhoto}
+                />
+
+                <FileUploadField
+                  label="Passenger Waiting Area Photo"
+                  hint="Sheltered waiting area at the terminal."
+                  documentName={data.waitingAreaPhotoName}
+                  documentUrl={data.waitingAreaPhotoUrl}
+                  uploading={uploadingWaitingArea}
+                  error={stepErrors.waitingAreaPhotoId}
+                  onSelect={handleWaitingAreaUpload}
+                  onClear={clearWaitingAreaPhoto}
+                />
+
+                <FileUploadField
+                  label="Safety Signage Photo"
+                  hint="Directional and safety signage on site."
+                  documentName={data.signagePhotoName}
+                  documentUrl={data.signagePhotoUrl}
+                  uploading={uploadingSignage}
+                  error={stepErrors.signagePhotoId}
+                  onSelect={handleSignageUpload}
+                  onClear={clearSignagePhoto}
+                />
+
+                <FileUploadField
+                  label="Water Facility Photo"
+                  hint="Borehole or dedicated water tank."
+                  documentName={data.waterFacilityPhotoName}
+                  documentUrl={data.waterFacilityPhotoUrl}
+                  uploading={uploadingWaterFacility}
+                  error={stepErrors.waterFacilityPhotoId}
+                  onSelect={handleWaterFacilityUpload}
+                  onClear={clearWaterFacilityPhoto}
+                />
+
+                <FileUploadField
+                  label="Camera / CCTV Installation Photo"
+                  hint="Cameras installed at the terminal and their coverage."
+                  documentName={data.cctvPhotoName}
+                  documentUrl={data.cctvPhotoUrl}
+                  uploading={uploadingCctv}
+                  error={stepErrors.cctvPhotoId}
+                  onSelect={handleCctvUpload}
+                  onClear={clearCctvPhoto}
                 />
               </CardContent>
             </Card>

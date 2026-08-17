@@ -164,7 +164,10 @@ export function SettingsPanel({
                               save(def, e.target.value);
                             }
                           }}
-                          className="h-9 w-28"
+                          className={cn(
+                            "h-9",
+                            def.type === "number" ? "w-28" : "w-64 max-w-full",
+                          )}
                         />
                         {busy && (
                           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />

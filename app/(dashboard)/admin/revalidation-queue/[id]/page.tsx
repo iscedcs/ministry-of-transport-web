@@ -756,11 +756,19 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
                     <span className="text-green-800 dark:text-green-300 block mb-1 text-xs uppercase tracking-wider font-bold">Official Revalidation Certificate Number</span>
                     <p className="font-mono font-bold text-2xl text-green-900 dark:text-green-100">{app.revalidationNumber}</p>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex flex-wrap items-center gap-3 shrink-0">
+                    {/* Two documents come out of one approval: the letter that
+                        conveys the decision, and the certificate the park
+                        displays. */}
                     <Link
                       href={`/admin/revalidation-queue/${app.id}/certificate`}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-green-600/40 px-3.5 py-2 text-sm font-semibold text-green-700 dark:text-green-300 hover:bg-green-600/10 transition-colors">
+                      Approval letter
+                    </Link>
+                    <Link
+                      href={`/admin/revalidation-queue/${app.id}/park-certificate`}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors">
-                      View / print certificate
+                      Revalidation certificate
                     </Link>
                     <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400 shrink-0" />
                   </div>

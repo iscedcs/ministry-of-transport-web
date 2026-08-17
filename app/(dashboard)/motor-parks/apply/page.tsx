@@ -82,6 +82,9 @@ const EMPTY: WizardData = {
   waterFacilityPhotoId: "",
   waterFacilityPhotoUrl: "",
   waterFacilityPhotoName: "",
+  cctvPhotoId: "",
+  cctvPhotoUrl: "",
+  cctvPhotoName: "",
 };
 
 // -- Step config -------------------------------------------------------------
@@ -310,6 +313,7 @@ export default function ApplyMotorParkPage() {
   const [uploadingWaitingArea, setUploadingWaitingArea] = useState(false);
   const [uploadingSignage, setUploadingSignage] = useState(false);
   const [uploadingWaterFacility, setUploadingWaterFacility] = useState(false);
+  const [uploadingCctv, setUploadingCctv] = useState(false);
   const [draftLoading, setDraftLoading] = useState(true);
   const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
 
@@ -388,6 +392,7 @@ export default function ApplyMotorParkPage() {
       if (!data.waitingAreaPhotoId) e.waitingAreaPhotoId = "Waiting lounge photo is required";
       if (!data.signagePhotoId) e.signagePhotoId = "Signage photo is required";
       if (!data.waterFacilityPhotoId) e.waterFacilityPhotoId = "Water facility/borehole photo is required";
+      if (!data.cctvPhotoId) e.cctvPhotoId = "Camera installation photo is required";
     }
     return e;
   }
@@ -600,6 +605,34 @@ export default function ApplyMotorParkPage() {
     setUploadingWaterFacility(false);
   }
 
+  async function handleCctvUpload(file: File) {
+    setUploadingCctv(true);
+    setErrors((prev) => ({ ...prev, cctvPhotoId: undefined }));
+    const fd = new globalThis.FormData();
+    fd.append("file", file);
+    const result = await uploadCacDocument(fd);
+    if (result.success) {
+      setData((prev) => ({
+        ...prev,
+        cctvPhotoId: result.documentId,
+        cctvPhotoUrl: result.url,
+        cctvPhotoName: file.name,
+      }));
+    } else {
+      setErrors((prev) => ({ ...prev, cctvPhotoId: result.error }));
+    }
+    setUploadingCctv(false);
+  }
+
+  function clearCctvPhoto() {
+    setData((prev) => ({
+      ...prev,
+      cctvPhotoId: "",
+      cctvPhotoUrl: "",
+      cctvPhotoName: "",
+    }));
+  }
+
   function clearWaterFacilityPhoto() {
     setData((prev) => ({
       ...prev,
@@ -640,6 +673,7 @@ export default function ApplyMotorParkPage() {
     fd.append("waitingAreaPhotoId", data.waitingAreaPhotoId);
     fd.append("signagePhotoId", data.signagePhotoId);
     fd.append("waterFacilityPhotoId", data.waterFacilityPhotoId);
+    fd.append("cctvPhotoId", data.cctvPhotoId);
 
     startSubmit(async () => {
       const result = await submitParkApplication(undefined as never, fd);
@@ -1140,6 +1174,20 @@ export default function ApplyMotorParkPage() {
                   onSelect={handleWaterFacilityUpload}
                   onClear={clearWaterFacilityPhoto}
                 />
+
+                {/* Cameras are now asked for on both the motor park and the
+                    mass transit application, and verified at inspection. */}
+                <FileUploadField
+                  label="Camera / CCTV Installation Photo"
+                  hint="Show the cameras installed in the park and their coverage."
+                  required
+                  documentName={data.cctvPhotoName}
+                  documentUrl={data.cctvPhotoUrl}
+                  uploading={uploadingCctv}
+                  error={errors.cctvPhotoId}
+                  onSelect={handleCctvUpload}
+                  onClear={clearCctvPhoto}
+                />
               </div>
             </div>
           </CardContent>
@@ -1178,7 +1226,8 @@ export default function ApplyMotorParkPage() {
               uploadingToilet ||
               uploadingWaitingArea ||
               uploadingSignage ||
-              uploadingWaterFacility
+              uploadingWaterFacility ||
+              uploadingCctv
             }
             aria-busy={submitting}>
             {submitting ? (

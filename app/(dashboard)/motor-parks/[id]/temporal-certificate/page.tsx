@@ -4,6 +4,7 @@ import Image from "next/image";
 import { getSession } from "@/lib/auth";
 import { getMotorPark } from "@/app/actions/motor-park";
 import { db } from "@/lib/db";
+import { SIGNATURES } from "@/lib/signatures";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { PrintButton } from "./print-button";
@@ -13,12 +14,45 @@ interface PageProps {
 }
 
 function numberToWords(amount: number): string {
-  const units = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
-  const teens = ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
-  const tens = ["", "Ten", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
-  
+  const units = [
+    "",
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+  ];
+  const teens = [
+    "Ten",
+    "Eleven",
+    "Twelve",
+    "Thirteen",
+    "Fourteen",
+    "Fifteen",
+    "Sixteen",
+    "Seventeen",
+    "Eighteen",
+    "Nineteen",
+  ];
+  const tens = [
+    "",
+    "Ten",
+    "Twenty",
+    "Thirty",
+    "Forty",
+    "Fifty",
+    "Sixty",
+    "Seventy",
+    "Eighty",
+    "Ninety",
+  ];
+
   if (amount === 0) return "Zero";
-  
+
   const formatThousands = (num: number): string => {
     if (num >= 1000) {
       const thousands = Math.floor(num / 1000);
@@ -27,7 +61,7 @@ function numberToWords(amount: number): string {
     }
     return formatHundreds(num);
   };
-  
+
   const formatHundreds = (num: number): string => {
     if (num >= 100) {
       const hundreds = Math.floor(num / 100);
@@ -36,7 +70,7 @@ function numberToWords(amount: number): string {
     }
     return formatTens(num);
   };
-  
+
   const formatTens = (num: number): string => {
     if (num < 10) return units[num];
     if (num >= 10 && num < 20) return teens[num - 10];
@@ -44,25 +78,39 @@ function numberToWords(amount: number): string {
     const unit = num % 10;
     return `${tens[ten]}${unit > 0 ? "-" + units[unit] : ""}`;
   };
-  
+
   return formatThousands(amount);
 }
 
 function getOrdinalSuffix(day: number): string {
   if (day > 3 && day < 21) return "th";
   switch (day % 10) {
-    case 1:  return "st";
-    case 2:  return "nd";
-    case 3:  return "rd";
-    default: return "th";
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
   }
 }
 
 function formatLetterDate(date: Date): string {
   const day = date.getDate();
   const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
   ];
   const month = monthNames[date.getMonth()];
   const year = date.getFullYear();
@@ -101,18 +149,21 @@ export default async function TemporalCertificatePage({ params }: PageProps) {
     orderBy: { completedAt: "desc" },
   });
   // Fall back to the applicant's ASIN number if no completed payment found
-  const yourRef = applicationPayment?.paystackTransactionId ?? park.anssidNumber ?? "—";
+  const yourRef =
+    applicationPayment?.paystackTransactionId ?? park.anssidNumber ?? "—";
 
   // Format approval date (default to today if not present)
   const approvalDateRaw = park.approvedAt || new Date();
   const approvalDateFormatted = formatLetterDate(approvalDateRaw);
-  
+
   // Calculate reference number
   const refCode = park.id.substring(0, 6).toUpperCase();
   const ourRef = `AN/MOT/530/${refCode}`;
 
   // Monthly levy
-  const levyNaira = park.monthlyLevyAmount ? Math.floor(park.monthlyLevyAmount / 100) : 100000;
+  const levyNaira = park.monthlyLevyAmount
+    ? Math.floor(park.monthlyLevyAmount / 100)
+    : 100000;
   const levyWords = `${numberToWords(levyNaira)} Naira`;
 
   // Standard applicant/business details
@@ -136,16 +187,17 @@ export default async function TemporalCertificatePage({ params }: PageProps) {
       </div>
 
       {/* Printable Certificate Page */}
-      <div 
+      <div
         id="printable-certificate"
         className="w-full max-w-[800px] aspect-[1/1.414] bg-white text-black border-[3px] border-black rounded-t-[20px] p-10 sm:p-14 relative flex flex-col justify-between shadow-lg print:shadow-none print:border-black print:rounded-none print:p-8 print:m-0"
         style={{
           fontFamily: "var(--font-sans), Arial, sans-serif",
           boxSizing: "border-box",
-        }}
-      >
+        }}>
         {/* Print media styles */}
-        <style dangerouslySetInnerHTML={{ __html: `
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
           @media print {
             /* Hide the sidebar, topbar and other non-print elements */
             aside,
@@ -187,7 +239,9 @@ export default async function TemporalCertificatePage({ params }: PageProps) {
               box-sizing: border-box !important;
             }
           }
-        `}} />
+        `,
+          }}
+        />
 
         <div>
           {/* Header Block */}
@@ -198,16 +252,18 @@ export default async function TemporalCertificatePage({ params }: PageProps) {
             <h2 className="text-lg sm:text-xl font-bold tracking-wide text-slate-800">
               MINISTRY OF TRANSPORT
             </h2>
-            
-            {/* Logo */}
-            <div className="my-2 h-16 w-auto flex items-center justify-center">
+
+            {/* Letterhead crest — the same extracted coat of arms used on the
+                TRACAS letter and the revalidation certificate, so every
+                Ministry document carries one mark. */}
+            <div className="my-2 flex h-16 w-auto items-center justify-center gap-3">
               <Image
-                src="/anambra_mot_logo.png"
-                alt="Ministry of Transport Logo"
+                src="/letter-head/coat-of-arms.png"
+                alt="Coat of Arms of the Federal Republic of Nigeria"
                 width={64}
                 height={64}
                 quality={100}
-                className="h-16 w-auto object-contain"
+                className="h-16 w-16 object-contain"
                 priority
               />
             </div>
@@ -216,10 +272,15 @@ export default async function TemporalCertificatePage({ params }: PageProps) {
           {/* Letter Metadata Fields (Left and Right Columns) */}
           <div className="flex justify-between text-[11px] sm:text-xs text-slate-700 mt-4 leading-relaxed font-sans">
             <div className="flex flex-col gap-1">
-              <div><span className="font-semibold text-black">E-mail:</span> mot@anambrastate.gov.ng</div>
-              <div><span className="font-semibold text-black">Tel:</span> +234 (0) 803 000 0000</div>
+              <div>
+                <span className="font-semibold text-black">E-mail:</span>
+              </div>
+              <div>
+                <span className="font-semibold text-black">Tel:</span>{" "}
+              </div>
               <div className="mt-1">
-                Your Ref: <span className="font-bold text-black">{yourRef}</span>
+                Your Ref:{" "}
+                <span className="font-bold text-black">{yourRef}</span>
               </div>
               <div className="mt-1">
                 Our Ref: <span className="font-bold text-black">{ourRef}</span>
@@ -247,7 +308,9 @@ export default async function TemporalCertificatePage({ params }: PageProps) {
           {/* Subject Block */}
           <div className="mt-6">
             <h3 className="text-xs sm:text-sm font-bold text-black text-left uppercase underline tracking-wide leading-snug">
-              TEMPORARY APPROVAL OF YOUR LOADING BAY AT {streetAddress.toUpperCase()}, {townCity.toUpperCase()}, {lga.toUpperCase()} LOCAL GOVERNMENT AREA
+              TEMPORARY APPROVAL OF YOUR LOADING BAY AT{" "}
+              {streetAddress.toUpperCase()}, {townCity.toUpperCase()},{" "}
+              {lga.toUpperCase()} LOCAL GOVERNMENT AREA
             </h3>
           </div>
 
@@ -257,23 +320,37 @@ export default async function TemporalCertificatePage({ params }: PageProps) {
               Your application for a Private Motor Park Permit refers please.
             </p>
             <p>
-              2. Further to the recommendations of the Ministry&apos;s Parks Inspection and Revalidation Team, you are hereby granted temporary approval to operate your private loading bay at the above named location with effect from {approvalDateFormatted}.
+              2. Further to the recommendations of the Ministry&apos;s Parks
+              Inspection and Revalidation Team, you are hereby granted temporary
+              approval to operate your private loading bay at the above named
+              location with effect from {approvalDateFormatted}.
             </p>
             <p>
-              3. Kindly note that you are to improve on the facilities seen by the Team during the inspection within the next three (3) months in line with the attached Ministry&apos;s standards/guidelines on motor parks.
+              3. Kindly note that you are to improve on the facilities seen by
+              the Team during the inspection within the next three (3) months in
+              line with the attached Ministry&apos;s standards/guidelines on
+              motor parks.
             </p>
             <p>
-              4. You are to ensure that all loading/offloading activities of the vehicles in your fleet are done within the approved private loading bay and not on adjoining roads or any other place. In addition, ONLY vehicles branded in your approved mass transit colour are to use the loading bay.
+              4. You are to ensure that all loading/offloading activities of the
+              vehicles in your fleet are done within the approved private
+              loading bay and not on adjoining roads or any other place. In
+              addition, ONLY vehicles branded in your approved mass transit
+              colour are to use the loading bay.
             </p>
             <p>
-              5. You are to pay a monthly motor park fee of <strong>₦ {levyNaira.toLocaleString()} ({levyWords})</strong> to State Government&apos;s IGR paydirect platform using your private park&apos;s ASIN.
+              5. You are to pay a monthly motor park fee of{" "}
+              <strong>
+                ₦ {levyNaira.toLocaleString()} ({levyWords})
+              </strong>{" "}
+              to State Government&apos;s IGR paydirect platform using your
+              private park&apos;s ASIN.
             </p>
             <p>
-              6. Kindly note that the violation of any of the above terms will lead to revocation of this temporary approval without notice.
+              6. Kindly note that the violation of any of the above terms will
+              lead to revocation of this temporary approval without notice.
             </p>
-            <p className="pt-2">
-              Please accept my warm regards.
-            </p>
+            <p className="pt-2">Please accept my warm regards.</p>
           </div>
         </div>
 
@@ -282,13 +359,21 @@ export default async function TemporalCertificatePage({ params }: PageProps) {
           {/* Signature Block */}
           <div className="flex flex-col items-start pr-6">
             <div className="flex flex-col items-center">
-              {/* Handwritten signature visual placeholder */}
-              <div className="h-10 flex items-center justify-center italic text-blue-600 font-serif text-lg font-semibold relative mb-1">
-                <span className="opacity-90 select-none transform -rotate-6">Patricia</span>
-                <div className="absolute w-24 h-[1px] bg-blue-400 bottom-1 transform rotate-3"></div>
+              {/* The Commissioner's actual signature. This previously printed
+                  the word "Patricia" in italic blue as a placeholder — on a
+                  document that goes to the printing queue. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={SIGNATURES.commissioner}
+                alt="Commissioner's signature"
+                className="mb-1 h-12 object-contain"
+              />
+              <div className="font-bold text-xs sm:text-sm text-black">
+                {commissionerName}
               </div>
-              <div className="font-bold text-xs sm:text-sm text-black">{commissionerName}</div>
-              <div className="text-[11px] sm:text-xs text-slate-700 font-medium">Commissioner for Transport</div>
+              <div className="text-[11px] sm:text-xs text-slate-700 font-medium">
+                Commissioner for Transport
+              </div>
             </div>
           </div>
 

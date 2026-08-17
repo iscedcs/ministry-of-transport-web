@@ -50,7 +50,7 @@ export async function submitParkApplication(
   prevState: ActionResult<{ parkId: string }>,
   formData: FormData,
 ): Promise<ActionResult<{ parkId: string }>> {
-  const session = await requireRole(["EXTERNAL_APPLICANT"]);
+  const session = await requireRole(["EXTERNAL_APPLICANT", "ENUMERATOR"]);
 
   const getCleanString = (
     val: unknown,
@@ -105,6 +105,7 @@ export async function submitParkApplication(
       formData.get("waterFacilityPhotoId"),
       true,
     ),
+    cctvPhotoId: getCleanString(formData.get("cctvPhotoId")),
   };
 
   const parsed = motorParkApplicationSchema.safeParse(raw);
@@ -152,6 +153,7 @@ export async function submitParkApplication(
       waitingAreaPhotoId: data.waitingAreaPhotoId,
       signagePhotoId: data.signagePhotoId,
       waterFacilityPhotoId: data.waterFacilityPhotoId,
+      cctvPhotoId: data.cctvPhotoId,
       applicationStatus: "SUBMITTED",
     },
     select: { id: true },
@@ -350,6 +352,7 @@ export type MotorParkDetail = {
   waitingAreaPhotoId: string | null;
   signagePhotoId: string | null;
   waterFacilityPhotoId: string | null;
+  cctvPhotoId: string | null;
   documents: {
     cac?: ParkDocument;
     land?: ParkDocument;

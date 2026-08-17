@@ -58,12 +58,37 @@ const naira = (kobo: number | null | undefined) =>
 
 /** Number to words, for the "( naira only)" phrasing on the paper original. */
 const ONES = [
-  "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
-  "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
-  "Seventeen", "Eighteen", "Nineteen",
+  "",
+  "One",
+  "Two",
+  "Three",
+  "Four",
+  "Five",
+  "Six",
+  "Seven",
+  "Eight",
+  "Nine",
+  "Ten",
+  "Eleven",
+  "Twelve",
+  "Thirteen",
+  "Fourteen",
+  "Fifteen",
+  "Sixteen",
+  "Seventeen",
+  "Eighteen",
+  "Nineteen",
 ];
 const TENS = [
-  "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty",
+  "",
+  "",
+  "Twenty",
+  "Thirty",
+  "Forty",
+  "Fifty",
+  "Sixty",
+  "Seventy",
+  "Eighty",
   "Ninety",
 ];
 
@@ -336,7 +361,7 @@ export function RevalidationCertificate({
 
             <img
               data-c="crest"
-              src="/letter-head/coat-of-arms.png"
+              src="/anambra_mot_logo.png"
               alt="Coat of Arms of the Federal Republic of Nigeria"
               className="w-[74px] h-[74px] object-contain mt-0.5"
             />
@@ -377,7 +402,9 @@ export function RevalidationCertificate({
               Further to the Ministry&apos;s Revalidation Exercise for Motor
               Parks/Loading Bays in the State, please be informed that the
               Ministry has granted{" "}
-              {isTemporal ? "TEMPORAL APPROVAL of" : "approved the Revalidation of"}{" "}
+              {isTemporal
+                ? "TEMPORAL APPROVAL of"
+                : "approved the Revalidation of"}{" "}
               Your Authority to Operate the{" "}
               <span className="font-semibold">{parkKind}</span> situated at{" "}
               <span className="font-semibold">
@@ -393,18 +420,22 @@ export function RevalidationCertificate({
                   This is a <span className="font-semibold">TEMPORAL</span>{" "}
                   approval valid until{" "}
                   <span className="font-semibold">
-                    {a.validUntil ? fmtLong(a.validUntil) : <Blank width="8rem" />}
+                    {a.validUntil ? (
+                      fmtLong(a.validUntil)
+                    ) : (
+                      <Blank width="8rem" />
+                    )}
                   </span>
-                  , granted to permit continued operation while the
-                  outstanding requirements below are met. It does not
-                  constitute a full revalidation, and lapses on that date
-                  unless a full revalidation is granted.
+                  , granted to permit continued operation while the outstanding
+                  requirements below are met. It does not constitute a full
+                  revalidation, and lapses on that date unless a full
+                  revalidation is granted.
                 </>
               ) : (
                 <>
-                  This approval shall be subject to revalidation as the
-                  Ministry may deem fit and in line with extant Transport Laws
-                  and Regulations.
+                  This approval shall be subject to revalidation as the Ministry
+                  may deem fit and in line with extant Transport Laws and
+                  Regulations.
                 </>
               )}
             </p>

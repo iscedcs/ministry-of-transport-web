@@ -74,28 +74,28 @@ export default function IssuePermitPage() {
         </nav>
         <h1 className="text-2xl font-semibold">Issue Permit to Operate</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          FR-027: Issue the official Permit to Operate. The permit is valid for
-          1 year and must be renewed annually.
+          Grant either a temporal or a full approval. The choice determines the
+          permit number, how long it runs, and the wording on the approval
+          letter and every terminal certificate.
         </p>
       </div>
 
       <Alert>
         <AlertDescription className="text-sm">
           <p>
-            Permit number will be assigned automatically in the format{" "}
+            The permit number is assigned automatically —{" "}
             <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">
-              MOT/PTO/YYYY/NNNN
-            </code>
+              ANS-MOT-MTC-YYYY/NNNNN
+            </code>{" "}
+            for a full approval,{" "}
+            <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">
+              ANS-MOT-MTT
+            </code>{" "}
+            for a temporal one, so the two are never confused on paper.
           </p>
           <p className="mt-1">
-            Estimated expiry:{" "}
-            <strong>
-              {expiryPreview.toLocaleDateString("en-NG", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              })}
-            </strong>
+            Validity periods are set in System Configuration under Certificate
+            Validity.
           </p>
         </AlertDescription>
       </Alert>
@@ -129,13 +129,48 @@ export default function IssuePermitPage() {
 
             <Separator />
 
+            {/* Two distinct decisions, each stated plainly — the same choice
+                the Commissioner makes on a park revalidation. */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="submit"
+                name="approvalType"
+                value="PERMANENT"
+                disabled={isPending}
+                className="rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-4 text-left transition-colors hover:bg-emerald-500/10 disabled:opacity-50">
+                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                  Full approval
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  All requirements met. Numbered ANS-MOT-MTC.
+                </p>
+              </button>
+
+              <button
+                type="submit"
+                name="approvalType"
+                value="TEMPORAL"
+                disabled={isPending}
+                className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 text-left transition-colors hover:bg-amber-500/10 disabled:opacity-50">
+                <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                  Temporal approval
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Permission to operate while outstanding requirements are met.
+                  Numbered ANS-MOT-MTT.
+                </p>
+              </button>
+            </div>
+
             <div className="flex gap-3">
-              <Button type="submit" disabled={isPending}>
-                {isPending ? "Issuing Permit…" : "Issue Permit to Operate"}
-              </Button>
               <Button asChild variant="outline" disabled={isPending}>
                 <Link href={`/fleet-operators/${companyId}`}>Cancel</Link>
               </Button>
+              {isPending && (
+                <span className="self-center text-sm text-muted-foreground">
+                  Issuing…
+                </span>
+              )}
             </div>
           </CardContent>
         </Card>
