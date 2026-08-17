@@ -22,6 +22,7 @@ import {
   type FleetApplicationDetail,
 } from "@/app/actions/mass-transit";
 import { verifyDocument } from "@/app/actions/motor-park";
+import { TerminalInspectionFindings } from "@/components/mass-transit/inspection-findings";
 import { StatusPill } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -745,17 +746,21 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
                     {insp.completedAt &&
                       ` · Completed ${fmt(insp.completedAt)}`}
                   </div>
-                  {insp.recommendedAction && (
-                    <div className="mt-1">
-                      <Badge variant="outline" className="text-xs">
-                        Rec: {insp.recommendedAction}
-                      </Badge>
+                  {/* The full report, so the HOD can weigh the
+                      recommendation against what was actually checked. */}
+                  {(insp.completedAt ||
+                    insp.overallAssessment ||
+                    insp.recommendedAction) && (
+                    <div className="mt-3 border-t pt-3">
+                      <TerminalInspectionFindings
+                        overallAssessment={insp.overallAssessment}
+                        recommendedAction={insp.recommendedAction}
+                        inspectionChecklist={insp.inspectionChecklist}
+                        evidenceUrls={insp.evidenceUrls}
+                        inspectorName={`${insp.assignedTo.firstName} ${insp.assignedTo.lastName}`}
+                        completedAt={insp.completedAt}
+                      />
                     </div>
-                  )}
-                  {insp.overallAssessment && (
-                    <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                      {insp.overallAssessment}
-                    </p>
                   )}
                 </div>
               ))}

@@ -91,6 +91,7 @@ export const motorParkApplicationSchema = z.object({
   waitingAreaPhotoId: z.string().min(1, "Waiting lounge photo is required"),
   signagePhotoId: z.string().min(1, "Signage photo is required"),
   waterFacilityPhotoId: z.string().min(1, "Water facility/borehole photo is required"),
+  cctvPhotoId: z.string().min(1, "Camera installation photo is required"),
 });
 
 export type MotorParkApplicationInput = z.infer<

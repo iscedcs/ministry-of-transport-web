@@ -2,6 +2,8 @@
 
 import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { authorize } from "@/lib/auth";
+import { checkStoredUrl } from "@/lib/media-url";
 
 export async function onboardParkStaff(data: {
   motorParkId: string;
@@ -10,6 +12,20 @@ export async function onboardParkStaff(data: {
   photoUrl: string;
 }) {
   try {
+    // This action previously had no authorization whatsoever — any signed-in
+    // user could add staff to any park.
+    const authz = await authorize([
+      "ENUMERATOR",
+      "HOD_PARKS",
+      "HOD_TRANSPORT_OPS",
+      "SYSTEM_ADMIN",
+      "EXTERNAL_APPLICANT",
+    ]);
+    if (!authz.ok) return { success: false, error: authz.error };
+
+    const photoProblem = checkStoredUrl(data.photoUrl, "Staff photograph");
+    if (photoProblem) return { success: false, error: photoProblem };
+
     const park = await db.motorPark.findUnique({
       where: { id: data.motorParkId },
       select: { id: true, businessName: true, applicationStatus: true },

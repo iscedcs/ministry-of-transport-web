@@ -287,6 +287,11 @@ model MotorPark {
   cacRegistrationNumber String? // optional — uploaded CAC doc takes precedence
   anssidNumber          String  @unique
 
+  /// Permanent public identifier printed on the revalidation certificate:
+  /// ANS-MOT-PK-000125 — Anambra State, Ministry of Transport, Park, serial.
+  /// Assigned once, on first approval, and never reissued.
+  parkId                String? @unique @db.VarChar(30)
+
   // Contact person (park owner link)
   contactUserId String // Links to park owner (User with EXTERNAL_APPLICANT role)
   contactPerson String
@@ -308,6 +313,9 @@ model MotorPark {
   waitingAreaPhotoId   String? // Document.id
   signagePhotoId       String? // Document.id
   waterFacilityPhotoId String? // Document.id
+  /// Evidence that cameras are installed on site. Asked for on both the motor
+  /// park and mass transit applications, and verified at inspection.
+  cctvPhotoId          String? // Document.id
 
   // Status tracking
   applicationStatus ApplicationStatus @default(SUBMITTED)
@@ -354,6 +362,8 @@ model MotorPark {
   notifications Notification[]            @relation("MotorParkNotification")
   parkStaff     ParkStaff[]
   revalidations RevalidationApplication[] @relation("MotorParkRevalidation")
+  /// Set when this park was created from a mass transit terminal.
+  terminal      Terminal?                 @relation("TerminalPark")
 
   @@index([applicationStatus])
   @@index([permitStatus])
@@ -421,6 +431,15 @@ model Inspection {
 
   // Findings
   overallAssessment   String? @db.Text // Narrative assessment
+
+  /// Item-by-item verification of the facility, mirroring the revalidation
+  /// inspection: JSON array of
+  /// { key, section, label, declared, verified: "YES"|"NO"|"PARTIAL", note }.
+  /// The terminal inspection previously captured only free text, which gave
+  /// the HOD nothing specific to weigh.
+  inspectionChecklist  Json?
+  /// Evidence captured on site — JSON array of { url, caption }.
+  evidenceUrls         Json?
   recommendedAction   String? @db.VarChar(100) // APPROVE, REJECT, CONDITIONAL
   inspectionReportUrl String? @db.VarChar(500) // PDF report
 
@@ -548,6 +567,15 @@ model MassTransitCompany {
   landOwnershipDocId      String? // Document.id
   corporateAsinDocumentId String? // Document.id
 
+  // ── Facility infrastructure photographs (terminal / depot) ──
+  // A terminal becomes a motor park on approval, so it is asked for the same
+  // evidence a park is asked for — including the camera installation.
+  toiletPhotoId        String? // Document.id
+  waitingAreaPhotoId   String? // Document.id
+  signagePhotoId       String? // Document.id
+  waterFacilityPhotoId String? // Document.id
+  cctvPhotoId          String? // Document.id
+
   // Fleet details
   minFleetSize     Int     @default(5)
   currentFleetSize Int     @default(0)
@@ -615,6 +643,15 @@ model Terminal {
   managerEmail              String
   managerResidentialAddress String @db.Text
 
+  /// Position within the company, from 1. Drives the certificate wording —
+  /// "ABC LIMITED MOTORS TERMINAL ONE" — so it must stay stable once set.
+  terminalNumber Int @default(1)
+
+  /// The park this terminal became on approval. A terminal IS a park once the
+  /// company is approved, so it gets a real MotorPark record rather than a
+  /// parallel set of fields, and inherits staff, revalidation and permits.
+  motorParkId String? @unique
+
   // Status
   inspectionStatus InspectionStatus @default(SCHEDULED)
   inspectionDueAt  DateTime?
@@ -624,7 +661,8 @@ model Terminal {
   updatedAt DateTime @updatedAt
 
   // Relations
-  company MassTransitCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   MassTransitCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  motorPark MotorPark?         @relation("TerminalPark", fields: [motorParkId], references: [id], onDelete: SetNull)
 
   @@index([companyId])
 }

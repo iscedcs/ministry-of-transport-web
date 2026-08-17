@@ -10,7 +10,11 @@ export interface PrintingItem {
     | "LETTER_OF_AUTHORITY"
     | "PARK_STAFF_ID_CARD"
     | "BOAT_PERMIT"
-    | "REVALIDATION_CERTIFICATE";
+    | "REVALIDATION_CERTIFICATE"
+    | "PARK_CERTIFICATE"
+    | "TEMPORAL_APPROVAL"
+    | "PARK_STAFF"
+    | "MASS_TRANSIT_LETTER";
   title: string;
   subtitle: string;
   refOrCode: string;
@@ -55,6 +59,10 @@ export async function getIctPrintingQueues(searchQuery = "") {
         parkStaffCount: 0,
         boatPermitsCount: 0,
         revalidationCount: 0,
+        parkCertificateCount: 0,
+        temporalCount: 0,
+        parkStaffCardCount: 0,
+        massTransitCount: 0,
       },
       items: [],
       driverItems: [],
@@ -62,6 +70,10 @@ export async function getIctPrintingQueues(searchQuery = "") {
       parkStaffItems: [],
       boatItems: [],
       revalidationItems: [],
+      parkCertificateItems: [],
+      temporalItems: [],
+      parkStaffCardItems: [],
+      massTransitItems: [],
     };
   }
 
@@ -132,6 +144,97 @@ export async function getIctPrintingQueues(searchQuery = "") {
       })
     : [];
 
+  // 4b. Park staff ID cards — Ministry queue only.
+  // Distinct from the park MONITOR badges above: monitors are the Special
+  // Enforcement Unit, park staff are onboarded to a specific park. Their cards
+  // were not reaching the printing queue at all.
+  const parkStaff = includeMinistryQueues
+    ? await db.parkStaff.findMany({
+        where: { status: "ACTIVE" },
+        take: 200,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          securityCode: true,
+          parkSerialNumber: true,
+          photoUrl: true,
+          status: true,
+          createdAt: true,
+          motorParkId: true,
+          motorPark: { select: { businessName: true } },
+        },
+      })
+    : [];
+
+  // 4c. Mass transit approval letters — Ministry queue only.
+  // The letter goes to the company; each terminal's certificate reaches the
+  // queue through its own park record.
+  const fleetOperators = includeMinistryQueues
+    ? await db.massTransitCompany.findMany({
+        where: {
+          applicationStatus: { in: ["APPROVED", "TEMPORAL_APPROVAL"] },
+          permitNumber: { not: null },
+        },
+        take: 100,
+        orderBy: { permitIssuedAt: "desc" },
+        select: {
+          id: true,
+          companyName: true,
+          permitNumber: true,
+          permitIssuedAt: true,
+          applicationStatus: true,
+          currentFleetSize: true,
+          _count: { select: { terminals: true } },
+        },
+      })
+    : [];
+
+  // 4d. Parks created from mass transit terminals — each displays its own
+  // certificate, exactly as a standalone motor park does.
+  const terminalParks = includeMinistryQueues
+    ? await db.motorPark.findMany({
+        where: {
+          terminal: { isNot: null },
+          applicationStatus: { in: ["APPROVED", "TEMPORAL_APPROVAL"] },
+        },
+        take: 200,
+        orderBy: { permitIssuedAt: "desc" },
+        select: {
+          id: true,
+          businessName: true,
+          transportCompanyName: true,
+          parkId: true,
+          permitNumber: true,
+          permitIssuedAt: true,
+          applicationStatus: true,
+        },
+      })
+    : [];
+
+  // 5a. Motor parks on a temporal approval — Ministry queue only.
+  // The certificate is printable the moment the approval is issued, so it
+  // belongs here alongside every other printable.
+  const temporalParks = includeMinistryQueues
+    ? await db.motorPark.findMany({
+        where: { applicationStatus: "TEMPORAL_APPROVAL" },
+        take: 100,
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          businessName: true,
+          lga: true,
+          townCity: true,
+          permitNumber: true,
+          parkId: true,
+          permitExpiresAt: true,
+          applicationStatus: true,
+          updatedAt: true,
+        },
+      })
+    : [];
+
   // 5. Fetch approved Revalidation Certificates — Ministry queue only.
   // Issued once the Commissioner signs, so the letter carries a signature.
   const revalidations = includeMinistryQueues
@@ -149,6 +252,7 @@ export async function getIctPrintingQueues(searchQuery = "") {
           commissionerApprovedAt: true,
           validUntil: true,
           status: true,
+          approvalType: true,
         },
       })
     : [];
@@ -220,12 +324,79 @@ export async function getIctPrintingQueues(searchQuery = "") {
     photoUrl: null,
   }));
 
+  // Two printables per approved revalidation: the letter conveying the
+  // decision, and the certificate the park displays.
+  const parkCertificateItems: PrintingItem[] = revalidations.map((r) => ({
+    id: `cert-${r.id}`,
+    category: "PARK_CERTIFICATE",
+    title: `${r.parkName}`,
+    subtitle: `${r.approvalType === "TEMPORAL" ? "Temporal" : "Full"} approval certificate · ${[r.townCommunity, r.lga].filter(Boolean).join(", ") || "Anambra State"}`,
+    refOrCode: `Cert: ${r.revalidationNumber ?? "N/A"}`,
+    issueDate: r.commissionerApprovedAt,
+    status: r.status,
+    printUrl: `/admin/revalidation-queue/${r.id}/park-certificate`,
+    photoUrl: null,
+  }));
+
+  const terminalCertificateItems: PrintingItem[] = terminalParks.map((p) => ({
+    id: `term-${p.id}`,
+    category: "PARK_CERTIFICATE",
+    title: p.businessName,
+    subtitle: `${p.transportCompanyName ?? "Terminal"} · ${p.applicationStatus === "TEMPORAL_APPROVAL" ? "Temporal" : "Full"} approval`,
+    refOrCode: `Park ID: ${p.parkId ?? p.permitNumber ?? "N/A"}`,
+    issueDate: p.permitIssuedAt,
+    status: p.applicationStatus,
+    printUrl: `/motor-parks/${p.id}/park-certificate`,
+    photoUrl: null,
+  }));
+
+  const massTransitItems: PrintingItem[] = fleetOperators.map((c) => ({
+    id: c.id,
+    category: "MASS_TRANSIT_LETTER",
+    title: c.companyName,
+    subtitle: `${c.applicationStatus === "TEMPORAL_APPROVAL" ? "Temporal" : "Full"} approval · ${c._count.terminals} terminal(s) · ${c.currentFleetSize} vehicle(s)`,
+    refOrCode: `Permit: ${c.permitNumber ?? "N/A"}`,
+    issueDate: c.permitIssuedAt,
+    status: c.applicationStatus,
+    printUrl: `/fleet-operators/${c.id}/approval-letter`,
+    photoUrl: null,
+  }));
+
+  const parkStaffCardItems: PrintingItem[] = parkStaff.map((st) => ({
+    id: st.id,
+    category: "PARK_STAFF",
+    title: st.name,
+    subtitle: `${st.role} · ${st.motorPark.businessName}`,
+    refOrCode: `Code: ${st.securityCode}`,
+    issueDate: st.createdAt,
+    status: st.status,
+    printUrl: `/motor-parks/${st.motorParkId}/staff/${st.id}/id-card`,
+    photoUrl: st.photoUrl,
+  }));
+
+  const temporalItems: PrintingItem[] = temporalParks.map((p) => ({
+    id: p.id,
+    category: "TEMPORAL_APPROVAL",
+    title: p.businessName,
+    subtitle: `Temporal approval · ${[p.townCity, p.lga].filter(Boolean).join(", ") || "Anambra State"}`,
+    refOrCode: `Park ID: ${p.parkId ?? p.permitNumber ?? "N/A"}`,
+    issueDate: p.updatedAt,
+    status: p.applicationStatus,
+    printUrl: `/motor-parks/${p.id}/approval-letter`,
+    photoUrl: null,
+  }));
+
   const allItems = [
     ...driverItems,
     ...vehicleItems,
     ...parkStaffItems,
     ...boatItems,
     ...revalidationItems,
+    ...parkCertificateItems,
+    ...temporalItems,
+    ...parkStaffCardItems,
+    ...massTransitItems,
+    ...terminalCertificateItems,
   ];
 
   const filterFn = (i: PrintingItem) =>
@@ -244,6 +415,11 @@ export async function getIctPrintingQueues(searchQuery = "") {
       parkStaffCount: parkStaffItems.length,
       boatPermitsCount: boatItems.length,
       revalidationCount: revalidationItems.length,
+      parkCertificateCount:
+        parkCertificateItems.length + terminalCertificateItems.length,
+      temporalCount: temporalItems.length,
+      parkStaffCardCount: parkStaffCardItems.length,
+      massTransitCount: massTransitItems.length,
     },
     items: allItems.filter(filterFn),
     driverItems: driverItems.filter(filterFn),
@@ -251,5 +427,12 @@ export async function getIctPrintingQueues(searchQuery = "") {
     parkStaffItems: parkStaffItems.filter(filterFn),
     boatItems: boatItems.filter(filterFn),
     revalidationItems: revalidationItems.filter(filterFn),
+    parkCertificateItems: [
+      ...parkCertificateItems,
+      ...terminalCertificateItems,
+    ].filter(filterFn),
+    temporalItems: temporalItems.filter(filterFn),
+    parkStaffCardItems: parkStaffCardItems.filter(filterFn),
+    massTransitItems: massTransitItems.filter(filterFn),
   };
 }

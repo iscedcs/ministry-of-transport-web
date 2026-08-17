@@ -12,6 +12,8 @@ import {
   ExternalLink,
   CheckCircle2,
   FileCheck,
+  Award,
+  Clock,
   Filter,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +33,10 @@ export function IctPrintingClient({
       parkStaffCount: number;
       boatPermitsCount: number;
       revalidationCount: number;
+      parkCertificateCount: number;
+      temporalCount: number;
+      parkStaffCardCount: number;
+      massTransitCount: number;
     };
     items: PrintingItem[];
     driverItems: PrintingItem[];
@@ -38,6 +44,10 @@ export function IctPrintingClient({
     parkStaffItems: PrintingItem[];
     boatItems: PrintingItem[];
     revalidationItems: PrintingItem[];
+    parkCertificateItems: PrintingItem[];
+    temporalItems: PrintingItem[];
+    parkStaffCardItems: PrintingItem[];
+    massTransitItems: PrintingItem[];
   };
 }) {
   /**
@@ -54,6 +64,10 @@ export function IctPrintingClient({
     | "PARK_STAFF_ID_CARD"
     | "BOAT_PERMIT"
     | "REVALIDATION_CERTIFICATE"
+    | "PARK_CERTIFICATE"
+    | "TEMPORAL_APPROVAL"
+    | "PARK_STAFF"
+    | "MASS_TRANSIT_LETTER"
   >("ALL");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -68,6 +82,14 @@ export function IctPrintingClient({
     else if (activeTab === "BOAT_PERMIT") source = initialData.boatItems;
     else if (activeTab === "REVALIDATION_CERTIFICATE")
       source = initialData.revalidationItems;
+    else if (activeTab === "PARK_CERTIFICATE")
+      source = initialData.parkCertificateItems;
+    else if (activeTab === "TEMPORAL_APPROVAL")
+      source = initialData.temporalItems;
+    else if (activeTab === "PARK_STAFF")
+      source = initialData.parkStaffCardItems;
+    else if (activeTab === "MASS_TRANSIT_LETTER")
+      source = initialData.massTransitItems;
 
     if (!searchQuery.trim()) return source;
     const q = searchQuery.toLowerCase();
@@ -223,6 +245,48 @@ export function IctPrintingClient({
           </p>
         </button>
         )}
+
+        {!isTracasScoped && (
+        <button
+          onClick={() => setActiveTab("PARK_CERTIFICATE")}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            activeTab === "PARK_CERTIFICATE"
+              ? "bg-primary/10 border-primary shadow-md"
+              : "bg-card border-border hover:border-primary/50"
+          }`}>
+          <div className="flex items-center justify-between">
+            <Award className="w-5 h-5 text-amber-500" />
+            <Badge variant="outline" className="font-bold text-xs">
+              {initialData.stats.parkCertificateCount}
+            </Badge>
+          </div>
+          <p className="font-bold text-base mt-2">Park Certificates</p>
+          <p className="text-xs text-muted-foreground">
+            Revalidation certificates for display
+          </p>
+        </button>
+        )}
+
+        {!isTracasScoped && (
+        <button
+          onClick={() => setActiveTab("TEMPORAL_APPROVAL")}
+          className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            activeTab === "TEMPORAL_APPROVAL"
+              ? "bg-primary/10 border-primary shadow-md"
+              : "bg-card border-border hover:border-primary/50"
+          }`}>
+          <div className="flex items-center justify-between">
+            <Clock className="w-5 h-5 text-orange-500" />
+            <Badge variant="outline" className="font-bold text-xs">
+              {initialData.stats.temporalCount}
+            </Badge>
+          </div>
+          <p className="font-bold text-base mt-2">Temporal Approvals</p>
+          <p className="text-xs text-muted-foreground">
+            Motor parks operating temporarily
+          </p>
+        </button>
+        )}
       </div>
 
       {/* Search and Navigation Bar */}
@@ -264,7 +328,7 @@ export function IctPrintingClient({
                     ? "bg-primary text-primary-foreground shadow-xs"
                     : "bg-muted text-muted-foreground hover:text-foreground"
                 }`}>
-                Park Staff ({initialData.stats.parkStaffCount})
+                Park Monitors ({initialData.stats.parkStaffCount})
               </button>
               <button
                 onClick={() => setActiveTab("BOAT_PERMIT")}
@@ -283,6 +347,42 @@ export function IctPrintingClient({
                     : "bg-muted text-muted-foreground hover:text-foreground"
                 }`}>
                 Revalidation ({initialData.stats.revalidationCount})
+              </button>
+              <button
+                onClick={() => setActiveTab("PARK_CERTIFICATE")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                  activeTab === "PARK_CERTIFICATE"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}>
+                Certificates ({initialData.stats.parkCertificateCount})
+              </button>
+              <button
+                onClick={() => setActiveTab("TEMPORAL_APPROVAL")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                  activeTab === "TEMPORAL_APPROVAL"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}>
+                Temporal ({initialData.stats.temporalCount})
+              </button>
+              <button
+                onClick={() => setActiveTab("PARK_STAFF")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                  activeTab === "PARK_STAFF"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}>
+                Park Staff Cards ({initialData.stats.parkStaffCardCount})
+              </button>
+              <button
+                onClick={() => setActiveTab("MASS_TRANSIT_LETTER")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                  activeTab === "MASS_TRANSIT_LETTER"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}>
+                Mass Transit ({initialData.stats.massTransitCount})
               </button>
             </>
           )}

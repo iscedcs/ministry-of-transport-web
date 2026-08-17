@@ -23,6 +23,8 @@
  */
 
 import { db } from "@/lib/db";
+import { getNumberSetting } from "@/lib/system-config";
+import { nextParkId } from "@/lib/park-id";
 import { requireRole, requireAuth, authorize } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
@@ -50,10 +52,15 @@ const INSPECTOR_ROLES = [
 const MIN_TEAM = 2;
 const MAX_TEAM = 4;
 
-/** Months a certificate runs for, by approval type. */
-const VALIDITY_MONTHS = { TEMPORAL: 6, PERMANENT: 12 } as const;
+export type ApprovalType = "TEMPORAL" | "PERMANENT";
 
-export type ApprovalType = keyof typeof VALIDITY_MONTHS;
+/**
+ * Identifiers are built so every segment means something:
+ *   ANS  Anambra State
+ *   MOT  Ministry of Transport
+ *   REV  Revalidation   TMP  Temporal approval   PK  Park
+ */
+const CERT_PREFIX = { TEMPORAL: "ANS-MOT-TMP", PERMANENT: "ANS-MOT-REV" } as const;
 
 function touch(applicationId: string) {
   revalidatePath(`/admin/revalidation-queue/${applicationId}`);
@@ -554,14 +561,22 @@ export async function commissionerApproveRevalidation(
   const count = await db.revalidationApplication.count({
     where: { status: "APPROVED", approvedAt: { gte: new Date(currentYear, 0, 1) } },
   });
-  const seq = String(count + 1).padStart(4, "0");
-  // A temporal permit is numbered distinctly so it is never mistaken for a
+  const seq = String(count + 1).padStart(5, "0");
+  // A temporal approval is numbered distinctly so it is never mistaken for a
   // full revalidation on paper.
-  const prefix = approvalType === "TEMPORAL" ? "AN-TMP" : "AN-REV";
-  const revalidationNumber = `${prefix}-${currentYear}-${seq}`;
+  const revalidationNumber = `${CERT_PREFIX[approvalType]}-${currentYear}/${seq}`;
+
+  // How long the certificate runs is a Ministry setting, not a constant — see
+  // System Config, Certificate Validity.
+  const validityMonths =
+    (await getNumberSetting(
+      approvalType === "TEMPORAL"
+        ? "revalidation.validity.temporalMonths"
+        : "revalidation.validity.permanentMonths",
+    )) || (approvalType === "TEMPORAL" ? 6 : 12);
 
   const validUntil = new Date();
-  validUntil.setMonth(validUntil.getMonth() + VALIDITY_MONTHS[approvalType]);
+  validUntil.setMonth(validUntil.getMonth() + validityMonths);
 
   const app = await db.revalidationApplication.update({
     where: { id: applicationId },
@@ -623,6 +638,9 @@ export async function commissionerApproveRevalidation(
         permitExpiresAt: validUntil,
         permitNumber: existingPark.permitNumber || revalidationNumber,
         permitIssuedAt: existingPark.permitIssuedAt || new Date(),
+        // Assigned once and never reissued — it identifies the park itself,
+        // not this particular certificate.
+        parkId: existingPark.parkId ?? (await nextParkId()),
       },
     });
   } else if (app.applicantUserId) {
@@ -645,6 +663,7 @@ export async function commissionerApproveRevalidation(
         permitExpiresAt: validUntil,
         permitNumber: revalidationNumber,
         permitIssuedAt: new Date(),
+        parkId: await nextParkId(),
         lastRevalidatedAt: new Date(),
         nextRevalidationDue: validUntil,
         approvedAt: new Date(),

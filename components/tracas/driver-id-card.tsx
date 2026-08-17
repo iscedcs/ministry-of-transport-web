@@ -53,10 +53,10 @@ const fmt = (date: Date | string | null | undefined, fallback = "—") => {
 function BackRow({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="flex items-baseline justify-between gap-2 leading-tight">
-      <span className="text-[10px] font-extrabold uppercase tracking-wide text-gray-500 flex-shrink-0">
+      <span className="text-[12px] font-extrabold uppercase tracking-wide text-gray-500 flex-shrink-0">
         {label}
       </span>
-      <span className="text-[11px] font-bold text-slate-900 text-right truncate">
+      <span className="text-[13px] font-bold text-slate-900 text-right truncate">
         {value || "—"}
       </span>
     </div>
@@ -114,7 +114,10 @@ export function DriverIdCard({
         dangerouslySetInnerHTML={{
           __html: `
           @media print {
-            @page { size: A4 portrait; margin: 12mm; }
+            /* CR80 (ISO/IEC 7810 ID-1). The card is laid out at exactly twice
+               CR80 at 96dpi, so scaling by 0.5 lands it at 53.98 x 85.60 mm
+               on paper — an exact factor, not an approximation. */
+            @page { size: 53.98mm 85.6mm; margin: 0; }
 
             aside, header, nav, .no-print { display: none !important; }
             body * { visibility: hidden !important; }
@@ -134,22 +137,32 @@ export function DriverIdCard({
               position: absolute !important;
               top: 0 !important;
               left: 0 !important;
-              width: 100% !important;
+              width: auto !important;
               margin: 0 !important;
               padding: 0 !important;
-              gap: 12mm !important;
-              break-inside: avoid !important;
-              page-break-inside: avoid !important;
+              gap: 0 !important;
+              display: block !important;
             }
 
-            /* Cards keep their exact pixel geometry so the printed card
-               matches the on-screen proof and laminate pouch. */
+            /* Each face is its own CR80 page: front, then back. */
+            /* zoom, not transform: a transform leaves the element occupying
+               its full 408x647px in layout, so each face overflowed onto a
+               second sheet. zoom scales the layout box as well. */
             #id-card-sheet [data-face] {
+              zoom: 0.5;
               box-shadow: none !important;
+              border-radius: 0 !important;
+              margin: 0 !important;
               break-inside: avoid !important;
               page-break-inside: avoid !important;
+              break-after: page;
+              page-break-after: always;
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
+            }
+            #id-card-sheet [data-face]:last-child {
+              break-after: auto;
+              page-break-after: auto;
             }
           }
         `,
@@ -170,7 +183,7 @@ export function DriverIdCard({
         {/* ══════════════════ FRONT ══════════════════ */}
         <div
           data-face="front"
-          className="w-[320px] h-[560px] border-2 border-primary rounded-2xl overflow-hidden shadow-xl bg-white text-black flex flex-col"
+          className="w-[408px] h-[647px] border-2 border-primary rounded-2xl overflow-hidden shadow-xl bg-white text-black flex flex-col"
           style={{
             WebkitPrintColorAdjust: "exact",
             printColorAdjust: "exact",
@@ -180,10 +193,10 @@ export function DriverIdCard({
             <h2 className="font-extrabold uppercase text-sm leading-tight tracking-wide">
               Ministry of Transport
             </h2>
-            <p className="text-[12px] uppercase opacity-90 font-semibold">
+            <p className="text-[14px] uppercase opacity-90 font-semibold">
               Anambra State
             </p>
-            <span className="absolute top-2.5 right-2 bg-emerald-500 text-white text-[11px] font-extrabold uppercase px-1.5 py-0.5 rounded shadow-xs">
+            <span className="absolute top-2.5 right-2 bg-emerald-500 text-white text-[13px] font-extrabold uppercase px-1.5 py-0.5 rounded shadow-xs">
               {driver.status === "ACTIVE" || !driver.status
                 ? "Active"
                 : driver.status}
@@ -193,7 +206,7 @@ export function DriverIdCard({
           {/* Card Body */}
           <div className="flex-1 flex flex-col items-center px-5 pt-5 pb-4">
             {/* Driver Photo — the dominant element on the front */}
-            <div className="w-[152px] h-[180px] rounded-xl overflow-hidden bg-gray-100 border-[3px] border-primary shadow-sm flex items-center justify-center flex-shrink-0">
+            <div className="w-[186px] h-[220px] rounded-xl overflow-hidden bg-gray-100 border-[3px] border-primary shadow-sm flex items-center justify-center flex-shrink-0">
               {driver.photoUrl ? (
                 <img
                   src={driver.photoUrl}
@@ -211,10 +224,10 @@ export function DriverIdCard({
             <h3 className="font-extrabold text-xl uppercase text-center leading-tight text-slate-900 mt-4 px-1">
               {driver.fullName}
             </h3>
-            <p className="text-[13px] text-primary font-extrabold uppercase tracking-wider text-center mt-1">
+            <p className="text-[15px] text-primary font-extrabold uppercase tracking-wider text-center mt-1">
               Commercial Driver
             </p>
-            <p className="text-[13px] text-gray-600 font-bold text-center mt-0.5 truncate max-w-[260px]">
+            <p className="text-[15px] text-gray-600 font-bold text-center mt-0.5 truncate max-w-[330px]">
               {driver.operatorAssociation ||
                 "Transport Company Of Anambra State"}
             </p>
@@ -222,7 +235,7 @@ export function DriverIdCard({
             {/* Credentials */}
             <div className="w-full bg-gray-50 px-3 py-2.5 rounded-xl mt-4 space-y-2 border border-gray-200">
               <div className="flex justify-between items-center">
-                <span className="text-[11px] text-gray-500 font-extrabold uppercase">
+                <span className="text-[13px] text-gray-500 font-extrabold uppercase">
                   Driver ID / Code
                 </span>
                 <span className="font-mono font-extrabold text-primary text-base tracking-wider">
@@ -230,10 +243,10 @@ export function DriverIdCard({
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-[11px] text-gray-500 font-extrabold uppercase">
+                <span className="text-[13px] text-gray-500 font-extrabold uppercase">
                   License Number
                 </span>
-                <span className="font-mono font-bold text-slate-900 text-[13px]">
+                <span className="font-mono font-bold text-slate-900 text-[15px]">
                   {driver.licenseNumber || "N/A"}
                 </span>
               </div>
@@ -242,18 +255,18 @@ export function DriverIdCard({
             {/* Validity band pinned to the foot of the card */}
             <div className="mt-auto w-full flex justify-between items-center bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
               <div className="text-left">
-                <p className="text-[10px] uppercase font-extrabold text-gray-500 leading-none">
+                <p className="text-[12px] uppercase font-extrabold text-gray-500 leading-none">
                   Issued
                 </p>
-                <p className="text-[12px] font-extrabold text-slate-900 mt-0.5">
+                <p className="text-[14px] font-extrabold text-slate-900 mt-0.5">
                   {issueDateStr}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[10px] uppercase font-extrabold text-gray-500 leading-none">
+                <p className="text-[12px] uppercase font-extrabold text-gray-500 leading-none">
                   Expires
                 </p>
-                <p className="text-[12px] font-extrabold text-slate-900 mt-0.5">
+                <p className="text-[14px] font-extrabold text-slate-900 mt-0.5">
                   {expiryDateStr}
                 </p>
               </div>
@@ -264,14 +277,14 @@ export function DriverIdCard({
         {/* ══════════════════ BACK ══════════════════ */}
         <div
           data-face="back"
-          className="w-[320px] h-[560px] border-2 border-primary rounded-2xl overflow-hidden shadow-xl bg-white text-black flex flex-col"
+          className="w-[408px] h-[647px] border-2 border-primary rounded-2xl overflow-hidden shadow-xl bg-white text-black flex flex-col"
           style={{
             WebkitPrintColorAdjust: "exact",
             printColorAdjust: "exact",
           }}>
           {/* Slim header */}
           <div className="bg-primary text-primary-foreground px-3 py-1.5 text-center flex-shrink-0">
-            <p className="text-[12px] font-extrabold uppercase tracking-wider">
+            <p className="text-[14px] font-extrabold uppercase tracking-wider">
               Driver Identity Card · Reverse
             </p>
           </div>
@@ -285,14 +298,14 @@ export function DriverIdCard({
                 alt="Verification QR code"
               />
               <div className="min-w-0">
-                <p className="text-[12px] font-extrabold uppercase text-slate-900 leading-tight">
+                <p className="text-[14px] font-extrabold uppercase text-slate-900 leading-tight">
                   Scan to verify
                 </p>
-                <p className="text-[10px] text-gray-600 leading-snug mt-1">
+                <p className="text-[12px] text-gray-600 leading-snug mt-1">
                   Confirms this card against the Ministry of Transport register
                   in real time.
                 </p>
-                <p className="text-[10px] font-mono text-gray-500 mt-1.5">
+                <p className="text-[12px] font-mono text-gray-500 mt-1.5">
                   REF: <span className="font-extrabold">{securityCode}</span>
                   {driver.nin ? ` · NIN ****${driver.nin.slice(-4)}` : ""}
                 </p>
@@ -319,14 +332,14 @@ export function DriverIdCard({
 
             {/* Emergency contact */}
             <div className="mt-2.5 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
-              <p className="text-[10px] font-extrabold uppercase text-red-700 tracking-wide">
+              <p className="text-[12px] font-extrabold uppercase text-red-700 tracking-wide">
                 In case of emergency
               </p>
               <div className="flex items-baseline justify-between gap-2 mt-0.5">
-                <span className="text-[11px] font-bold text-slate-900 truncate">
+                <span className="text-[13px] font-bold text-slate-900 truncate">
                   {emergencyName || "—"}
                 </span>
-                <span className="text-[11px] font-mono font-extrabold text-slate-900 flex-shrink-0">
+                <span className="text-[13px] font-mono font-extrabold text-slate-900 flex-shrink-0">
                   {emergencyPhone || "—"}
                 </span>
               </div>
@@ -344,15 +357,15 @@ export function DriverIdCard({
                       className="absolute bottom-0 left-1/2 -translate-x-1/2 max-h-[34px] w-auto object-contain"
                     />
                   ) : (
-                    <span className="text-[9px] text-gray-400 italic mb-0.5">
+                    <span className="text-[11px] text-gray-400 italic mb-0.5">
                       pending
                     </span>
                   )}
                 </div>
-                <p className="text-[9px] uppercase font-extrabold text-gray-600 mt-0.5 leading-tight">
+                <p className="text-[11px] uppercase font-extrabold text-gray-600 mt-0.5 leading-tight">
                   Ag. MD/CEO
                 </p>
-                <p className="text-[9px] text-gray-500 leading-tight">TRACAS</p>
+                <p className="text-[11px] text-gray-500 leading-tight">TRACAS</p>
               </div>
 
               <div>
@@ -364,22 +377,22 @@ export function DriverIdCard({
                       className="absolute bottom-0 left-1/2 -translate-x-1/2 max-h-[34px] w-auto object-contain"
                     />
                   ) : (
-                    <span className="text-[9px] text-gray-400 italic mb-0.5">
+                    <span className="text-[11px] text-gray-400 italic mb-0.5">
                       pending
                     </span>
                   )}
                 </div>
-                <p className="text-[9px] uppercase font-extrabold text-gray-600 mt-0.5 leading-tight">
+                <p className="text-[11px] uppercase font-extrabold text-gray-600 mt-0.5 leading-tight">
                   Commissioner
                 </p>
-                <p className="text-[9px] text-gray-500 leading-tight">
+                <p className="text-[11px] text-gray-500 leading-tight">
                   Min. of Transport
                 </p>
               </div>
             </div>
 
             {/* Conditions of use */}
-            <p className="text-[9px] text-gray-600 leading-snug mt-auto pt-3">
+            <p className="text-[11px] text-gray-600 leading-snug mt-auto pt-3">
               This card remains the property of the Anambra State Ministry of
               Transport and must be surrendered on demand. It is
               non-transferable and valid only with a subsisting driver&apos;s
@@ -390,7 +403,7 @@ export function DriverIdCard({
 
           {/* Footer band */}
           <div className="bg-primary text-primary-foreground text-center py-1.5 px-2 flex-shrink-0">
-            <p className="text-[10px] font-extrabold uppercase tracking-wide">
+            <p className="text-[12px] font-extrabold uppercase tracking-wide">
               ✓ Verified by Anambra State Ministry of Transport
             </p>
           </div>

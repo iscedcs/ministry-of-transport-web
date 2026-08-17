@@ -22,6 +22,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { getNumberSetting } from "@/lib/system-config";
+import { nextParkIds, terminalDesignation } from "@/lib/park-id";
 import { sendInspectionApprovalNotification } from "@/lib/email";
 import {
   requireAuth,
@@ -85,6 +87,14 @@ const fleetCompanySchema = z.object({
   corporateAsinDocumentId: z
     .string()
     .min(1, "Corporate ASIN certificate is required"),
+
+  // Facility photographs for the terminal. Optional on the schema so an
+  // application already in flight is not invalidated; the form requires them.
+  toiletPhotoId: z.string().optional(),
+  waitingAreaPhotoId: z.string().optional(),
+  signagePhotoId: z.string().optional(),
+  waterFacilityPhotoId: z.string().optional(),
+  cctvPhotoId: z.string().optional(),
 });
 
 // ==================== APPLICATION (FR-020 / FR-021 / FR-022, STORY-041) ====================
@@ -98,7 +108,7 @@ export async function submitFleetApplication(
   prevState: ActionResult<{ companyId: string }> | undefined,
   formData: FormData,
 ): Promise<ActionResult<{ companyId: string }>> {
-  const session = await requireRole(["EXTERNAL_APPLICANT"]);
+  const session = await requireRole(["EXTERNAL_APPLICANT", "ENUMERATOR"]);
 
   // Parse vehicle counts (simplified: just type + count)
   const vehicleCountsRaw = formData.get("vehicleTypesJson") as string;
@@ -180,6 +190,11 @@ export async function submitFleetApplication(
     cacDocumentId: formData.get("cacDocumentId"),
     landOwnershipDocId: formData.get("landOwnershipDocId"),
     corporateAsinDocumentId: formData.get("corporateAsinDocumentId"),
+    toiletPhotoId: formData.get("toiletPhotoId"),
+    waitingAreaPhotoId: formData.get("waitingAreaPhotoId"),
+    signagePhotoId: formData.get("signagePhotoId"),
+    waterFacilityPhotoId: formData.get("waterFacilityPhotoId"),
+    cctvPhotoId: formData.get("cctvPhotoId"),
   });
 
   if (!companyParsed.success) {
@@ -229,6 +244,11 @@ export async function submitFleetApplication(
         cacDocumentId: companyData.cacDocumentId,
         landOwnershipDocId: companyData.landOwnershipDocId,
         corporateAsinDocumentId: companyData.corporateAsinDocumentId,
+        toiletPhotoId: companyData.toiletPhotoId || null,
+        waitingAreaPhotoId: companyData.waitingAreaPhotoId || null,
+        signagePhotoId: companyData.signagePhotoId || null,
+        waterFacilityPhotoId: companyData.waterFacilityPhotoId || null,
+        cctvPhotoId: companyData.cctvPhotoId || null,
         applicationStatus: "SUBMITTED",
         currentFleetSize: vehicleCounts.reduce((sum: number, vc: unknown) => {
           const parsed = vehicleTypeCountSchema.safeParse(vc);
@@ -458,6 +478,10 @@ export type FleetApplicationDetail = {
     completedAt: Date | null;
     overallAssessment: string | null;
     recommendedAction: string | null;
+    /** Item-by-item verification recorded on site. */
+    inspectionChecklist: unknown;
+    /** Photographs taken at the terminal. */
+    evidenceUrls: unknown;
     assignedTo: { firstName: string; lastName: string };
   }[];
   /** True when a COMPLETED TRANSIT_REGISTRATION payment exists for this company. */
@@ -577,6 +601,9 @@ export async function getFleetApplication(
       completedAt: true,
       overallAssessment: true,
       recommendedAction: true,
+      // Without these the HOD saw a recommendation with nothing behind it.
+      inspectionChecklist: true,
+      evidenceUrls: true,
       assignedTo: { select: { firstName: true, lastName: true } },
     },
     orderBy: { scheduledDate: "desc" },
@@ -650,7 +677,7 @@ export async function addVehicle(
   prevState: ActionResult<{ vehicleId: string }> | undefined,
   formData: FormData,
 ): Promise<ActionResult<{ vehicleId: string }>> {
-  const session = await requireRole(["EXTERNAL_APPLICANT"]);
+  const session = await requireRole(["EXTERNAL_APPLICANT", "ENUMERATOR"]);
 
   const companyId = formData.get("companyId") as string;
   if (!companyId) return { success: false, error: "Company ID required" };
@@ -952,6 +979,40 @@ export async function submitTerminalInspectionReport(
   const overallAssessment = (formData.get("overallAssessment") as string) || "";
   const recommendedAction = formData.get("recommendedAction") as string;
 
+  // The checklist and the photographs are the substance of the report; the
+  // free-text assessment on its own gave the HOD nothing specific to weigh.
+  const parseJson = (v: FormDataEntryValue | null) => {
+    if (typeof v !== "string" || !v) return null;
+    try {
+      return JSON.parse(v);
+    } catch {
+      return null;
+    }
+  };
+  const checklist = parseJson(formData.get("checklist"));
+  const evidenceUrls = parseJson(formData.get("evidenceUrls"));
+
+  const unanswered = Array.isArray(checklist)
+    ? checklist.filter(
+        (i) =>
+          !i ||
+          typeof i !== "object" ||
+          (i as { verified?: unknown }).verified == null,
+      ).length
+    : 0;
+  if (unanswered > 0) {
+    return {
+      success: false,
+      error: `${unanswered} checklist item(s) are unanswered.`,
+    };
+  }
+  if (!Array.isArray(evidenceUrls) || evidenceUrls.length === 0) {
+    return {
+      success: false,
+      error: "At least one site photograph must be attached.",
+    };
+  }
+
   if (!companyId || !inspectionId) {
     return {
       success: false,
@@ -982,6 +1043,8 @@ export async function submitTerminalInspectionReport(
         status: "COMPLETED",
         overallAssessment,
         recommendedAction,
+        inspectionChecklist: checklist ?? undefined,
+        evidenceUrls: evidenceUrls ?? undefined,
         completedAt: new Date(),
         completedByUserId: session.userId,
       },
@@ -1213,11 +1276,54 @@ export async function issuePermitToOperate(
   const companyId = formData.get("companyId") as string;
   const approvalNotes = (formData.get("approvalNotes") as string) || "";
 
+  // Mass transit is approved either temporally or in full, exactly as a
+  // revalidation is. The choice drives the wording on the letter and the
+  // terminal certificates, the validity period, and the permit number.
+  const approvalType =
+    (formData.get("approvalType") as string) === "TEMPORAL"
+      ? "TEMPORAL"
+      : "PERMANENT";
+  const isTemporal = approvalType === "TEMPORAL";
+
   if (!companyId) return { success: false, error: "Company ID required" };
 
   const company = await db.massTransitCompany.findUnique({
     where: { id: companyId },
-    select: { id: true, applicationStatus: true, companyName: true },
+    select: {
+      id: true,
+      applicationStatus: true,
+      companyName: true,
+      contactPerson: true,
+      contactPhone: true,
+      contactEmail: true,
+      contactUserId: true,
+      asinNumber: true,
+      cacNumber: true,
+      monthlyLevyAmount: true,
+      // A terminal becomes a park on approval, so everything a park needs is
+      // read here.
+      toiletPhotoId: true,
+      waitingAreaPhotoId: true,
+      signagePhotoId: true,
+      waterFacilityPhotoId: true,
+      cctvPhotoId: true,
+      landOwnershipDocId: true,
+      cacDocumentId: true,
+      corporateAsinDocumentId: true,
+      terminals: {
+        select: {
+          id: true,
+          terminalNumber: true,
+          motorParkId: true,
+          locationAddress: true,
+          managerName: true,
+          managerPhone: true,
+          managerEmail: true,
+          managerResidentialAddress: true,
+        },
+        orderBy: { terminalNumber: "asc" },
+      },
+    },
   });
 
   if (!company) return { success: false, error: "Fleet application not found" };
@@ -1230,47 +1336,126 @@ export async function issuePermitToOperate(
     };
   }
 
+  // Every segment means something:
+  //   ANS Anambra State · MOT Ministry of Transport
+  //   MTC Mass Transit Company · MTT Mass Transit Temporal
   const year = new Date().getFullYear();
+  const prefix = isTemporal ? "ANS-MOT-MTT" : "ANS-MOT-MTC";
   const count = await db.massTransitCompany.count({
-    where: { permitNumber: { startsWith: `MOT/PTO/${year}/` } },
+    where: { permitNumber: { startsWith: `${prefix}-${year}/` } },
   });
-  const permitNumber = `MOT/PTO/${year}/${String(count + 1).padStart(4, "0")}`;
+  const permitNumber = `${prefix}-${year}/${String(count + 1).padStart(5, "0")}`;
 
-  const oneYearFromNow = new Date();
-  oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+  // How long the approval runs is a Ministry setting, not a constant.
+  const validityMonths =
+    (await getNumberSetting(
+      isTemporal
+        ? "masstransit.validity.temporalMonths"
+        : "masstransit.validity.permanentMonths",
+    )) || (isTemporal ? 6 : 12);
+
+  const expiresAt = new Date();
+  expiresAt.setMonth(expiresAt.getMonth() + validityMonths);
 
   const now = new Date();
+
+  // Terminals that do not yet have a park. Re-issuing a permit must not create
+  // a second park for a terminal that already has one.
+  const pendingTerminals = company.terminals.filter((t) => !t.motorParkId);
+  const parkIds = await nextParkIds(pendingTerminals.length);
+
   await db.$transaction(async (tx) => {
     await tx.massTransitCompany.update({
       where: { id: companyId },
       data: {
-        applicationStatus: "APPROVED",
+        applicationStatus: isTemporal ? "TEMPORAL_APPROVAL" : "APPROVED",
         permitStatus: "ACTIVE",
         permitNumber,
         permitIssuedAt: now,
-        permitExpiresAt: oneYearFromNow,
-        nextRevalidationDue: oneYearFromNow,
+        permitExpiresAt: expiresAt,
+        nextRevalidationDue: expiresAt,
         approvedAt: now,
         commissionerApprovedAt: now,
         approvedByUserId: session.userId,
       },
     });
 
+    // ── Each terminal becomes a real motor park ──────────────────────────
+    // It then inherits park staff, revalidation, inspections and the
+    // certificate, rather than needing a parallel implementation.
+    for (const [i, terminal] of pendingTerminals.entries()) {
+      const designation = terminalDesignation(
+        company.companyName,
+        terminal.terminalNumber,
+      );
+
+      const park = await tx.motorPark.create({
+        data: {
+          businessName: company.companyName,
+          transportCompanyName: designation,
+          streetAddress: terminal.locationAddress,
+          // The terminal record carries a single address line; the LGA and
+          // town are filled in by the HOD on the park record afterwards.
+          lga: "",
+          townCity: "",
+          // anssidNumber is unique per park, so each terminal is suffixed
+          // rather than reusing the company's number.
+          anssidNumber: `${company.asinNumber}-T${terminal.terminalNumber}`,
+          cacRegistrationNumber: company.cacNumber,
+          parkId: parkIds[i],
+
+          contactUserId: company.contactUserId,
+          contactPerson: terminal.managerName || company.contactPerson,
+          contactPhone: terminal.managerPhone || company.contactPhone,
+          contactEmail: terminal.managerEmail || company.contactEmail,
+          managerResidentialAddress: terminal.managerResidentialAddress,
+
+          landOwnershipDocId: company.landOwnershipDocId,
+          cacDocumentId: company.cacDocumentId,
+          corporateAsinDocumentId: company.corporateAsinDocumentId,
+          toiletPhotoId: company.toiletPhotoId,
+          waitingAreaPhotoId: company.waitingAreaPhotoId,
+          signagePhotoId: company.signagePhotoId,
+          waterFacilityPhotoId: company.waterFacilityPhotoId,
+          cctvPhotoId: company.cctvPhotoId,
+
+          // A terminal is only ever as approved as its company.
+          applicationStatus: isTemporal ? "TEMPORAL_APPROVAL" : "APPROVED",
+          permitStatus: "ACTIVE",
+          permitNumber: `${permitNumber}/T${terminal.terminalNumber}`,
+          permitIssuedAt: now,
+          permitExpiresAt: expiresAt,
+          nextRevalidationDue: expiresAt,
+          monthlyLevyAmount: company.monthlyLevyAmount,
+          approvedAt: now,
+          approvedByUserId: session.userId,
+        },
+        select: { id: true },
+      });
+
+      await tx.terminal.update({
+        where: { id: terminal.id },
+        data: { motorParkId: park.id },
+      });
+    }
+
     await tx.auditLog.create({
       data: {
         performedByUserId: session.userId,
-        action: "PERMIT_TO_OPERATE_ISSUED",
+        action: isTemporal
+          ? "TEMPORAL_APPROVAL_ISSUED"
+          : "PERMIT_TO_OPERATE_ISSUED",
         entityType: "MASS_TRANSIT",
         entityId: companyId,
-        changeDescription: approvalNotes
-          ? `Permit to Operate issued. Permit: ${permitNumber}. Notes: ${approvalNotes}`
-          : `Permit to Operate issued. Permit: ${permitNumber}`,
+        changeDescription: `${isTemporal ? "TEMPORAL" : "FULL"} approval granted. Permit: ${permitNumber}, valid ${validityMonths} months. ${pendingTerminals.length} terminal(s) registered as motor parks.${approvalNotes ? ` Notes: ${approvalNotes}` : ""}`,
       },
     });
   });
 
   revalidatePath(`/fleet-operators/${companyId}`);
   revalidatePath("/fleet-operators");
+  revalidatePath("/motor-parks");
+  revalidatePath("/ict-printing");
   return { success: true, data: { permitNumber } };
 }
 
@@ -1419,15 +1604,15 @@ export async function issueDriverProficiencyCard(
   });
   const cardNumber = `MOT/DPC/${year}/${String(count + 1).padStart(5, "0")}`;
 
-  const oneYearFromNow = new Date();
-  oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+  const expiresAt = new Date();
+  expiresAt.setFullYear(expiresAt.getFullYear() + 1);
 
   await db.$transaction(async (tx) => {
     const card = await tx.driverProficiencyCard.create({
       data: {
         cardNumber,
         issuedAt: new Date(),
-        expiresAt: oneYearFromNow,
+        expiresAt: expiresAt,
         issuedByAuthority: "Anambra State Ministry of Transport",
       },
       select: { id: true },
@@ -1437,7 +1622,7 @@ export async function issueDriverProficiencyCard(
       where: { id: driverId },
       data: {
         proficiencyCardId: card.id,
-        proficiencyCardExpiry: oneYearFromNow,
+        proficiencyCardExpiry: expiresAt,
       },
     });
 
@@ -1618,7 +1803,15 @@ export async function getPendingVehicleSubmissionRequests(): Promise<
       companyId: string;
       companyName: string;
       vehicleCount: number;
+      submittedCount: number;
       requestedAt: Date;
+      vehicles: {
+        id: string;
+        registrationNumber: string;
+        make: string;
+        model: string;
+        vehicleType: string;
+      }[];
     }>
   >
 > {
@@ -1635,6 +1828,16 @@ export async function getPendingVehicleSubmissionRequests(): Promise<
       vehicleCount: true,
       requestedAt: true,
       company: { select: { companyName: true } },
+      vehicles: {
+        select: {
+          id: true,
+          registrationNumber: true,
+          make: true,
+          model: true,
+          vehicleType: true,
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
     orderBy: { requestedAt: "desc" },
   });
@@ -1646,7 +1849,12 @@ export async function getPendingVehicleSubmissionRequests(): Promise<
       companyId: r.companyId,
       companyName: r.company.companyName,
       vehicleCount: r.vehicleCount,
+      submittedCount: r.vehicles.length,
       requestedAt: r.requestedAt,
+      vehicles: r.vehicles.map((v) => ({
+        ...v,
+        vehicleType: String(v.vehicleType),
+      })),
     })),
   };
 }
@@ -1655,6 +1863,212 @@ export async function getPendingVehicleSubmissionRequests(): Promise<
  * Applicant submits vehicle details in response to a VehicleSubmissionRequest.
  * Receives an array of vehicles to submit for the requested count.
  */
+/**
+ * One vehicle at a time.
+ *
+ * The operator declares a fleet size, then adds vehicles as they are ready —
+ * the outstanding count falls with each one (5 of 6, then 4 of 6). Requiring
+ * all of them in a single submission meant an operator with six vehicles had
+ * to hold every set of particulars before submitting anything.
+ *
+ * The request closes automatically once the declared number is reached.
+ */
+export async function addVehicleToSubmission(
+  submissionRequestId: string,
+  vehicle: unknown,
+): Promise<
+  ActionResult<{ submitted: number; declared: number; remaining: number }>
+> {
+  const session = await requireRole(["EXTERNAL_APPLICANT", "ENUMERATOR"]);
+
+  const request = await db.vehicleSubmissionRequest.findUnique({
+    where: { id: submissionRequestId },
+    select: {
+      id: true,
+      companyId: true,
+      vehicleCount: true,
+      status: true,
+      company: { select: { contactUserId: true } },
+      _count: { select: { vehicles: true } },
+    },
+  });
+
+  if (!request) {
+    return { success: false, error: "Vehicle submission request not found." };
+  }
+
+  // An enumerator onboards on the operator's behalf; the operator may only
+  // touch their own request.
+  const isOwner = request.company.contactUserId === session.userId;
+  if (!isOwner && session.role !== "ENUMERATOR") {
+    return { success: false, error: "Unauthorized." };
+  }
+
+  if (request.status !== "PENDING") {
+    return { success: false, error: "This request is no longer open." };
+  }
+
+  const submitted = request._count.vehicles;
+  if (submitted >= request.vehicleCount) {
+    return {
+      success: false,
+      error: `All ${request.vehicleCount} declared vehicles have already been submitted.`,
+    };
+  }
+
+  const parsed = vehicleDetailSchema.safeParse(vehicle);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message };
+  }
+  const v = parsed.data;
+
+  // Engine and chassis numbers are unique platform-wide; a clear message here
+  // beats a database constraint error.
+  const clash = await db.vehicle.findFirst({
+    where: {
+      OR: [
+        { engineNumber: v.engineNumber },
+        { chassisNumber: v.chassisNumber },
+        { registrationNumber: v.registrationNumber },
+      ],
+    },
+    select: { registrationNumber: true },
+  });
+  if (clash) {
+    return {
+      success: false,
+      error: `A vehicle with these particulars is already registered (${clash.registrationNumber}).`,
+    };
+  }
+
+  const nowSubmitted = submitted + 1;
+  const complete = nowSubmitted >= request.vehicleCount;
+
+  await db.$transaction(async (tx) => {
+    await tx.vehicleSubmission.create({
+      data: {
+        submissionRequestId,
+        registrationNumber: v.registrationNumber,
+        vehicleType: v.vehicleType,
+        make: v.make,
+        model: v.model,
+        engineNumber: v.engineNumber,
+        chassisNumber: v.chassisNumber,
+        routesServed: v.routesServed || null,
+        roadworthinessExpiry: v.roadworthinessExpiry
+          ? new Date(v.roadworthinessExpiry)
+          : null,
+      },
+    });
+
+    await tx.vehicle.create({
+      data: {
+        companyId: request.companyId,
+        registrationNumber: v.registrationNumber,
+        vehicleType: v.vehicleType,
+        make: v.make,
+        model: v.model,
+        engineNumber: v.engineNumber,
+        chassisNumber: v.chassisNumber,
+        routesServed: v.routesServed || null,
+        roadworthinessExpiry: v.roadworthinessExpiry
+          ? new Date(v.roadworthinessExpiry)
+          : null,
+        addedByUserId: session.userId,
+      },
+    });
+
+    await tx.massTransitCompany.update({
+      where: { id: request.companyId },
+      data: { currentFleetSize: { increment: 1 } },
+    });
+
+    // Only closes once every declared vehicle is in.
+    if (complete) {
+      await tx.vehicleSubmissionRequest.update({
+        where: { id: submissionRequestId },
+        data: { status: "SUBMITTED", submittedAt: new Date() },
+      });
+    }
+
+    await tx.auditLog.create({
+      data: {
+        performedByUserId: session.userId,
+        action: "VEHICLE_SUBMITTED",
+        entityType: "MASS_TRANSIT",
+        entityId: request.companyId,
+        changeDescription: `Vehicle ${v.registrationNumber} submitted (${nowSubmitted} of ${request.vehicleCount})${complete ? " — declaration complete" : ""}`,
+      },
+    });
+  });
+
+  revalidatePath("/fleet-operators/submit-vehicles");
+  revalidatePath(`/fleet-operators/${request.companyId}`);
+
+  return {
+    success: true,
+    data: {
+      submitted: nowSubmitted,
+      declared: request.vehicleCount,
+      remaining: request.vehicleCount - nowSubmitted,
+    },
+  };
+}
+
+/** Removes a vehicle submitted in error, while the request is still open. */
+export async function removeSubmittedVehicle(
+  submissionId: string,
+): Promise<ActionResult<void>> {
+  const session = await requireRole(["EXTERNAL_APPLICANT", "ENUMERATOR"]);
+
+  const submission = await db.vehicleSubmission.findUnique({
+    where: { id: submissionId },
+    select: {
+      id: true,
+      registrationNumber: true,
+      submissionRequest: {
+        select: {
+          id: true,
+          status: true,
+          companyId: true,
+          company: { select: { contactUserId: true } },
+        },
+      },
+    },
+  });
+
+  if (!submission) return { success: false, error: "Vehicle not found." };
+
+  const req = submission.submissionRequest;
+  const isOwner = req.company.contactUserId === session.userId;
+  if (!isOwner && session.role !== "ENUMERATOR") {
+    return { success: false, error: "Unauthorized." };
+  }
+  if (req.status !== "PENDING") {
+    return {
+      success: false,
+      error: "This declaration is closed and can no longer be edited.",
+    };
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.vehicleSubmission.delete({ where: { id: submissionId } });
+    await tx.vehicle.deleteMany({
+      where: {
+        companyId: req.companyId,
+        registrationNumber: submission.registrationNumber,
+      },
+    });
+    await tx.massTransitCompany.update({
+      where: { id: req.companyId },
+      data: { currentFleetSize: { decrement: 1 } },
+    });
+  });
+
+  revalidatePath("/fleet-operators/submit-vehicles");
+  return { success: true };
+}
+
 export async function submitVehicleDetails(
   prevState: ActionResult<void> | undefined,
   formData: FormData,

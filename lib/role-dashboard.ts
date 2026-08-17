@@ -61,6 +61,15 @@ const tracasLetters = (status: any) =>
 const tracasIdCards = (status: any) =>
   db.tracasDriver.count({ where: { idCardStatus: status } });
 
+const fleetOperators = (statuses: readonly string[]) =>
+  db.massTransitCompany.count({
+    where: { applicationStatus: { in: statuses as never } },
+  });
+
+/** Inspection schedules the PS has not yet cleared, across every module. */
+const pendingInspectionSchedules = () =>
+  db.inspection.count({ where: { status: "PENDING_PS_APPROVAL" } });
+
 const item = (
   key: string,
   label: string,
@@ -125,6 +134,36 @@ export async function getRoleDashboard(
           "/admin/revalidation-queue?status=APPROVALS",
         ),
       );
+    // Mass transit sits with the same HOD: schedule the terminal inspection,
+    // then recommend once the report and branding are in.
+    const [mtIntake, mtRecommend] = await Promise.all([
+      fleetOperators(["SUBMITTED", "UNDER_REVIEW"]),
+      // submitTerminalInspectionReport sets PENDING_HOD_APPROVAL; querying
+      // PENDING_APPROVAL meant a filed report never reached this dashboard.
+      fleetOperators(["PENDING_HOD_APPROVAL", "INSPECTION_COMPLETED"]),
+    ]);
+
+    if (mtIntake)
+      actions.push(
+        item(
+          "mt-intake",
+          "Mass transit applications to schedule",
+          "Schedule the terminal inspection",
+          mtIntake,
+          "/fleet-operators?status=SUBMITTED",
+        ),
+      );
+    if (mtRecommend)
+      actions.push(
+        item(
+          "mt-recommend",
+          "Mass transit awaiting your recommendation",
+          "Inspection and branding are in — forward to the PS",
+          mtRecommend,
+          "/fleet-operators?status=PENDING_HOD_APPROVAL",
+        ),
+      );
+
     if (returned)
       actions.push(
         item(
@@ -207,9 +246,11 @@ export async function getRoleDashboard(
 
   // ── Permanent Secretary: two distinct revalidation gates ────────────────
   if (isPs || isAdmin) {
-    const [psApproval, parkApproval] = await Promise.all([
+    const [psApproval, parkApproval, mtPs, schedules] = await Promise.all([
       revalidations(REVALIDATION_STAGES.PS_APPROVAL),
       motorParks(["PENDING_PS_APPROVAL"]),
+      fleetOperators(["PENDING_PS_APPROVAL"]),
+      pendingInspectionSchedules(),
     ]);
 
     if (psApproval)
@@ -232,15 +273,37 @@ export async function getRoleDashboard(
           "/motor-parks",
         ),
       );
+    if (mtPs)
+      actions.push(
+        item(
+          "ps-masstransit",
+          "Mass transit operators awaiting your approval",
+          "Approve to forward to the Commissioner",
+          mtPs,
+          "/fleet-operators?status=PENDING_PS_APPROVAL",
+        ),
+      );
+    // These only appeared on /inspections, so they were easy to miss entirely.
+    if (schedules)
+      actions.push(
+        item(
+          "ps-schedules",
+          "Inspection schedules to clear",
+          "Approve the date and officer before the inspection goes ahead",
+          schedules,
+          "/inspections?status=PENDING_PS_APPROVAL",
+        ),
+      );
   }
 
   // ── Commissioner: the final signature on four separate chains ───────────
   if (isCommissioner || isAdmin) {
-    const [reval, letters, idCards, parks] = await Promise.all([
+    const [reval, letters, idCards, parks, mtCom] = await Promise.all([
       revalidations(REVALIDATION_STAGES.COMMISSIONER),
       tracasLetters("PENDING_COMMISSIONER_APPROVAL"),
       tracasIdCards("PENDING_COMMISSIONER_APPROVAL"),
       motorParks(["PENDING_APPROVAL", "PENDING_COMMISSIONER_APPROVAL"]),
+      fleetOperators(["PENDING_COMMISSIONER_APPROVAL"]),
     ]);
 
     if (reval)
@@ -281,6 +344,16 @@ export async function getRoleDashboard(
           "Awaiting your decision",
           parks,
           "/motor-parks",
+        ),
+      );
+    if (mtCom)
+      actions.push(
+        item(
+          "com-masstransit",
+          "Mass transit permits to issue",
+          "Final approval and permit to operate",
+          mtCom,
+          "/fleet-operators?status=PENDING_COMMISSIONER_APPROVAL",
         ),
       );
   }
@@ -369,6 +442,16 @@ export async function getRoleDashboard(
         db.user.count({ where: { role: { not: "EXTERNAL_APPLICANT" }, isActive: true } }),
       ]);
 
+    const mtOpen = await fleetOperators([
+      "SUBMITTED",
+      "UNDER_REVIEW",
+      "INSPECTION_SCHEDULED",
+      "INSPECTION_COMPLETED",
+      "PENDING_APPROVAL",
+      "PENDING_PS_APPROVAL",
+      "PENDING_COMMISSIONER_APPROVAL",
+    ]);
+
     if (monitors)
       actions.push(
         item(
@@ -403,6 +486,14 @@ export async function getRoleDashboard(
         "Letters and ID cards awaiting VIO verification",
         letters + idCards,
         "/tracas-approvals",
+        "info",
+      ),
+      item(
+        "adm-masstransit",
+        "Mass transit applications in progress",
+        "Anywhere between submission and permit",
+        mtOpen,
+        "/fleet-operators",
         "info",
       ),
       item(

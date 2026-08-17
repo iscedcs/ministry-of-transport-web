@@ -29,12 +29,82 @@ export interface SettingDef {
 }
 
 export const SETTING_GROUPS = [
+  "Certificate Validity",
   "TRACAS Letter of Authority",
   "TRACAS Driver ID Card",
   "Fleet Numbering",
 ] as const;
 
 export const SETTINGS: SettingDef[] = [
+  // ── How long an approval lasts ────────────────────────────────────────────
+  // Kept per document type rather than shared: the Ministry may lengthen a
+  // motor park permit without touching a revalidation, and hard-coding these
+  // meant a deployment every time a period changed.
+  {
+    key: "revalidation.validity.temporalMonths",
+    label: "Revalidation — temporal approval (months)",
+    description:
+      "How long a TEMPORAL revalidation certificate remains valid. Printed on the certificate as the revalidation period.",
+    type: "number",
+    default: "6",
+    group: "Certificate Validity",
+    min: 1,
+    max: 120,
+  },
+  {
+    key: "revalidation.validity.permanentMonths",
+    label: "Revalidation — full approval (months)",
+    description: "How long a FULL revalidation certificate remains valid.",
+    type: "number",
+    default: "12",
+    group: "Certificate Validity",
+    min: 1,
+    max: 120,
+  },
+  {
+    key: "motorpark.validity.temporalMonths",
+    label: "Motor park — temporal approval (months)",
+    description:
+      "How long a temporal motor park approval remains valid before a full permit is required.",
+    type: "number",
+    default: "6",
+    group: "Certificate Validity",
+    min: 1,
+    max: 120,
+  },
+  {
+    key: "motorpark.validity.permanentMonths",
+    label: "Motor park — full permit (months)",
+    description: "How long a full motor park permit remains valid.",
+    type: "number",
+    default: "12",
+    group: "Certificate Validity",
+    min: 1,
+    max: 120,
+  },
+  {
+    key: "masstransit.validity.temporalMonths",
+    label: "Mass transit — temporal approval (months)",
+    description:
+      "How long a temporal mass transit approval and its terminal certificate remain valid.",
+    type: "number",
+    default: "6",
+    group: "Certificate Validity",
+    min: 1,
+    max: 120,
+  },
+  {
+    key: "masstransit.validity.permanentMonths",
+    label: "Mass transit — full approval (months)",
+    description:
+      "How long a full mass transit approval and its terminal certificate remain valid.",
+    type: "number",
+    default: "12",
+    group: "Certificate Validity",
+    min: 1,
+    max: 120,
+  },
+
   // ── Letter of Authority ───────────────────────────────────────────────────
   {
     key: "tracas.letter.showOwnerName",
@@ -48,8 +118,7 @@ export const SETTINGS: SettingDef[] = [
   {
     key: "tracas.letter.showDriverName",
     label: "Show driver's name on the letter",
-    description:
-      "Prints the assigned driver's name in the particulars block.",
+    description: "Prints the assigned driver's name in the particulars block.",
     type: "boolean",
     default: "true",
     group: "TRACAS Letter of Authority",

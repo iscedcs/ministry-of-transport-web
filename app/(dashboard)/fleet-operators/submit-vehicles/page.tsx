@@ -1,25 +1,37 @@
 "use client";
 
 /**
- * Vehicle Submission Form — Ministry of Transport Platform
- * STORY-041 | FR-022 (deferred vehicle submission)
+ * Vehicle submission — one vehicle at a time.
  *
- * Applicants respond to vehicle submission requests by providing
- * detailed information for each vehicle (registration number, make,
- * model, engine/chassis numbers, routes, roadworthiness expiry).
+ * The operator declares a fleet size up front, then adds vehicles as their
+ * particulars come to hand. The outstanding count falls with each one, so
+ * "4 of 6 remaining" is always on screen and the operator can stop and come
+ * back.
  *
- * Access: EXTERNAL_APPLICANT
+ * Previously the page rendered every declared slot as a blank form at once,
+ * which meant an operator with six vehicles had to hold all six sets of
+ * particulars before submitting anything.
+ *
+ * Access: EXTERNAL_APPLICANT (and ENUMERATOR, onboarding on their behalf)
  */
 
-import { useState, useTransition, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
+import {
+  ArrowLeft,
+  Bus,
+  CheckCircle2,
+  Loader2,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import {
   getPendingVehicleSubmissionRequests,
-  submitVehicleDetails,
+  addVehicleToSubmission,
+  removeSubmittedVehicle,
 } from "@/app/actions/mass-transit";
-import { getSession } from "@/lib/auth";
-import type { ActionResult } from "@/lib/server-actions-pattern";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,510 +42,395 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
-import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// ── Types ──────────────────────────────────────────────────────────────────────
-
-type VehicleType = "BUS" | "MINIBUS" | "TRUCK" | "LIGHT_COMMERCIAL" | "TANKER";
-
-interface VehicleDetailsEntry {
-  id: string; // local key
-  registrationNumber: string;
-  vehicleType: VehicleType | "";
-  make: string;
-  model: string;
-  engineNumber: string;
-  chassisNumber: string;
-  routesServed: string;
-  roadworthinessExpiry: string;
-}
-
-interface PendingRequest {
-  id: string;
-  companyName: string;
-  vehicleCount: number;
-  requestedAt: string;
-}
-
-const VEHICLE_TYPES: { value: VehicleType; label: string }[] = [
+const VEHICLE_TYPES = [
   { value: "BUS", label: "Bus" },
   { value: "MINIBUS", label: "Minibus" },
   { value: "TRUCK", label: "Truck" },
   { value: "LIGHT_COMMERCIAL", label: "Light Commercial" },
   { value: "TANKER", label: "Tanker" },
+  { value: "TAXI", label: "Taxi" },
+  { value: "PRIVATE_CAR", label: "Private Car" },
+  { value: "RIDE_HAILING", label: "Ride Hailing" },
 ];
 
-function emptyVehicle(): VehicleDetailsEntry {
-  return {
-    id: Math.random().toString(36).slice(2),
-    registrationNumber: "",
-    vehicleType: "",
-    make: "",
-    model: "",
-    engineNumber: "",
-    chassisNumber: "",
-    routesServed: "",
-    roadworthinessExpiry: "",
-  };
+interface SubmittedVehicle {
+  id: string;
+  registrationNumber: string;
+  make: string;
+  model: string;
+  vehicleType: string;
 }
 
-// ── Helpers -----------------------------------------------------------------
-
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null;
-  return (
-    <p className="text-xs text-destructive" role="alert">
-      {message}
-    </p>
-  );
+interface RequestItem {
+  id: string;
+  companyId: string;
+  companyName: string;
+  vehicleCount: number;
+  submittedCount: number;
+  requestedAt: Date;
+  vehicles: SubmittedVehicle[];
 }
 
-// ── Vehicle Card ───────────────────────────────────────────────────────────
-
-function VehicleCard({
-  index,
-  vehicle,
-  onChange,
-  errors,
-}: {
-  index: number;
-  vehicle: VehicleDetailsEntry;
-  onChange: (id: string, field: keyof VehicleDetailsEntry, value: string) => void;
-  errors: Record<string, string>;
-}) {
-  return (
-    <Card className="border-border/70">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">
-          Vehicle {index + 1}
-          {vehicle.registrationNumber && (
-            <span className="ml-2 text-xs font-normal text-muted-foreground">
-              {vehicle.registrationNumber}
-            </span>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <Label htmlFor={`reg-${vehicle.id}`}>
-            Registration Number <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id={`reg-${vehicle.id}`}
-            value={vehicle.registrationNumber}
-            onChange={(e) =>
-              onChange(vehicle.id, "registrationNumber", e.target.value)
-            }
-            placeholder="e.g. ABC-123-XY"
-          />
-          <FieldError message={errors[`${vehicle.id}.registrationNumber`]} />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor={`type-${vehicle.id}`}>
-            Vehicle Type <span className="text-destructive">*</span>
-          </Label>
-          <Select
-            value={vehicle.vehicleType}
-            onValueChange={(v) => onChange(vehicle.id, "vehicleType", v)}>
-            <SelectTrigger id={`type-${vehicle.id}`}>
-              <SelectValue placeholder="Select type" />
-            </SelectTrigger>
-            <SelectContent>
-              {VEHICLE_TYPES.map((t) => (
-                <SelectItem key={t.value} value={t.value}>
-                  {t.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <FieldError message={errors[`${vehicle.id}.vehicleType`]} />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor={`make-${vehicle.id}`}>
-            Make <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id={`make-${vehicle.id}`}
-            value={vehicle.make}
-            onChange={(e) => onChange(vehicle.id, "make", e.target.value)}
-            placeholder="e.g. Mercedes-Benz"
-          />
-          <FieldError message={errors[`${vehicle.id}.make`]} />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor={`model-${vehicle.id}`}>
-            Model <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id={`model-${vehicle.id}`}
-            value={vehicle.model}
-            onChange={(e) => onChange(vehicle.id, "model", e.target.value)}
-            placeholder="e.g. Sprinter 515"
-          />
-          <FieldError message={errors[`${vehicle.id}.model`]} />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor={`engine-${vehicle.id}`}>
-            Engine Number <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id={`engine-${vehicle.id}`}
-            value={vehicle.engineNumber}
-            onChange={(e) =>
-              onChange(vehicle.id, "engineNumber", e.target.value)
-            }
-            placeholder="Engine no."
-          />
-          <FieldError message={errors[`${vehicle.id}.engineNumber`]} />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor={`chassis-${vehicle.id}`}>
-            Chassis Number <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id={`chassis-${vehicle.id}`}
-            value={vehicle.chassisNumber}
-            onChange={(e) =>
-              onChange(vehicle.id, "chassisNumber", e.target.value)
-            }
-            placeholder="Chassis no."
-          />
-          <FieldError message={errors[`${vehicle.id}.chassisNumber`]} />
-        </div>
-
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label htmlFor={`routes-${vehicle.id}`}>Routes Served</Label>
-          <Input
-            id={`routes-${vehicle.id}`}
-            value={vehicle.routesServed}
-            onChange={(e) =>
-              onChange(vehicle.id, "routesServed", e.target.value)
-            }
-            placeholder="e.g. Awka–Onitsha, Awka–Enugu"
-          />
-          <p className="text-xs text-muted-foreground">
-            Comma-separated list of routes (optional)
-          </p>
-        </div>
-
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label htmlFor={`roadworthy-${vehicle.id}`}>
-            Roadworthiness Expiry Date
-          </Label>
-          <Input
-            id={`roadworthy-${vehicle.id}`}
-            type="date"
-            value={vehicle.roadworthinessExpiry}
-            onChange={(e) =>
-              onChange(vehicle.id, "roadworthinessExpiry", e.target.value)
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            Date when roadworthiness certificate expires (optional)
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ── Page ────────────────────────────────────────────────────────────────────────
+const EMPTY = {
+  registrationNumber: "",
+  vehicleType: "",
+  make: "",
+  model: "",
+  engineNumber: "",
+  chassisNumber: "",
+  routesServed: "",
+  roadworthinessExpiry: "",
+};
 
 export default function SubmitVehiclesPage() {
-  const router = useRouter();
+  const [requests, setRequests] = useState<RequestItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
-  const [isLoading, setIsLoading] = useState(true);
-  const [globalError, setGlobalError] = useState<string | undefined>();
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [openFor, setOpenFor] = useState<string | null>(null);
+  const [form, setForm] = useState({ ...EMPTY });
 
-  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
-  const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
-  const [vehicles, setVehicles] = useState<VehicleDetailsEntry[]>([]);
+  async function load() {
+    const res = await getPendingVehicleSubmissionRequests();
+    setRequests(res.success && res.data ? (res.data as RequestItem[]) : []);
+    setLoading(false);
+  }
 
-  // Load pending requests on mount
+  // Deferred so the state update lands outside the effect body — a
+  // synchronous setState there triggers a second render pass.
   useEffect(() => {
-    (async () => {
-      const result = await getPendingVehicleSubmissionRequests();
-      if (result.success && result.data) {
-        const convertedData = result.data.map((req) => ({
-          ...req,
-          requestedAt:
-            typeof req.requestedAt === "string"
-              ? req.requestedAt
-              : new Date(req.requestedAt).toISOString(),
-        }));
-        setPendingRequests(convertedData);
-        if (convertedData.length > 0) {
-          handleSelectRequest(convertedData[0].id, convertedData[0].vehicleCount);
-        }
-      } else if (!result.success) {
-        setGlobalError(result.error);
-      }
-      setIsLoading(false);
-    })();
+    let active = true;
+    const t = setTimeout(async () => {
+      const res = await getPendingVehicleSubmissionRequests();
+      if (!active) return;
+      setRequests(res.success && res.data ? (res.data as RequestItem[]) : []);
+      setLoading(false);
+    }, 0);
+    return () => {
+      active = false;
+      clearTimeout(t);
+    };
   }, []);
 
-  function handleSelectRequest(requestId: string, vehicleCount: number) {
-    setSelectedRequest(requestId);
-    setVehicles(Array.from({ length: vehicleCount }, () => emptyVehicle()));
-    setFieldErrors({});
+  function set(field: keyof typeof EMPTY, value: string) {
+    setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  function updateVehicle(
-    id: string,
-    field: keyof VehicleDetailsEntry,
-    value: string
-  ) {
-    setVehicles((prev) =>
-      prev.map((v) => (v.id === id ? { ...v, [field]: value } : v))
-    );
-  }
-
-  function validateVehicles(): boolean {
-    const errors: Record<string, string> = {};
-
-    vehicles.forEach((v, idx) => {
-      if (!v.registrationNumber.trim()) {
-        errors[`${v.id}.registrationNumber`] = "Required";
-      }
-      if (!v.vehicleType) {
-        errors[`${v.id}.vehicleType`] = "Required";
-      }
-      if (!v.make.trim()) {
-        errors[`${v.id}.make`] = "Required";
-      }
-      if (!v.model.trim()) {
-        errors[`${v.id}.model`] = "Required";
-      }
-      if (!v.engineNumber.trim()) {
-        errors[`${v.id}.engineNumber`] = "Required";
-      }
-      if (!v.chassisNumber.trim()) {
-        errors[`${v.id}.chassisNumber`] = "Required";
-      }
-    });
-
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
-  }
-
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setGlobalError(undefined);
-
-    if (!selectedRequest) {
-      setGlobalError("No vehicle submission request selected");
-      return;
+  function addVehicle(requestId: string) {
+    const required: [keyof typeof EMPTY, string][] = [
+      ["registrationNumber", "Registration number"],
+      ["vehicleType", "Vehicle type"],
+      ["make", "Make"],
+      ["model", "Model"],
+      ["engineNumber", "Engine number"],
+      ["chassisNumber", "Chassis number"],
+    ];
+    for (const [field, label] of required) {
+      if (!form[field].trim()) return toast.error(`${label} is required`);
     }
 
-    if (!validateVehicles()) return;
-
     startTransition(async () => {
-      const fd = new FormData();
-      fd.set("submissionRequestId", selectedRequest);
-      fd.set(
-        "vehicles",
-        JSON.stringify(
-          vehicles.map((v) => ({
-            registrationNumber: v.registrationNumber,
-            vehicleType: v.vehicleType as VehicleType,
-            make: v.make,
-            model: v.model,
-            engineNumber: v.engineNumber,
-            chassisNumber: v.chassisNumber,
-            routesServed: v.routesServed || undefined,
-            roadworthinessExpiry: v.roadworthinessExpiry || undefined,
-          }))
-        )
-      );
+      const res = await addVehicleToSubmission(requestId, {
+        ...form,
+        registrationNumber: form.registrationNumber.trim().toUpperCase(),
+        engineNumber: form.engineNumber.trim().toUpperCase(),
+        chassisNumber: form.chassisNumber.trim().toUpperCase(),
+      });
 
-      const result = await submitVehicleDetails(undefined, fd);
-
-      if (result.success) {
-        router.push("/fleet-operators?status=SUBMITTED");
+      if (res.success) {
+        const d = res.data!;
+        toast.success(
+          d.remaining > 0
+            ? `Vehicle added — ${d.remaining} of ${d.declared} still to submit`
+            : `Vehicle added — all ${d.declared} vehicles submitted`,
+        );
+        setForm({ ...EMPTY });
+        if (d.remaining === 0) setOpenFor(null);
+        await load();
       } else {
-        setGlobalError(result.error);
+        toast.error(res.error ?? "Failed to add the vehicle");
       }
     });
   }
 
-  if (isLoading) {
+  function remove(id: string, reg: string) {
+    if (!confirm(`Remove ${reg} from this declaration?`)) return;
+    startTransition(async () => {
+      const res = await removeSubmittedVehicle(id);
+      if (res.success) {
+        toast.success(`${reg} removed`);
+        await load();
+      } else {
+        toast.error(res.error ?? "Failed to remove the vehicle");
+      }
+    });
+  }
+
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Loading vehicle requests…</p>
-        </div>
+      <div className="flex items-center gap-2 p-8 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
       </div>
     );
   }
-
-  if (pendingRequests.length === 0) {
-    return (
-      <div className="flex flex-col gap-6 max-w-3xl">
-        <div>
-          <nav className="text-xs text-muted-foreground mb-1">
-            <Link href="/fleet-operators" className="hover:underline">
-              Fleet Operators
-            </Link>
-            {" / "}
-            <span>Submit Vehicles</span>
-          </nav>
-          <h1 className="text-2xl font-semibold">Submit Vehicle Details</h1>
-        </div>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
-              <div>
-                <p className="font-medium text-foreground">No pending requests</p>
-                <p className="text-xs">
-                  All your vehicle submission requests have been completed.
-                </p>
-              </div>
-            </div>
-            <Button asChild className="mt-4">
-              <Link href="/fleet-operators">Back to Applications</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const currentRequest = pendingRequests.find((r) => r.id === selectedRequest);
 
   return (
-    <div className="flex flex-col gap-6 max-w-3xl">
-      {/* Header */}
+    <div className="flex max-w-4xl flex-col gap-6">
+      <Link
+        href="/dashboard"
+        className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" />
+        Back to dashboard
+      </Link>
+
       <div>
-        <nav className="text-xs text-muted-foreground mb-1">
-          <Link href="/fleet-operators" className="hover:underline">
-            Fleet Operators
-          </Link>
-          {" / "}
-          <span>Submit Vehicles</span>
-        </nav>
-        <h1 className="text-2xl font-semibold">Submit Vehicle Details</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Provide detailed information for each vehicle in your fleet.
+        <h1 className="text-2xl font-bold tracking-tight">Submit Vehicle Details</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Add your vehicles one at a time. You can stop and return — what you
+          have submitted is kept.
         </p>
       </div>
 
-      {/* Request Selection */}
-      {pendingRequests.length > 1 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Select Request</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {pendingRequests.map((req) => (
-                <button
-                  key={req.id}
-                  type="button"
-                  onClick={() => handleSelectRequest(req.id, req.vehicleCount)}
-                  className={cn(
-                    "w-full text-left px-4 py-3 rounded-lg border-2 transition-colors",
-                    selectedRequest === req.id
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-border/80"
-                  )}>
-                  <p className="font-medium text-sm">{req.companyName}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {req.vehicleCount} vehicles to submit
-                  </p>
-                </button>
-              ))}
-            </div>
+      {requests.length === 0 && (
+        <Card className="border-2 border-dashed">
+          <CardContent className="p-10 text-center">
+            <CheckCircle2 className="mx-auto mb-3 h-8 w-8 text-emerald-500" />
+            <p className="font-semibold">Nothing outstanding</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              You have no open vehicle declarations.
+            </p>
           </CardContent>
         </Card>
       )}
 
-      {/* Global Error */}
-      {globalError && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{globalError}</AlertDescription>
-        </Alert>
-      )}
+      {requests.map((req) => {
+        const remaining = req.vehicleCount - req.submittedCount;
+        const pct = Math.round((req.submittedCount / req.vehicleCount) * 100);
+        const isOpen = openFor === req.id;
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        {/* Request Summary */}
-        {currentRequest && (
-          <Card className="bg-accent/50">
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        return (
+          <Card key={req.id}>
+            <CardHeader className="pb-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs text-muted-foreground">Company</p>
-                  <p className="font-semibold text-sm">{currentRequest.companyName}</p>
+                  <CardTitle className="text-base">{req.companyName}</CardTitle>
+                  <CardDescription>
+                    Declared fleet of {req.vehicleCount} vehicle
+                    {req.vehicleCount === 1 ? "" : "s"}
+                  </CardDescription>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Vehicles to Submit</p>
-                  <p className="font-semibold text-sm">{currentRequest.vehicleCount}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Progress</p>
-                  <p className="font-semibold text-sm">
-                    {vehicles.filter((v) => v.registrationNumber.trim()).length}/
-                    {vehicles.length} completed
+                {/* The count the operator is working against. */}
+                <div className="text-right">
+                  <p
+                    className={cn(
+                      "text-2xl font-bold tabular-nums",
+                      remaining === 0 ? "text-emerald-500" : "text-primary",
+                    )}>
+                    {req.submittedCount}/{req.vehicleCount}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {remaining === 0
+                      ? "all submitted"
+                      : `${remaining} still to submit`}
                   </p>
                 </div>
               </div>
+
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    remaining === 0 ? "bg-emerald-500" : "bg-primary",
+                  )}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </CardHeader>
+
+            <CardContent className="flex flex-col gap-4">
+              {/* What has been submitted so far */}
+              {req.vehicles.length > 0 && (
+                <div className="divide-y rounded-lg border">
+                  {req.vehicles.map((v, i) => (
+                    <div
+                      key={v.id}
+                      className="flex items-center gap-3 px-3 py-2.5 text-sm">
+                      <span className="w-5 shrink-0 text-xs text-muted-foreground tabular-nums">
+                        {i + 1}
+                      </span>
+                      <Bus className="h-4 w-4 shrink-0 text-primary" />
+                      <span className="font-mono font-semibold">
+                        {v.registrationNumber}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                        {v.make} {v.model} ·{" "}
+                        {VEHICLE_TYPES.find((t) => t.value === v.vehicleType)
+                          ?.label ?? v.vehicleType}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => remove(v.id, v.registrationNumber)}
+                        disabled={isPending}
+                        aria-label={`Remove ${v.registrationNumber}`}
+                        className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {remaining === 0 ? (
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 text-sm">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                  <span>
+                    All {req.vehicleCount} vehicles submitted. The Ministry will
+                    review them.
+                  </span>
+                </div>
+              ) : !isOpen ? (
+                <Button
+                  onClick={() => {
+                    setForm({ ...EMPTY });
+                    setOpenFor(req.id);
+                  }}
+                  className="w-fit gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add vehicle
+                </Button>
+              ) : (
+                <div className="rounded-xl border bg-muted/30 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="text-sm font-semibold">
+                      Vehicle {req.submittedCount + 1} of {req.vehicleCount}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setOpenFor(null)}
+                      className="rounded p-1 text-muted-foreground hover:text-foreground"
+                      aria-label="Close">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Registration number" required>
+                      <Input
+                        value={form.registrationNumber}
+                        onChange={(e) => set("registrationNumber", e.target.value)}
+                        placeholder="e.g. ABC123XY"
+                        className="font-mono uppercase"
+                      />
+                    </Field>
+
+                    <Field label="Vehicle type" required>
+                      <select
+                        value={form.vehicleType}
+                        onChange={(e) => set("vehicleType", e.target.value)}
+                        className="flex h-10 w-full rounded-md border bg-background px-3 text-sm">
+                        <option value="">Select type</option>
+                        {VEHICLE_TYPES.map((t) => (
+                          <option key={t.value} value={t.value}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+
+                    <Field label="Make" required>
+                      <Input
+                        value={form.make}
+                        onChange={(e) => set("make", e.target.value)}
+                        placeholder="e.g. Toyota"
+                      />
+                    </Field>
+
+                    <Field label="Model" required>
+                      <Input
+                        value={form.model}
+                        onChange={(e) => set("model", e.target.value)}
+                        placeholder="e.g. Hiace"
+                      />
+                    </Field>
+
+                    <Field label="Engine number" required>
+                      <Input
+                        value={form.engineNumber}
+                        onChange={(e) => set("engineNumber", e.target.value)}
+                        className="font-mono uppercase"
+                      />
+                    </Field>
+
+                    <Field label="Chassis number" required>
+                      <Input
+                        value={form.chassisNumber}
+                        onChange={(e) => set("chassisNumber", e.target.value)}
+                        className="font-mono uppercase"
+                      />
+                    </Field>
+
+                    <Field label="Routes served">
+                      <Input
+                        value={form.routesServed}
+                        onChange={(e) => set("routesServed", e.target.value)}
+                        placeholder="e.g. Awka – Onitsha"
+                      />
+                    </Field>
+
+                    <Field label="Roadworthiness expiry">
+                      <Input
+                        type="date"
+                        value={form.roadworthinessExpiry}
+                        onChange={(e) =>
+                          set("roadworthinessExpiry", e.target.value)
+                        }
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="mt-4 flex gap-2">
+                    <Button
+                      onClick={() => addVehicle(req.id)}
+                      disabled={isPending}>
+                      {isPending && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Save vehicle
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setOpenFor(null)}
+                      disabled={isPending}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
-        )}
+        );
+      })}
+    </div>
+  );
+}
 
-        {/* Vehicle Cards */}
-        <div className="flex flex-col gap-4">
-          <div>
-            <h2 className="text-lg font-semibold">Vehicle Details</h2>
-            <p className="text-sm text-muted-foreground">
-              Enter the required information for each vehicle
-            </p>
-          </div>
-
-          {vehicles.map((v, i) => (
-            <VehicleCard
-              key={v.id}
-              index={i}
-              vehicle={v}
-              onChange={updateVehicle}
-              errors={fieldErrors}
-            />
-          ))}
-        </div>
-
-        <Separator />
-
-        {/* Actions */}
-        <div className="flex gap-3 pb-8">
-          <Button
-            type="submit"
-            disabled={isPending || !selectedRequest || vehicles.length === 0}>
-            {isPending ? "Submitting…" : "Submit Vehicle Details"}
-          </Button>
-          <Button asChild variant="outline" disabled={isPending}>
-            <Link href="/fleet-operators">Cancel</Link>
-          </Button>
-        </div>
-      </form>
+function Field({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label>
+        {label}
+        {required && <span className="ml-0.5 text-destructive">*</span>}
+      </Label>
+      {children}
     </div>
   );
 }

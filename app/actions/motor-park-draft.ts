@@ -41,6 +41,9 @@ export interface DraftData {
   waterFacilityPhotoId: string;
   waterFacilityPhotoUrl: string;
   waterFacilityPhotoName: string;
+  cctvPhotoId: string;
+  cctvPhotoUrl: string;
+  cctvPhotoName: string;
 }
 
 export interface DraftState {
