@@ -444,7 +444,11 @@ export async function updateMotorParkStatus(
     );
 
     // Step 5: Send notification to applicant
-    if (input.newStatus === "APPROVED" || input.newStatus === "REJECTED") {
+    // No applicant account (a government-owned park) means nobody to notify.
+    if (
+      updated.contactUserId &&
+      (input.newStatus === "APPROVED" || input.newStatus === "REJECTED")
+    ) {
       await queueNotification({
         notificationType:
           input.newStatus === "APPROVED" ? "PERMIT_ISSUED" : "PERMIT_REJECTED",

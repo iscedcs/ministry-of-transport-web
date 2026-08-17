@@ -558,7 +558,7 @@ export async function getMotorPark(
   // RLS: external applicants can only view their own park
   if (
     session.role === "EXTERNAL_APPLICANT" &&
-    park.applicant.id !== session.userId
+    park.applicant?.id !== session.userId
   ) {
     return { success: false, error: "Access denied" };
   }

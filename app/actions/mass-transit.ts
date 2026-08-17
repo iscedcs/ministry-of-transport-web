@@ -316,8 +316,12 @@ export type FleetApplicationListItem = {
   applicationStatus: string;
   permitStatus: string | null;
   currentFleetSize: number;
-  /** What the operator declared, so progress reads as submitted / declared. */
   minFleetSize: number;
+  /** Declared / submitted from the latest submission request. */
+  vehicleSubmissionReqs: {
+    vehicleCount: number;
+    _count: { vehicles: number };
+  }[];
   appliedAt: Date;
   permitExpiresAt: Date | null;
 };
@@ -375,6 +379,17 @@ export async function listFleetApplications(filters?: {
         minFleetSize: true,
         appliedAt: true,
         permitExpiresAt: true,
+        // currentFleetSize and minFleetSize are separately maintained counters
+        // that drift. The submission request is what the operator's own screen
+        // counts against, so the Ministry reads the same numbers.
+        vehicleSubmissionReqs: {
+          orderBy: { requestedAt: "desc" },
+          take: 1,
+          select: {
+            vehicleCount: true,
+            _count: { select: { vehicles: true } },
+          },
+        },
       },
     }),
     db.massTransitCompany.count({ where }),

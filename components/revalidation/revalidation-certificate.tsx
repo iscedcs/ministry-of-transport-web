@@ -401,7 +401,7 @@ export function RevalidationCertificate({
             <p>
               Further to the Ministry&apos;s Revalidation Exercise for Motor
               Parks/Loading Bays in the State, please be informed that the
-              Ministry has granted{" "}
+              Ministry has
               {isTemporal
                 ? "TEMPORAL APPROVAL of"
                 : "approved the Revalidation of"}{" "}
@@ -471,8 +471,8 @@ export function RevalidationCertificate({
             )}
 
             <p>
-              3. Please ensure that all loading/offloading activities of your
-              vehicles and/or cargo/logistics services are done within your
+              3. Please ensure that all loading/offloading activities of
+              vehicles and/or cargo/logistics services are done within the
               park&apos;s premises and not on the adjoining road(s).
             </p>
 

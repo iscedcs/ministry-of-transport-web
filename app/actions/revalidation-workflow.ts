@@ -616,8 +616,12 @@ export async function commissionerApproveRevalidation(
   // put right — it must not present as a full permit on the register.
   const parkStatus = approvalType === "TEMPORAL" ? "TEMPORAL_APPROVAL" : "APPROVED";
 
+  // Whichever branch runs, we keep the park so the application can be linked
+  // to it below.
+  let park: { id: string; parkId: string | null } | null = null;
+
   if (existingPark) {
-    await db.motorPark.update({
+    park = await db.motorPark.update({
       where: { id: existingPark.id },
       data: {
         businessName: app.parkName || existingPark.businessName,
@@ -643,9 +647,13 @@ export async function commissionerApproveRevalidation(
         // not this particular certificate.
         parkId: existingPark.parkId ?? (await nextParkId()),
       },
+      select: { id: true, parkId: true },
     });
-  } else if (app.applicantUserId) {
-    await db.motorPark.create({
+  } else {
+    // Previously this required an applicant account, so a government-owned
+    // park — which has none — was approved without ever being created, and
+    // its certificate printed "Park ID: —" with nothing behind it.
+    park = await db.motorPark.create({
       data: {
         businessName: app.parkName,
         transportCompanyName: app.ownerName,
@@ -669,6 +677,18 @@ export async function commissionerApproveRevalidation(
         nextRevalidationDue: validUntil,
         approvedAt: new Date(),
       },
+      select: { id: true, parkId: true },
+    });
+  }
+
+  // Link the application to the park. Without this the certificate reads the
+  // relation and finds nothing — which is why an approved park printed with
+  // no Park ID — and the next revalidation would create a second park record
+  // instead of finding this one.
+  if (park && park.id !== app.motorParkId) {
+    await db.revalidationApplication.update({
+      where: { id: applicationId },
+      data: { motorParkId: park.id },
     });
   }
 

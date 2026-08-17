@@ -23,6 +23,8 @@ import { StatusPill } from "@/components/ui/badge";
 import { ExecutiveDashboard } from "./executive-dashboard";
 import { getExecutiveDashboardStats } from "@/app/actions/executive-dashboard";
 import { getRoleDashboard } from "@/lib/role-dashboard";
+import { getApplicantDashboard } from "@/lib/applicant-dashboard";
+import { ApplicantPanels } from "@/components/dashboard/applicant-panels";
 import { WorkQueues } from "@/components/dashboard/work-queues";
 
 export default async function DashboardPage() {
@@ -51,6 +53,12 @@ export default async function DashboardPage() {
     session.role === "SYSTEM_ADMIN";
   const isParkMonitor = session.role === "PARK_MONITOR";
   const isStaff = !isApplicant && !isParkMonitor;
+
+  // Applicants get their own view: what is waiting on them, what they hold,
+  // and what they can print.
+  const applicantDashboard = isApplicant
+    ? await getApplicantDashboard(session.userId)
+    : null;
 
   const roleDashboard =
     !isApplicant && !isParkMonitor
@@ -121,6 +129,7 @@ export default async function DashboardPage() {
 
       {/* What is sitting on this user's desk */}
       {roleDashboard && <WorkQueues data={roleDashboard} />}
+      {applicantDashboard && <ApplicantPanels data={applicantDashboard} />}
 
       {/* Stats grid */}
       {isExecutive ? (
@@ -128,7 +137,9 @@ export default async function DashboardPage() {
       ) : (
         stats &&
         !isParkMonitor &&
-        (isApplicant || stats.total > 0) &&
+        // Applicants have their own panels above; the generic grid stays
+        // for staff only.
+        (!isApplicant && stats.total > 0) &&
         (!isApplicant || currentServices.includes("MOTOR_PARK")) && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {isApplicant ? (

@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
+import { authorizeDocument } from "@/lib/document-access";
 import { authorize } from "@/lib/auth";
 import { getNumberSetting } from "@/lib/system-config";
 import { SIGNATURES } from "@/lib/signatures";
@@ -23,16 +24,8 @@ export default async function MassTransitLetterPage({
 }) {
   const { id } = await params;
 
-  const authz = await authorize([
-    "COMMISSIONER",
-    "PERMANENT_SECRETARY",
-    "HOD_TRANSPORT_OPS",
-    "HOD_PARKS",
-    "SYSTEM_ADMIN",
-    "ADMIN",
-    "ICT_OFFICER",
-  ]);
-  if (!authz.ok) redirect("/unauthorized");
+  // Ministry staff, or the applicant this document belongs to.
+  await authorizeDocument({ kind: "massTransit", id });
 
   const company = await db.massTransitCompany.findUnique({
     where: { id },

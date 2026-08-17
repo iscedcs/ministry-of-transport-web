@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
+import { authorizeDocument } from "@/lib/document-access";
 import { authorize } from "@/lib/auth";
 import { getNumberSetting } from "@/lib/system-config";
 import { SIGNATURES } from "@/lib/signatures";
@@ -28,17 +29,8 @@ export default async function ParkCertificatePage({
 }) {
   const { id } = await params;
 
-  const authz = await authorize([
-    "COMMISSIONER",
-    "PERMANENT_SECRETARY",
-    "HOD_PARKS",
-    "HOD_PARKS_REVALIDATION",
-    "HOD_TRANSPORT_OPS",
-    "SYSTEM_ADMIN",
-    "ADMIN",
-    "ICT_OFFICER",
-  ]);
-  if (!authz.ok) redirect("/unauthorized");
+  // Ministry staff, or the applicant this document belongs to.
+  await authorizeDocument({ kind: "motorPark", id });
 
   const park = await db.motorPark.findUnique({
     where: { id },
