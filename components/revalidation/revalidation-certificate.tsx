@@ -401,7 +401,7 @@ export function RevalidationCertificate({
             <p>
               Further to the Ministry&apos;s Revalidation Exercise for Motor
               Parks/Loading Bays in the State, please be informed that the
-              Ministry has
+              Ministry has{" "}
               {isTemporal
                 ? "TEMPORAL APPROVAL of"
                 : "approved the Revalidation of"}{" "}
