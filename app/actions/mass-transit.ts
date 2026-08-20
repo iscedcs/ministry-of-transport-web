@@ -229,6 +229,11 @@ export async function submitFleetApplication(
     };
   }
 
+  // Field capture: same rule as a motor park. The record belongs to nobody
+  // until an owner is identified, and it is a draft until the full
+  // application requirements are met.
+  const isFieldCapture = session.role === "ENUMERATOR";
+
   const company = await db.$transaction(async (tx) => {
     // Create company
     const co = await tx.massTransitCompany.create({
@@ -237,7 +242,8 @@ export async function submitFleetApplication(
         contactPerson: companyData.contactPerson,
         contactEmail: companyData.contactEmail,
         contactPhone: companyData.contactPhone,
-        contactUserId: session.userId,
+        contactUserId: isFieldCapture ? null : session.userId,
+        capturedByUserId: isFieldCapture ? session.userId : null,
         cacNumber: companyData.cacNumber,
         asinNumber: companyData.asinNumber,
         businessPremisesCert: companyData.businessPremisesCert,
@@ -250,7 +256,7 @@ export async function submitFleetApplication(
         signagePhotoId: companyData.signagePhotoId || null,
         waterFacilityPhotoId: companyData.waterFacilityPhotoId || null,
         cctvPhotoId: companyData.cctvPhotoId || null,
-        applicationStatus: "SUBMITTED",
+        applicationStatus: isFieldCapture ? "DRAFT" : "SUBMITTED",
         currentFleetSize: vehicleCounts.reduce((sum: number, vc: unknown) => {
           const parsed = vehicleTypeCountSchema.safeParse(vc);
           return sum + (parsed.success ? parsed.data.count : 0);
@@ -311,8 +317,8 @@ export async function submitFleetApplication(
 export type FleetApplicationListItem = {
   id: string;
   companyName: string;
-  contactPerson: string;
-  contactPhone: string;
+  contactPerson: string | null;
+  contactPhone: string | null;
   applicationStatus: string;
   permitStatus: string | null;
   currentFleetSize: number;
@@ -419,11 +425,11 @@ export type TransitDocument = {
 export type FleetApplicationDetail = {
   id: string;
   companyName: string;
-  contactPerson: string;
-  contactEmail: string;
-  contactPhone: string;
-  cacNumber: string;
-  asinNumber: string;
+  contactPerson: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  cacNumber: string | null;
+  asinNumber: string | null;
   businessPremisesCert: string | null;
   ansaaRegistration: string | null;
   approvedColour: string | null;
@@ -463,7 +469,7 @@ export type FleetApplicationDetail = {
   commissionerApprovedAt: Date | null;
   approvedAt: Date | null;
   approvedByUserId: string | null;
-  applicant: { id: string; firstName: string; lastName: string; email: string | null };
+  applicant: { id: string; firstName: string; lastName: string; email: string | null } | null;
   vehicles: {
     id: string;
     registrationNumber: string;
@@ -604,7 +610,7 @@ export async function getFleetApplication(
 
   if (
     session.role === "EXTERNAL_APPLICANT" &&
-    company.applicant.id !== session.userId
+    company.applicant?.id !== session.userId
   ) {
     return { success: false, error: "Access denied" };
   }
@@ -1421,14 +1427,14 @@ export async function issuePermitToOperate(
           townCity: "",
           // anssidNumber is unique per park, so each terminal is suffixed
           // rather than reusing the company's number.
-          anssidNumber: `${company.asinNumber}-T${terminal.terminalNumber}`,
+          anssidNumber: `${company.asinNumber ?? company.id}-T${terminal.terminalNumber}`,
           cacRegistrationNumber: company.cacNumber,
           parkId: parkIds[i],
 
           contactUserId: company.contactUserId,
-          contactPerson: terminal.managerName || company.contactPerson,
-          contactPhone: terminal.managerPhone || company.contactPhone,
-          contactEmail: terminal.managerEmail || company.contactEmail,
+          contactPerson: terminal.managerName || company.contactPerson || "",
+          contactPhone: terminal.managerPhone || company.contactPhone || "",
+          contactEmail: terminal.managerEmail || company.contactEmail || "",
           managerResidentialAddress: terminal.managerResidentialAddress,
 
           landOwnershipDocId: company.landOwnershipDocId,

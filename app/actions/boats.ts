@@ -27,8 +27,8 @@ export interface OnboardRiderInput {
 
 export async function addStickerUrlsToPool(inputUrls: string[]) {
   try {
-    // Loading the sticker inventory is a System Admin action.
-    const authz = await authorize(["SYSTEM_ADMIN"]);
+    // Loading the sticker inventory is an administrative action.
+    const authz = await authorize(["SYSTEM_ADMIN", "ADMIN"]);
     if (!authz.ok) {
       return { success: false, error: authz.error };
     }

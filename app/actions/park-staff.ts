@@ -20,6 +20,7 @@ export async function onboardParkStaff(data: {
       "HOD_PARKS",
       "HOD_TRANSPORT_OPS",
       "SYSTEM_ADMIN",
+      "ADMIN",
       "EXTERNAL_APPLICANT",
     ]);
     if (!authz.ok) return { success: false, error: authz.error };

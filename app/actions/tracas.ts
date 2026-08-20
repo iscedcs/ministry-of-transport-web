@@ -83,8 +83,8 @@ export interface OnboardTracasDriverInput {
 
 export async function addStickerUrlsToTracasPool(inputUrls: string[]) {
   try {
-    // Loading the sticker inventory is a System Admin action.
-    const authz = await authorize(["SYSTEM_ADMIN"]);
+    // Loading the sticker inventory is an administrative action.
+    const authz = await authorize(["SYSTEM_ADMIN", "ADMIN"]);
     if (!authz.ok) {
       return { success: false, error: authz.error };
     }
@@ -523,7 +523,7 @@ export async function reassignTracasDriver(vehicleId: string, driverId: string |
     //     onboarding, so it follows the same write roles as onboarding itself.
     //   * Reassignment or removal — the vehicle already has a driver. This
     //     moves a driver between vehicles and invalidates an issued Letter of
-    //     Authority, so it stays System Admin only.
+    //     Authority, so it is restricted to the two administrative roles.
     const current = await db.tracasVehicle.findUnique({
       where: { id: vehicleId },
       select: { assignedDriverId: true, registrationNumber: true },
@@ -535,14 +535,14 @@ export async function reassignTracasDriver(vehicleId: string, driverId: string |
     const isInitialAssignment = !current.assignedDriverId && !!driverId;
 
     const authz = await authorize(
-      isInitialAssignment ? FLEET_WRITE_ROLES : ["SYSTEM_ADMIN"],
+      isInitialAssignment ? FLEET_WRITE_ROLES : ["SYSTEM_ADMIN", "ADMIN"],
     );
     if (!authz.ok) {
       return {
         success: false,
         error: isInitialAssignment
           ? authz.error
-          : "Only a System Admin can reassign or remove a vehicle driver.",
+          : "You do not have permission to reassign or remove a vehicle driver.",
       };
     }
 
@@ -1019,11 +1019,11 @@ export async function updateTracasDriver(
   input: Partial<OnboardTracasDriverInput> & { status?: string },
 ) {
   try {
-    const authz = await authorize(["SYSTEM_ADMIN"]);
+    const authz = await authorize(["SYSTEM_ADMIN", "ADMIN"]);
     if (!authz.ok) {
       return {
         success: false,
-        error: "Only a System Admin can edit a driver's profile.",
+        error: "You do not have permission to edit a driver's profile.",
       };
     }
 

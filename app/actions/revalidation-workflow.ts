@@ -25,7 +25,7 @@
 import { db } from "@/lib/db";
 import { getNumberSetting } from "@/lib/system-config";
 import { REJECT_ROLES } from "@/lib/workflow-roles";
-import { nextParkId } from "@/lib/park-id";
+import { nextParkId, terminalDesignation } from "@/lib/park-id";
 import { requireRole, requireAuth, authorize } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
@@ -591,6 +591,154 @@ export async function commissionerApproveRevalidation(
     },
   });
 
+  // A temporal approval is a permission to keep operating while something is
+  // put right — it must not present as a full permit on the register.
+  const parkStatus: "TEMPORAL_APPROVAL" | "APPROVED" =
+    approvalType === "TEMPORAL" ? "TEMPORAL_APPROVAL" : "APPROVED";
+
+  // ── Mass transit: approve into a company, not a single park ───────────────
+  // An officer has classified this record as a mass transit operator. It is
+  // approved into a MassTransitCompany with a terminal, and the terminal then
+  // becomes a real motor park exactly as it does on the mass transit chain —
+  // so it inherits park staff, inspections, revalidation and the certificate
+  // rather than needing a parallel implementation.
+  if (app.serviceCategory === "MASS_TRANSIT") {
+    let company = app.massTransitCompanyId
+      ? await db.massTransitCompany.findUnique({
+          where: { id: app.massTransitCompanyId },
+        })
+      : null;
+
+    // ASIN and CAC are unique where present, so an operator already on the
+    // register is updated rather than duplicated.
+    if (!company && app.asinNumber) {
+      company = await db.massTransitCompany.findFirst({
+        where: { asinNumber: app.asinNumber },
+      });
+    }
+
+    const companyData = {
+      companyName: app.ownerName || app.parkName,
+      contactPerson: app.representativeName,
+      contactEmail: app.emailAddress,
+      contactPhone: app.phoneNumber,
+      contactUserId: app.applicantUserId,
+      applicationStatus: parkStatus,
+      permitStatus: "ACTIVE" as const,
+      permitNumber: revalidationNumber,
+      permitIssuedAt: new Date(),
+      permitExpiresAt: validUntil,
+      lastRevalidatedAt: new Date(),
+      nextRevalidationDue: validUntil,
+      approvedAt: new Date(),
+      commissionerApprovedAt: new Date(),
+      approvedByUserId: authz.session.userId,
+    };
+
+    company = company
+      ? await db.massTransitCompany.update({
+          where: { id: company.id },
+          data: companyData,
+        })
+      : await db.massTransitCompany.create({
+          data: {
+            ...companyData,
+            asinNumber: app.asinNumber || null,
+            // Blank CAC would collide on the unique index across records, so
+            // it is stored only where the operator actually has one.
+            cacNumber: app.cacRegistrationNumber || null,
+          },
+        });
+
+    // One terminal, from what the field agent captured. Further terminals are
+    // added by the operator or the HOD afterwards.
+    let terminal = await db.terminal.findFirst({
+      where: { companyId: company.id },
+      orderBy: { terminalNumber: "asc" },
+    });
+
+    if (!terminal) {
+      terminal = await db.terminal.create({
+        data: {
+          companyId: company.id,
+          locationAddress:
+            app.physicalLocation ||
+            [app.townCommunity, app.lga].filter(Boolean).join(", ") ||
+            app.parkName,
+          managerName: app.representativeName || app.ownerName,
+          managerPhone: app.phoneNumber ?? "",
+          managerEmail: app.emailAddress ?? "",
+          managerResidentialAddress:
+            app.residentialAddress || app.physicalLocation || "",
+          terminalNumber: 1,
+        },
+      });
+    }
+
+    // The terminal becomes a park, so the certificate and the park staff
+    // machinery work on it unchanged.
+    if (!terminal.motorParkId) {
+      const madePark = await db.motorPark.create({
+        data: {
+          businessName: app.parkName,
+          transportCompanyName: terminalDesignation(
+            company.companyName,
+            terminal.terminalNumber,
+          ),
+          streetAddress: app.physicalLocation ?? "",
+          lga: app.lga ?? "",
+          townCity: app.townCommunity ?? "",
+          anssidNumber: `${app.asinNumber}-T${terminal.terminalNumber}`,
+          cacRegistrationNumber: app.cacRegistrationNumber,
+          contactUserId: app.applicantUserId,
+          contactPerson: terminal.managerName,
+          contactPhone: terminal.managerPhone,
+          contactEmail: terminal.managerEmail,
+          managerResidentialAddress: terminal.managerResidentialAddress,
+          applicationStatus: parkStatus,
+          permitStatus: "ACTIVE",
+          permitNumber: `${revalidationNumber}/T${terminal.terminalNumber}`,
+          permitIssuedAt: new Date(),
+          permitExpiresAt: validUntil,
+          parkId: await nextParkId(),
+          lastRevalidatedAt: new Date(),
+          nextRevalidationDue: validUntil,
+          approvedAt: new Date(),
+        },
+        select: { id: true },
+      });
+      await db.terminal.update({
+        where: { id: terminal.id },
+        data: { motorParkId: madePark.id },
+      });
+      // The certificate follows motorPark, so it must point at the park the
+      // terminal became.
+      await db.revalidationApplication.update({
+        where: { id: applicationId },
+        data: { massTransitCompanyId: company.id, motorParkId: madePark.id },
+      });
+    } else if (app.massTransitCompanyId !== company.id) {
+      await db.revalidationApplication.update({
+        where: { id: applicationId },
+        data: { massTransitCompanyId: company.id },
+      });
+    }
+
+    await recordAudit({
+      action: "REVALIDATION_COMMISSIONER_APPROVED",
+      entityType: "REVALIDATION",
+      entityId: applicationId,
+      changeDescription: `Commissioner granted ${approvalType.toLowerCase()} approval for ${app.parkName} as a mass transit operator; certificate ${revalidationNumber} issued, valid to ${validUntil.toDateString()}`,
+      newValues: { status: "APPROVED", approvalType, revalidationNumber },
+    });
+
+    touch(applicationId);
+    revalidatePath("/motor-parks");
+    revalidatePath("/fleet-operators");
+    revalidatePath("/ict-printing");
+    return { success: true, data: app };
+  }
+
   // ── Sync the motor park register ──────────────────────────────────────────
   let existingPark = null;
 
@@ -611,10 +759,6 @@ export async function commissionerApproveRevalidation(
       },
     });
   }
-
-  // A temporal approval is a permission to keep operating while something is
-  // put right — it must not present as a full permit on the register.
-  const parkStatus = approvalType === "TEMPORAL" ? "TEMPORAL_APPROVAL" : "APPROVED";
 
   // Whichever branch runs, we keep the park so the application can be linked
   // to it below.

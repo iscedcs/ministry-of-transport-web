@@ -145,24 +145,27 @@ function Field({
 function StepProgress({
   current,
   completed,
+  steps,
 }: {
   current: number;
   completed: Set<number>;
+  steps?: typeof STEPS;
 }) {
+  const shown = steps ?? STEPS;
   return (
     <div className="w-full">
       <p className="text-xs text-muted-foreground mb-3 sm:hidden">
-        Step {current} of {STEPS.length} -{" "}
+        Step {shown.findIndex((x) => x.id === current) + 1} of {shown.length} -{" "}
         <span className="text-foreground font-medium">
-          {STEPS[current - 1].label}
+          {shown.find((x) => x.id === current)?.label}
         </span>
       </p>
 
       <ol className="hidden sm:flex items-center w-full">
-        {STEPS.map((step, idx) => {
+        {shown.map((step, idx) => {
           const isDone = completed.has(step.id);
           const isActive = step.id === current;
-          const isLast = idx === STEPS.length - 1;
+          const isLast = idx === shown.length - 1;
           return (
             <li
               key={step.id}
@@ -329,7 +332,13 @@ export default function ApplyMotorParkPage() {
           setCompletedSteps(done);
         }
         if (profileResult.success) {
-          setOwnerProfile(profileResult.data as UserProfile);
+          const profile = profileResult.data as UserProfile;
+          setOwnerProfile(profile);
+          // The owner step is not rendered for an Enumerator, so never leave
+          // them sitting on it.
+          if (profile.role === "ENUMERATOR" && (draft?.stepReached ?? 1) < 2) {
+            setCurrentStep(2);
+          }
         }
       })
       .catch(() => {
@@ -337,6 +346,16 @@ export default function ApplyMotorParkPage() {
       })
       .finally(() => setDraftLoading(false));
   }, []);
+
+  /**
+   * An Enumerator is capturing this at the park, not applying as the owner.
+   * The owner step is not shown at all — they are not the owner, and the HOD
+   * fills those details in afterwards — and the record is saved as a draft.
+   */
+  const isFieldCapture = ownerProfile?.role === "ENUMERATOR";
+  const steps = isFieldCapture ? STEPS.filter((x) => x.id !== 1) : STEPS;
+  const firstStep = steps[0].id;
+  const lastStep = steps[steps.length - 1].id;
 
   const set = (field: keyof WizardData, value: string) =>
     setData((prev) => ({ ...prev, [field]: value }));
@@ -365,7 +384,10 @@ export default function ApplyMotorParkPage() {
       )
         e.gpsCoordinates = "Must be in lat,lon format - e.g. 6.2088, 7.0676";
     }
-    if (step === 4) {
+    // The owner's details and the operator's documents are filled in later:
+    // the agent is standing at the park, where neither is available. They are
+    // enforced when the draft is submitted, not waived.
+    if (step === 4 && !isFieldCapture) {
       if (!data.contactPerson.trim())
         e.contactPerson = "Manager name is required";
       if (!data.contactPhone.trim())
@@ -385,7 +407,7 @@ export default function ApplyMotorParkPage() {
         e.nextOfKinPhone = "Enter a valid Nigerian phone number";
       }
     }
-    if (step === 5) {
+    if (step === 5 && !isFieldCapture) {
       if (!data.cacDocumentId) e.cacDocumentId = "CAC Registration Certificate is required";
       if (!data.landOwnershipDocId) e.landOwnershipDocId = "Land Ownership/Lease Agreement is required";
       if (!data.toiletPhotoId) e.toiletPhotoId = "Toilet/convenience photo is required";
@@ -772,10 +794,23 @@ export default function ApplyMotorParkPage() {
       </div>
 
       {/* Step progress */}
-      <StepProgress current={currentStep} completed={completedSteps} />
+      <StepProgress
+        current={currentStep}
+        completed={completedSteps}
+        steps={steps}
+      />
 
-      {/* -- Step 1: Owner Details -- */}
-      {currentStep === 1 && (
+      {isFieldCapture && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          <strong className="font-semibold">Field capture.</strong> Record what
+          you can see at the park. The owner&apos;s details and their documents
+          are added by the Ministry afterwards — this is saved as a draft until
+          then, and does not become an application in your name.
+        </div>
+      )}
+
+      {/* -- Step 1: Owner Details (not shown for a field capture) -- */}
+      {currentStep === 1 && !isFieldCapture && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Owner Details</CardTitle>
@@ -1203,7 +1238,7 @@ export default function ApplyMotorParkPage() {
 
       {/* Navigation */}
       <div className="flex items-center justify-between gap-4">
-        {currentStep > 1 ? (
+        {currentStep > firstStep ? (
           <Button variant="outline" onClick={handleBack}>
             Back
           </Button>
@@ -1213,7 +1248,7 @@ export default function ApplyMotorParkPage() {
           </Button>
         )}
 
-        {currentStep < STEPS.length ? (
+        {currentStep < lastStep ? (
           <Button onClick={handleNext}>Continue</Button>
         ) : (
           <Button

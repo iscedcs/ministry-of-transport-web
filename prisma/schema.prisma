@@ -68,6 +68,7 @@ enum IdCardApprovalStatus {
 }
 
 enum ApplicationStatus {
+  DRAFT // Captured in the field by an Enumerator; not yet submitted
   SUBMITTED // Initial submission
   UNDER_REVIEW // Documents being reviewed
   PENDING_PS_INSPECTION_APPROVAL // Inspection scheduled by HOD; awaiting PS clearance
@@ -294,8 +295,13 @@ model MotorPark {
 
   // Contact person (park owner link)
   // Nullable: a government-owned park has no applicant account, but it is
-  // still a park on the register and still needs a Park ID.
+  // still a park on the register and still needs a Park ID. An Enumerator's
+  // field capture also leaves it null until an owner is identified — the
+  // record must never be owned by the officer who typed it in.
   contactUserId String?
+  /// The Enumerator who captured this record in the field, if it was not
+  /// submitted by the operator themselves. Never the owner.
+  capturedByUserId String?
   contactPerson String
   contactPhone  String
   contactEmail  String
@@ -555,14 +561,21 @@ model MassTransitCompany {
 
   // Company details
   companyName   String
-  contactPerson String
-  contactEmail  String
-  contactPhone  String
-  contactUserId String // User with EXTERNAL_APPLICANT role
+  // Nullable throughout: a company reclassified out of the imported
+  // revalidation queue has no account, and often no email — the vendor never
+  // captured one. The same reason MotorPark.contactUserId is nullable.
+  contactPerson String?
+  contactEmail  String?
+  contactPhone  String?
+  contactUserId String?
+  /// The Enumerator who captured this record in the field, if any.
+  capturedByUserId String?
 
   // Registration documents
-  cacNumber               String  @unique
-  asinNumber              String  @unique
+  // Optional: the vendor's export left CAC blank on most records. Still
+  // unique where present — Postgres permits many NULLs under a unique index.
+  cacNumber               String? @unique
+  asinNumber              String? @unique
   businessPremisesCert    String?
   ansaaRegistration       String?
   cacDocumentId           String? // Document.id
@@ -615,7 +628,7 @@ model MassTransitCompany {
   updatedAt              DateTime  @updatedAt
 
   // Relations
-  applicant             User                       @relation("ApplicationContact", fields: [contactUserId], references: [id])
+  applicant             User?                      @relation("ApplicationContact", fields: [contactUserId], references: [id])
   terminals             Terminal[]
   vehicles              Vehicle[]
   drivers               Driver[]
@@ -1359,6 +1372,24 @@ model RevalidationApplication {
   motorParkId          String?
   massTransitCompanyId String?
 
+  // ── TRIAGE OF THE IMPORTED QUEUE ──
+  // The vendor's export carried no approval field and no operator category,
+  // so both are decided by an officer rather than derived from the data.
+  //
+  /// "MOTOR_PARK" | "MASS_TRANSIT". Null until an officer has classified it.
+  /// A mass transit record is approved into a MassTransitCompany with its
+  /// terminals, not into a single motor park.
+  serviceCategory   String? @db.VarChar(20)
+  /// "REVALIDATION" | "NEW_APPLICATION". An operator who already holds an
+  /// approval revalidates; one who does not is a first-time applicant and
+  /// must apply normally, with the documents and evidence that requires.
+  triageRoute       String? @db.VarChar(20)
+  /// Why the officer decided as they did. The data supports neither decision,
+  /// so the decision is the only evidence there is.
+  triageBasis       String? @db.Text
+  triagedByUserId   String?
+  triagedAt         DateTime?
+
   // SECTION C: MOTOR PARK INFORMATION
   parkName         String
   facilityType     String? @db.VarChar(50)
@@ -1497,6 +1528,8 @@ model RevalidationApplication {
   @@index([massTransitCompanyId])
   @@index([dataSource])
   @@index([legacyRecordId])
+  @@index([serviceCategory])
+  @@index([triageRoute])
 }
 
 // ==================== MARITIME / BOAT MODULE ====================

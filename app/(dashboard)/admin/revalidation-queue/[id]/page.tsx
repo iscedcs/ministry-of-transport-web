@@ -9,6 +9,8 @@ import {
   parseChecklist,
 } from "@/lib/revalidation-checklist";
 import { WorkflowActions } from "./workflow-actions";
+import { TriagePanel } from "./triage-panel";
+import { massTransitSignal } from "@/lib/mass-transit-signal";
 import { 
   CheckCircle2,
   HelpCircle, 
@@ -98,6 +100,17 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
       },
     },
   });
+
+  // Who recorded the triage decision, for the panel's audit line.
+  const triageUser = app?.triagedByUserId
+    ? await db.user.findUnique({
+        where: { id: app.triagedByUserId },
+        select: { firstName: true, lastName: true },
+      })
+    : null;
+  const triagedBy = triageUser
+    ? `${triageUser.firstName} ${triageUser.lastName}`
+    : null;
 
   if (!app) notFound();
 
@@ -789,6 +802,25 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
         </div>
 
         <div className="space-y-6">
+          {/* Imported records are sorted before they go any further. */}
+          {app.dataSource === "VENDOR_IMPORT" && (
+            <TriagePanel
+              applicationId={app.id}
+              serviceCategory={app.serviceCategory}
+              triageRoute={app.triageRoute}
+              existingApprovalNum={app.existingApprovalNum}
+              triageBasis={app.triageBasis}
+              triagedBy={triagedBy}
+              triagedAt={app.triagedAt}
+              suggestion={massTransitSignal(app)}
+              canRoute={
+                session.role === "HOD_TRANSPORT_OPS" ||
+                session.role === "SYSTEM_ADMIN" ||
+                session.role === "ADMIN"
+              }
+            />
+          )}
+
           <WorkflowActions 
             applicationId={app.id}
             terms={{

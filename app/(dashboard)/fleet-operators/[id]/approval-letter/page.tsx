@@ -74,7 +74,7 @@ export default async function MassTransitLetterPage({
         data={{
           id: company.id,
           companyName: company.companyName,
-          contactPerson: company.contactPerson,
+          contactPerson: company.contactPerson ?? "",
           contactAddress: null,
           permitNumber: company.permitNumber,
           permitIssuedAt: company.permitIssuedAt,

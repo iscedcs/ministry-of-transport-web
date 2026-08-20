@@ -22,6 +22,8 @@ const EDIT_ROLES = [
   "HOD_TRANSPORT_OPS",
   "HOD_PARKS_REVALIDATION",
   "SYSTEM_ADMIN",
+  // The Anambra team lead corrects imported records; they still approve none.
+  "ADMIN",
 ] as const;
 
 /** Sections the vendor import could not populate. */

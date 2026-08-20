@@ -366,6 +366,9 @@ export async function updateMotorParkStatus(
 
     // Only allow valid transitions
     const validTransitions: Record<ApplicationStatus, ApplicationStatus[]> = {
+      // A field capture is not in the review chain: it only ever becomes a
+      // submission, and only once the full application schema passes.
+      DRAFT: ["SUBMITTED"],
       SUBMITTED: [
         "UNDER_REVIEW",
         "INSPECTION_SCHEDULED",

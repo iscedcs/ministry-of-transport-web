@@ -17,6 +17,8 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { OwnerCompletionPanel } from "@/components/field-capture/owner-completion-panel";
 import {
   getFleetApplication,
   type FleetApplicationDetail,
@@ -220,6 +222,29 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
   if (!session) redirect("/login");
 
   const { id } = await params;
+  const capture = await db.massTransitCompany.findUnique({
+    where: { id },
+    select: {
+      capturedByUserId: true,
+      contactUserId: true,
+      contactPerson: true,
+      contactPhone: true,
+      contactEmail: true,
+      cacNumber: true,
+      applicationStatus: true,
+    },
+  });
+  const capturer = capture?.capturedByUserId
+    ? await db.user.findUnique({
+        where: { id: capture.capturedByUserId },
+        select: { firstName: true, lastName: true },
+      })
+    : null;
+  const showCompletion =
+    !!capture &&
+    (capture.applicationStatus === "DRAFT" || !!capture.capturedByUserId) &&
+    ["HOD_TRANSPORT_OPS","HOD_PARKS_REVALIDATION","HOD_PARKS","SYSTEM_ADMIN","ADMIN"].includes(session.role);
+
   const result = await getFleetApplication(id);
 
   if (!result.success) {
@@ -265,6 +290,24 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
           {co.permitStatus && <StatusPill status={co.permitStatus} />}
         </div>
       </div>
+
+      {showCompletion && capture && (
+        <OwnerCompletionPanel
+          kind="company"
+          entityId={co.id}
+          status={capture.applicationStatus}
+          capturedBy={
+            capturer ? `${capturer.firstName} ${capturer.lastName}` : null
+          }
+          owner={{
+            contactPerson: capture.contactPerson,
+            contactPhone: capture.contactPhone,
+            contactEmail: capture.contactEmail,
+            cacNumber: capture.cacNumber,
+            hasAccount: !!capture.contactUserId,
+          }}
+        />
+      )}
 
       {/* Action Bar */}
       <ActionBar company={co} role={session.role} />

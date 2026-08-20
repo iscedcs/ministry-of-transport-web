@@ -54,6 +54,26 @@ const MODULES = [
   },
 ] as const;
 
+/**
+ * Where a capture begins. The Enumerator picks the service, then fills the
+ * ordinary application form in field-capture mode — no owner section, saved
+ * as a draft that belongs to nobody until the Ministry names an owner.
+ */
+const SERVICES = [
+  {
+    href: "/motor-parks/apply",
+    icon: "🅿️",
+    title: "Motor park",
+    description: "Capture a park at the site. Owner details added later.",
+  },
+  {
+    href: "/fleet-operators/apply",
+    icon: "🚌",
+    title: "Mass transit operator",
+    description: "Capture a company and its terminals.",
+  },
+] as const;
+
 export default async function EnumeratorDashboardPage() {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -122,6 +142,35 @@ export default async function EnumeratorDashboardPage() {
             </p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Start a capture — pick the service, then fill the form */}
+      <div>
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+          Onboard a service
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {SERVICES.map((svc) => (
+            <Link
+              key={svc.href}
+              href={svc.href}
+              className="group flex items-start gap-3 rounded-2xl border border-border/60 bg-card p-5 transition-colors hover:border-primary/50 hover:bg-primary/5">
+              <span className="text-2xl leading-none">{svc.icon}</span>
+              <div className="min-w-0">
+                <h3 className="font-bold text-foreground transition-colors group-hover:text-primary">
+                  {svc.title}
+                </h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {svc.description}
+                </p>
+              </div>
+            </Link>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          You are not the owner, so the owner&apos;s section is not shown. What
+          you capture is saved as a draft and completed by the Ministry.
+        </p>
       </div>
 
       {/* Module entry points */}
