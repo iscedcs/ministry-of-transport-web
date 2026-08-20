@@ -180,8 +180,18 @@ export default function TracasClient({
 }: TracasClientProps) {
   /** Sticker inventory loading is System Admin only. */
   const isSystemAdmin = currentUserRole === "SYSTEM_ADMIN";
-  /** Changing or removing an existing driver stays System Admin only. */
-  const canReassignDriver = isSystemAdmin;
+  /**
+   * The two administrative roles. ADMIN is the Anambra team lead, who runs
+   * day-to-day corrections without the System Administrator account.
+   */
+  const isAdministrator = isSystemAdmin || currentUserRole === "ADMIN";
+  /**
+   * Moving a driver between vehicles, or removing one, invalidates an issued
+   * Letter of Authority — so it is narrower than ordinary fleet write access
+   * and stays with the two administrative roles. Mirrors reassignTracasDriver,
+   * which gates the same way server-side.
+   */
+  const canReassignDriver = isAdministrator;
   /**
    * Creating or modifying fleet records is the Enumerator's job. Everyone
    * else with TRACAS visibility — PS, the HODs, the MD, inspectors — is
