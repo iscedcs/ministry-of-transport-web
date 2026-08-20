@@ -17,12 +17,15 @@ import type { UserRole } from "@prisma/client";
  * (PS, the HODs, the TRACAS MD, inspectors) is read-only: they review and
  * approve, they do not enter data.
  *
- * TODO: add the ADMIN role here once it is created.
+ * ADMIN is the Anambra team lead: they correct records across every module so
+ * that day to day fixes no longer require the System Administrator account.
+ * They still approve nothing — see lib/account-policy.ts.
  */
 export const FLEET_WRITE_ROLES: UserRole[] = [
   "ENUMERATOR",
   "COMMISSIONER",
   "SYSTEM_ADMIN",
+  "ADMIN",
 ];
 
 /** Roles that may VIEW fleet records without being able to change them. */

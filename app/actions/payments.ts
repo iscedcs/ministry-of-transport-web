@@ -392,6 +392,12 @@ export async function initiateTransitPayment(
     orderBy: { createdAt: "desc" },
   });
 
+  // A company reclassified out of the imported queue has no applicant
+  // account, so there is nobody to charge online.
+  if (!company.contactUserId || !company.contactEmail) {
+    redirect(`/fleet-operators/${companyId}?error=no-payer-account`);
+  }
+
   const reference = generateReference("TRANSIT");
   const callbackUrl = `${getAppUrl()}/api/payment/callback?reference=${reference}&returnTo=/fleet-operators/${companyId}`;
 
@@ -423,7 +429,7 @@ export async function initiateTransitPayment(
         paystackAccessCode: txn.access_code,
         paystackAuthorizationUrl: txn.authorization_url,
         payerUserId: company.contactUserId,
-        payerAsinNumber: company.asinNumber,
+        payerAsinNumber: company.asinNumber ?? "",
         payerEmail: company.contactEmail,
         amount: TRANSIT_REGISTRATION_FEE_KOBO,
         currency: "NGN",

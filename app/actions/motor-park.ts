@@ -34,6 +34,7 @@ import {
 import { uploadDocument } from "@/lib/spaces";
 import {
   motorParkApplicationSchema,
+  motorParkFieldCaptureSchema,
   motorParkStatusUpdateSchema,
   motorParkFeeRecordSchema,
   inspectionScheduleSchema,
@@ -109,7 +110,15 @@ export async function submitParkApplication(
     cctvPhotoId: getCleanString(formData.get("cctvPhotoId")),
   };
 
-  const parsed = motorParkApplicationSchema.safeParse(raw);
+  // An Enumerator captures in the field, where the owner's details and the
+  // operator's documents are usually not available. That capture is a DRAFT,
+  // validated against a relaxed schema; it becomes an application only when
+  // the full schema passes. See motorParkFieldCaptureSchema.
+  const isFieldCapture = session.role === "ENUMERATOR";
+
+  const parsed = isFieldCapture
+    ? motorParkFieldCaptureSchema.safeParse(raw)
+    : motorParkApplicationSchema.safeParse(raw);
   if (!parsed.success) {
     const firstError = parsed.error.issues[0];
     return { success: false, error: firstError.message };
@@ -140,10 +149,15 @@ export async function submitParkApplication(
       gpsCoordinates: data.gpsCoordinates,
       cacRegistrationNumber: data.cacRegistrationNumber,
       anssidNumber: data.anssidNumber,
-      contactUserId: session.userId,
-      contactPerson: data.contactPerson,
-      contactPhone: data.contactPhone,
-      contactEmail: data.contactEmail,
+      // A field capture belongs to nobody until an owner is identified. It
+      // must never be owned by the officer who typed it in — that would put
+      // the park on the Enumerator's dashboard and give the operator no way
+      // to reach their own record.
+      contactUserId: isFieldCapture ? null : session.userId,
+      capturedByUserId: isFieldCapture ? session.userId : null,
+      contactPerson: data.contactPerson ?? "",
+      contactPhone: data.contactPhone ?? "",
+      contactEmail: data.contactEmail ?? "",
       managerResidentialAddress: data.managerResidentialAddress,
       nextOfKinName: data.nextOfKinName,
       nextOfKinPhone: data.nextOfKinPhone,
@@ -155,33 +169,41 @@ export async function submitParkApplication(
       signagePhotoId: data.signagePhotoId,
       waterFacilityPhotoId: data.waterFacilityPhotoId,
       cctvPhotoId: data.cctvPhotoId,
-      applicationStatus: "SUBMITTED",
+      applicationStatus: isFieldCapture ? "DRAFT" : "SUBMITTED",
     },
     select: { id: true },
   });
 
-  // Create application fee (₦50,000)
-  const feeDueDate = new Date();
-  feeDueDate.setDate(feeDueDate.getDate() + 7);
+  // The application fee is raised on submission, not on capture — there is
+  // nobody to bill a draft, and a fee against no payer only produces an
+  // overdue balance for a park that has not applied yet.
+  if (!isFieldCapture) {
+    const feeDueDate = new Date();
+    feeDueDate.setDate(feeDueDate.getDate() + 7);
 
-  await db.motorParkFee.create({
-    data: {
-      motorParkId: motorPark.id,
-      feeType: "APPLICATION",
-      amount: 5000000, // ₦50,000 in kobo
-      dueDate: feeDueDate,
-      status: "PENDING",
-    },
-  });
+    await db.motorParkFee.create({
+      data: {
+        motorParkId: motorPark.id,
+        feeType: "APPLICATION",
+        amount: 5000000, // ₦50,000 in kobo
+        dueDate: feeDueDate,
+        status: "PENDING",
+      },
+    });
+  }
 
   // Audit log
   await db.auditLog.create({
     data: {
       performedByUserId: session.userId,
-      action: "MOTOR_PARK_APPLICATION_SUBMITTED",
+      action: isFieldCapture
+        ? "MOTOR_PARK_CAPTURED_IN_FIELD"
+        : "MOTOR_PARK_APPLICATION_SUBMITTED",
       entityType: "MOTOR_PARK",
       entityId: motorPark.id,
-      changeDescription: `Application submitted for ${data.businessName}`,
+      changeDescription: isFieldCapture
+        ? `${data.businessName} captured in the field; owner details outstanding`
+        : `Application submitted for ${data.businessName}`,
     },
   });
 
@@ -1860,13 +1882,22 @@ export async function verifyDocument(
  * after submitting the initial application.
  * Stores document URL references in cacDocumentId / landOwnershipDocId fields.
  *
- * Access: EXTERNAL_APPLICANT (own parks only)
+ * Access: EXTERNAL_APPLICANT (own parks only), plus the officers who correct
+ * records on the operator's behalf — a field capture arrives with no
+ * documents at all, and somebody at the Ministry has to attach them.
  */
 export async function updateParkDocuments(
   prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const session = await requireRole(["EXTERNAL_APPLICANT"]);
+  const session = await requireRole([
+    "EXTERNAL_APPLICANT",
+    "HOD_PARKS",
+    "HOD_TRANSPORT_OPS",
+    "HOD_PARKS_REVALIDATION",
+    "SYSTEM_ADMIN",
+    "ADMIN",
+  ]);
 
   const parkId = formData.get("parkId") as string;
   const cacDocumentFile = formData.get("cacDocument");
@@ -1883,9 +1914,14 @@ export async function updateParkDocuments(
     };
   }
 
-  // Ensure applicant owns this park
+  // An applicant may only touch their own park. Ministry officers act on any
+  // park, which is the point — a captured record has no owner to act on it.
+  const isOwnerScoped = session.role === "EXTERNAL_APPLICANT";
   const park = await db.motorPark.findFirst({
-    where: { id: parkId, contactUserId: session.userId },
+    where: {
+      id: parkId,
+      ...(isOwnerScoped ? { contactUserId: session.userId } : {}),
+    },
     select: { id: true },
   });
   if (!park)

@@ -94,6 +94,37 @@ export const motorParkApplicationSchema = z.object({
   cctvPhotoId: z.string().min(1, "Camera installation photo is required"),
 });
 
+/**
+ * What an Enumerator must supply to capture a park in the field.
+ *
+ * Derived from the full application schema by relaxing exactly two groups:
+ * the owner's contact details, which the field agent often cannot obtain and
+ * which the HOD fills in afterwards, and the documents, which live with the
+ * operator rather than at the park.
+ *
+ * Nothing else is relaxed. ASIN stays mandatory — it is the unique key both
+ * registers are built on — and so does everything an officer standing at the
+ * park can see for themselves: the name, the address, the LGA and the town.
+ *
+ * A capture is a DRAFT. It becomes an application only once the full schema
+ * passes, so the Ministry's requirement that documents and evidence stay
+ * mandatory is enforced at submission, not waived.
+ */
+export const motorParkFieldCaptureSchema = motorParkApplicationSchema.partial({
+  contactPerson: true,
+  contactPhone: true,
+  contactEmail: true,
+  managerResidentialAddress: true,
+  landOwnershipDocId: true,
+  cacDocumentId: true,
+  toiletPhotoId: true,
+  waitingAreaPhotoId: true,
+  signagePhotoId: true,
+  waterFacilityPhotoId: true,
+  cctvPhotoId: true,
+});
+
+
 export type MotorParkApplicationInput = z.infer<
   typeof motorParkApplicationSchema
 >;

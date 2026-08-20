@@ -49,6 +49,9 @@ export default async function FleetOperatorsPage({ searchParams }: PageProps) {
     : [];
   const total = result.success ? result.data!.total : 0;
   const isApplicant = session.role === "EXTERNAL_APPLICANT";
+  // An Enumerator captures in the field. Same form, saved as a draft owned by
+  // nobody — without this button they had no way to start one.
+  const isEnumerator = session.role === "ENUMERATOR";
 
   // Fetch pending vehicle submission requests for applicants
   let pendingVehicleRequests: { companyName: string; vehicleCount: number }[] =
@@ -86,7 +89,7 @@ export default async function FleetOperatorsPage({ searchParams }: PageProps) {
               : "Mass transit company & fleet operator registrations"}
           </p>
         </div>
-        {isApplicant && (
+        {(isApplicant || isEnumerator) && (
           <Button asChild>
             <Link href="/fleet-operators/apply">+ New Application</Link>
           </Button>

@@ -17,6 +17,8 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { OwnerCompletionPanel } from "@/components/field-capture/owner-completion-panel";
 import {
   getMotorPark,
   verifyDocument,
@@ -489,6 +491,31 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
 
   const park = result.data!;
 
+  // A record an Enumerator captured has no owner yet. Only the officers who
+  // complete it need to see the panel.
+  const capture = await db.motorPark.findUnique({
+    where: { id },
+    select: {
+      capturedByUserId: true,
+      contactUserId: true,
+      contactPerson: true,
+      contactPhone: true,
+      contactEmail: true,
+      managerResidentialAddress: true,
+      applicationStatus: true,
+    },
+  });
+  const capturer = capture?.capturedByUserId
+    ? await db.user.findUnique({
+        where: { id: capture.capturedByUserId },
+        select: { firstName: true, lastName: true },
+      })
+    : null;
+  const showCompletion =
+    !!capture &&
+    (capture.applicationStatus === "DRAFT" || !!capture.capturedByUserId) &&
+    ["HOD_TRANSPORT_OPS","HOD_PARKS_REVALIDATION","HOD_PARKS","SYSTEM_ADMIN","ADMIN"].includes(session.role);
+
   const canApproveDocs = [
     "HOD_PARKS",
     "HOD_PARKS_REVALIDATION",
@@ -545,6 +572,24 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
           </div>
         </div>
       </div>
+
+      {showCompletion && capture && (
+        <OwnerCompletionPanel
+          kind="park"
+          entityId={park.id}
+          status={capture.applicationStatus}
+          capturedBy={
+            capturer ? `${capturer.firstName} ${capturer.lastName}` : null
+          }
+          owner={{
+            contactPerson: capture.contactPerson,
+            contactPhone: capture.contactPhone,
+            contactEmail: capture.contactEmail,
+            managerResidentialAddress: capture.managerResidentialAddress,
+            hasAccount: !!capture.contactUserId,
+          }}
+        />
+      )}
 
       {/* Action bar — role-gated */}
       <ActionBar park={park} role={session.role} />

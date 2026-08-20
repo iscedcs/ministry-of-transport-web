@@ -37,6 +37,9 @@ export default async function MotorParksPage({ searchParams }: PageProps) {
   const parks: MotorParkListItem[] = result.success ? result.data!.parks : [];
   const total = result.success ? result.data!.total : 0;
   const isApplicant = session.role === "EXTERNAL_APPLICANT";
+  // An Enumerator captures in the field. Same form, saved as a draft owned by
+  // nobody — without this button they had no way to start one.
+  const isEnumerator = session.role === "ENUMERATOR";
 
   // Build filter URL helper
   function filterUrl(overrides: Record<string, string | undefined>) {
@@ -67,7 +70,7 @@ export default async function MotorParksPage({ searchParams }: PageProps) {
               : `${total} application${total !== 1 ? "s" : ""} total`}
           </p>
         </div>
-        {isApplicant && (
+        {(isApplicant || isEnumerator) && (
           <Button asChild>
             <Link href="/motor-parks/apply">New Application</Link>
           </Button>

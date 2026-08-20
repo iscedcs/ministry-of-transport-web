@@ -430,6 +430,8 @@ export type UserProfile = {
   phone: string | null;
   asinNumber: string | null;
   residentialAddress: string | null;
+  /** Lets a form know it is being filled by an Enumerator in the field. */
+  role: string;
 };
 
 /**
@@ -449,6 +451,7 @@ export async function getMyProfile(): Promise<ActionResult<UserProfile>> {
         phone: true,
         asinNumber: true,
         residentialAddress: true,
+        role: true,
       },
     });
 
@@ -469,6 +472,7 @@ export async function getMyProfile(): Promise<ActionResult<UserProfile>> {
           email: true,
           phone: true,
           asinNumber: true,
+          role: true,
         },
       });
 

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
+import { massTransitSignal } from "@/lib/mass-transit-signal";
 import { getSession } from "@/lib/auth";
 import { Card, CardTitle, CardDescription } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/badge";
@@ -293,6 +294,19 @@ export default async function RevalidationQueuePage({ searchParams }: PageProps)
                             <Building2 className="w-3.5 h-3.5 text-primary shrink-0" />{" "}
                             {app.parkName}
                           </span>
+                          {/* So a search result says which register it belongs
+                              to without opening it. */}
+                          {app.serviceCategory === "MASS_TRANSIT" ? (
+                            <span className="mt-1 inline-flex items-center rounded-md bg-blue-500/10 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:text-blue-400">
+                              Mass transit
+                            </span>
+                          ) : !app.serviceCategory &&
+                            app.dataSource === "VENDOR_IMPORT" &&
+                            massTransitSignal(app) ? (
+                            <span className="mt-1 inline-flex items-center rounded-md bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400">
+                              Possibly mass transit
+                            </span>
+                          ) : null}
                         </td>
                         <td className="py-4 px-4 whitespace-nowrap">
                           {app.facilityType ? (
