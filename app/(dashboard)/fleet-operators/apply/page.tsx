@@ -384,6 +384,13 @@ export default function ApplyFleetPage() {
   const [isPending, startTransition] = useTransition();
   const [globalError, setGlobalError] = useState<string | undefined>();
   const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
+  /**
+   * An Enumerator is capturing this at the terminal, not applying as the
+   * operator. Step 1 shows THEIR details, so the owner's are asked for
+   * separately below and every one of them is optional — the agent often
+   * cannot get them on site, and the Ministry fills them in afterwards.
+   */
+  const isFieldCapture = ownerProfile?.role === "ENUMERATOR";
 
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
@@ -643,9 +650,12 @@ export default function ApplyFleetPage() {
       if (!data.companyName.trim()) errors.companyName = "Required";
       if (!data.cacNumber.trim()) errors.cacNumber = "Required";
       if (!data.asinNumber.trim()) errors.asinNumber = "Required";
-      if (!data.contactPerson.trim()) errors.contactPerson = "Required";
-      if (!data.contactPhone.trim()) errors.contactPhone = "Required";
-      if (!data.contactEmail.trim()) errors.contactEmail = "Required";
+      // Asked for on step 1 and optional when an Enumerator is capturing.
+      if (!isFieldCapture) {
+        if (!data.contactPerson.trim()) errors.contactPerson = "Required";
+        if (!data.contactPhone.trim()) errors.contactPhone = "Required";
+        if (!data.contactEmail.trim()) errors.contactEmail = "Required";
+      }
       if (!data.cacDocumentId) errors.cacDocumentId = "Required";
       if (!data.landOwnershipDocId) errors.landOwnershipDocId = "Required";
       if (!data.corporateAsinDocumentId) errors.corporateAsinDocumentId = "Required";
@@ -859,10 +869,82 @@ export default function ApplyFleetPage() {
               </CardContent>
             </Card>
 
+            {isFieldCapture && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Owner Information</CardTitle>
+                  <CardDescription>
+                    The operator&apos;s own contact details. All optional —
+                    record whatever you can get on site and leave the rest;
+                    the Ministry completes it before the application is
+                    submitted.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <Field
+                      id="ownerContactPerson"
+                      label="Owner / Contact Person"
+                      required={false}>
+                      <Input
+                        id="ownerContactPerson"
+                        value={data.contactPerson}
+                        onChange={(e) =>
+                          setData((prev) => ({
+                            ...prev,
+                            contactPerson: e.target.value,
+                          }))
+                        }
+                        placeholder="Full name of the owner or contact"
+                      />
+                    </Field>
+                  </div>
+
+                  <Field
+                    id="ownerContactPhone"
+                    label="Owner Phone"
+                    required={false}>
+                    <Input
+                      id="ownerContactPhone"
+                      type="tel"
+                      value={data.contactPhone}
+                      onChange={(e) =>
+                        setData((prev) => ({
+                          ...prev,
+                          contactPhone: e.target.value,
+                        }))
+                      }
+                      placeholder="08030000000"
+                    />
+                  </Field>
+
+                  <Field
+                    id="ownerContactEmail"
+                    label="Owner Email"
+                    required={false}>
+                    <Input
+                      id="ownerContactEmail"
+                      type="email"
+                      value={data.contactEmail}
+                      onChange={(e) =>
+                        setData((prev) => ({
+                          ...prev,
+                          contactEmail: e.target.value,
+                        }))
+                      }
+                      placeholder="Leave blank if they have none"
+                    />
+                  </Field>
+                </CardContent>
+              </Card>
+            )}
+
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                This information is from your account profile. To update it,{" "}
+                {isFieldCapture
+                  ? "The details above are yours, from your account profile. They record who captured this, not who owns it."
+                  : "This information is from your account profile."}{" "}
                 <Link
                   href="/profile/edit"
                   className="underline hover:text-foreground">
@@ -940,6 +1022,10 @@ export default function ApplyFleetPage() {
                   />
                 </Field>
 
+                {/* Asked for on step 1 when an Enumerator is capturing, so
+                    the same value is never requested twice. */}
+                {!isFieldCapture && (
+                  <>
                 <Separator className="sm:col-span-2" />
 
                 <div className="sm:col-span-2">
@@ -999,6 +1085,8 @@ export default function ApplyFleetPage() {
                     placeholder="company@example.com"
                   />
                 </Field>
+                  </>
+                )}
               </CardContent>
             </Card>
 

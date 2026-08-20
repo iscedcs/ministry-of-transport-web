@@ -98,6 +98,19 @@ const fleetCompanySchema = z.object({
   cctvPhotoId: z.string().optional(),
 });
 
+/**
+ * The same company details, captured by an Enumerator in the field.
+ *
+ * Only the operator's contact details are relaxed. The agent is standing at
+ * the terminal and often cannot get them; the Ministry fills them in later.
+ * Everything else — company name, CAC, ASIN, the documents — is unchanged.
+ */
+const fleetCompanyFieldCaptureSchema = fleetCompanySchema.partial({
+  contactPerson: true,
+  contactEmail: true,
+  contactPhone: true,
+});
+
 // ==================== APPLICATION (FR-020 / FR-021 / FR-022, STORY-041) ====================
 
 /**
@@ -179,11 +192,17 @@ export async function submitFleetApplication(
   }
 
   // Validate company details
-  const companyParsed = fleetCompanySchema.safeParse({
+  const isFieldCapture = session.role === "ENUMERATOR";
+  const blankToUndefined = (v: FormDataEntryValue | null) =>
+    typeof v === "string" && v.trim() === "" ? undefined : v;
+
+  const companyParsed = (
+    isFieldCapture ? fleetCompanyFieldCaptureSchema : fleetCompanySchema
+  ).safeParse({
     companyName: formData.get("companyName"),
-    contactPerson: formData.get("contactPerson"),
-    contactEmail: formData.get("contactEmail"),
-    contactPhone: formData.get("contactPhone"),
+    contactPerson: blankToUndefined(formData.get("contactPerson")),
+    contactEmail: blankToUndefined(formData.get("contactEmail")),
+    contactPhone: blankToUndefined(formData.get("contactPhone")),
     cacNumber: formData.get("cacNumber"),
     asinNumber: formData.get("asinNumber"),
     businessPremisesCert: formData.get("businessPremisesCert") || undefined,
@@ -229,19 +248,16 @@ export async function submitFleetApplication(
     };
   }
 
-  // Field capture: same rule as a motor park. The record belongs to nobody
-  // until an owner is identified, and it is a draft until the full
-  // application requirements are met.
-  const isFieldCapture = session.role === "ENUMERATOR";
-
   const company = await db.$transaction(async (tx) => {
     // Create company
     const co = await tx.massTransitCompany.create({
       data: {
         companyName: companyData.companyName,
-        contactPerson: companyData.contactPerson,
-        contactEmail: companyData.contactEmail,
-        contactPhone: companyData.contactPhone,
+        // Null rather than "" so an unfilled owner reads as absent, which is
+        // what the completion panel and the dashboards test for.
+        contactPerson: companyData.contactPerson || null,
+        contactEmail: companyData.contactEmail || null,
+        contactPhone: companyData.contactPhone || null,
         contactUserId: isFieldCapture ? null : session.userId,
         capturedByUserId: isFieldCapture ? session.userId : null,
         cacNumber: companyData.cacNumber,
