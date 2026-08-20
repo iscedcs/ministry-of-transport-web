@@ -672,9 +672,34 @@ model Terminal {
   /// parallel set of fields, and inherits staff, revalidation and permits.
   motorParkId String? @unique
 
+  /// Business premises certificate for THIS terminal — each site is
+  /// certificated separately, so it cannot be inherited from the company.
+  businessPremisesCertNo    String?
+  businessPremisesCertDocId String? // Document.id
+
   // Status
   inspectionStatus InspectionStatus @default(SCHEDULED)
   inspectionDueAt  DateTime?
+
+  /// A terminal added AFTER the company is approved is its own small
+  /// application: it is inspected, then passes HOD, PS and Commissioner
+  /// before it becomes a park. Terminals declared on the original
+  /// application inherit the company's outcome instead.
+  applicationStatus ApplicationStatus @default(SUBMITTED)
+
+  /// Set when the terminal was added to an already-approved company, so the
+  /// two routes can be told apart on screen and in the audit trail.
+  addedByUserId String?
+  addedAt       DateTime?
+
+  hodApprovedAt          DateTime?
+  hodApprovedByUserId    String?
+  psApprovedAt           DateTime?
+  psApprovedByUserId     String?
+  commissionerApprovedAt DateTime?
+  approvedAt             DateTime?
+  approvedByUserId       String?
+  rejectionReason        String?   @db.Text
 
   // Audit
   createdAt DateTime @default(now())
@@ -685,6 +710,7 @@ model Terminal {
   motorPark MotorPark?         @relation("TerminalPark", fields: [motorParkId], references: [id], onDelete: SetNull)
 
   @@index([companyId])
+  @@index([applicationStatus])
 }
 
 // Post-application: Commissioner/HOD requests applicant to submit vehicle details
