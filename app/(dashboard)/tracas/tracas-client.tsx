@@ -60,7 +60,7 @@ import {
   addStickerUrlsToTracasPool,
 } from "@/app/actions/tracas";
 import { StickerQrScannerModal } from "@/components/tracas/sticker-qr-scanner-modal";
-import { canWriteFleet } from "@/lib/fleet-roles";
+import { canWriteFleet, canEditDriver } from "@/lib/fleet-roles";
 import { TracasNavTabs } from "@/components/tracas/tracas-nav-tabs";
 
 interface VehicleItem {
@@ -200,6 +200,8 @@ export default function TracasClient({
   const canWrite = canWriteFleet(currentUserRole);
   /** Attaching a driver to a vehicle that has none is part of onboarding. */
   const canAssignDriver = canWrite;
+  /** Amending a driver's profile — see DRIVER_EDIT_ROLES. */
+  const canEditDriverRecord = canEditDriver(currentUserRole);
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -1258,9 +1260,11 @@ export default function TracasClient({
                             )}
                           </div>
                           <div>
-                            <p className="font-bold text-foreground">
+                            <Link
+                              href={`/tracas/driver/${driver.id}`}
+                              className="font-bold text-foreground transition-colors hover:text-primary hover:underline">
                               {driver.fullName}
-                            </p>
+                            </Link>
                             <p className="text-xs text-muted-foreground">
                               {driver.stateOfOrigin || "Anambra"}{" "}
                               {driver.lga ? `· ${driver.lga}` : ""}
@@ -1329,8 +1333,10 @@ export default function TracasClient({
                       <td className="py-3.5 px-4 text-xs text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Editing a driver changes what is printed on an
-                              issued ID card — System Admin only. */}
-                          {isSystemAdmin && (
+                              issued ID card, so it stays with the Enumerator
+                              who captured them and the administrative roles —
+                              never the roles that approve the card. */}
+                          {canEditDriverRecord && (
                             <Button
                               size="sm"
                               variant="outline"

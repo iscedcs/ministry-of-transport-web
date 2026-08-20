@@ -47,6 +47,26 @@ export const FLEET_VIEW_ROLES: UserRole[] = [
  */
 export const FLEET_EDIT_ROLES: UserRole[] = FLEET_WRITE_ROLES;
 
+/**
+ * Roles that may amend a driver's profile.
+ *
+ * Narrower than FLEET_WRITE_ROLES: a driver's details are printed on an ID
+ * card and named on a Letter of Authority, so the Commissioner — who approves
+ * those documents — does not also edit what they approve. The Enumerator who
+ * captured the driver corrects their own work; the two administrative roles
+ * correct anyone's.
+ */
+export const DRIVER_EDIT_ROLES: UserRole[] = [
+  "ENUMERATOR",
+  "SYSTEM_ADMIN",
+  "ADMIN",
+];
+
+/** True when the role may amend a driver's profile. */
+export function canEditDriver(role: UserRole | string | null): boolean {
+  return !!role && (DRIVER_EDIT_ROLES as string[]).includes(role);
+}
+
 /** True when the role may create or modify fleet records. */
 export function canWriteFleet(role: UserRole | string | null): boolean {
   return !!role && (FLEET_WRITE_ROLES as string[]).includes(role);

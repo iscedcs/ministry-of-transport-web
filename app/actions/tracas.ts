@@ -16,6 +16,7 @@ import {
   FLEET_WRITE_ROLES,
   FLEET_EDIT_ROLES,
   FLEET_VIEW_ROLES,
+  DRIVER_EDIT_ROLES,
 } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 
@@ -1010,16 +1011,17 @@ export async function getPublicTracasVerification(identifier: string) {
 /**
  * Edit an enumerated TRACAS driver's profile, including their passport photo.
  *
- * System Admin only. Enumerators capture drivers at onboarding; correcting a
- * record afterwards changes what is printed on an issued ID card and named on
- * a Letter of Authority, so it is deliberately a narrower permission.
+ * Open to the Enumerator who captured the driver and to the two
+ * administrative roles. Correcting a record changes what is printed on an
+ * issued ID card and named on a Letter of Authority, so it stays out of the
+ * hands of the reviewing and approving roles — they read, they do not amend.
  */
 export async function updateTracasDriver(
   driverId: string,
   input: Partial<OnboardTracasDriverInput> & { status?: string },
 ) {
   try {
-    const authz = await authorize(["SYSTEM_ADMIN", "ADMIN"]);
+    const authz = await authorize(DRIVER_EDIT_ROLES);
     if (!authz.ok) {
       return {
         success: false,
@@ -1170,6 +1172,43 @@ export async function getTracasVehicleDetail(vehicleId: string) {
   } catch (error: any) {
     console.error("getTracasVehicleDetail failed:", error);
     return { success: false as const, error: "Failed to load the vehicle." };
+  }
+}
+
+/**
+ * One driver, with the vehicles they hold.
+ *
+ * Readable by every role with fleet visibility — the detail page is where an
+ * officer checks a record before an ID card is approved.
+ */
+export async function getTracasDriverDetail(driverId: string) {
+  const authz = await authorize(FLEET_VIEW_ROLES);
+  if (!authz.ok) return { success: false as const, error: authz.error };
+
+  try {
+    const driver = await db.tracasDriver.findUnique({
+      where: { id: driverId },
+      include: {
+        vehicles: {
+          select: {
+            id: true,
+            registrationNumber: true,
+            fleetNumber: true,
+            category: true,
+            makeModel: true,
+            status: true,
+          },
+          orderBy: { fleetNumber: "asc" },
+        },
+      },
+    });
+    if (!driver) {
+      return { success: false as const, error: "Driver not found." };
+    }
+    return { success: true as const, data: driver };
+  } catch (error: any) {
+    console.error("getTracasDriverDetail failed:", error);
+    return { success: false as const, error: "Failed to load the driver." };
   }
 }
 
