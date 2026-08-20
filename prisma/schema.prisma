@@ -582,6 +582,11 @@ model MassTransitCompany {
   landOwnershipDocId      String? // Document.id
   corporateAsinDocumentId String? // Document.id
 
+  /// What the terminal has, as { [facility]: boolean } over FACILITY_ITEMS.
+  /// Declared by the operator; verified at the terminal inspection. Optional
+  /// throughout — an operator lists what they have and leaves out the rest.
+  facilitiesAvailable Json?
+
   // ── Facility infrastructure photographs (terminal / depot) ──
   // A terminal becomes a motor park on approval, so it is asked for the same
   // evidence a park is asked for — including the camera installation.

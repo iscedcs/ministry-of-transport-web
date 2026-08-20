@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/card";
 import { CheckCircle2, Upload, X, Loader2, Building2 } from "lucide-react";
 import { toast } from "sonner";
+import { FACILITY_ITEMS } from "@/lib/facilities";
 
 const EMPTY: RevalidationDraftData = {
   ownerName: "",
@@ -84,11 +85,8 @@ const STEPS = [
 const PUBLIC_PRIVATE_OPTIONS = ["Inter-State", "Intra-State", "Both", "Keke", "Buses", "Luxury Bus"];
 const LOADING_BAY_OPTIONS = ["Motorcycle", "Cargo", "Logistics"];
 const VEHICLE_TYPES = ["Motorcycle", "Tricycle", "Taxi", "Shuttle Bus", "Mini Bus", "Luxury Bus", "Truck", "Tipper", "Tanker", "Haulage Vehicle", "Others"];
-const FACILITIES = [
-  "Perimeter Fence", "Security Post", "Toilet Facilities", "Borehole/Water Supply",
-  "Passenger Waiting Area", "Loading Bay", "Fire Extinguishers", "CCTV Cameras",
-  "Solar/Street Lights", "Ticketing Point", "Manager/Admin Office"
-];
+// Shared with the mass transit application — see lib/facilities.ts.
+const FACILITIES = FACILITY_ITEMS;
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;

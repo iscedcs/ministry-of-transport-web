@@ -223,6 +223,27 @@ export async function submitFleetApplication(
 
   const companyData = companyParsed.data;
 
+  // What the operator says the terminal has. Every item is optional, so an
+  // absent key means "not claimed" rather than "does not exist" — the
+  // inspection is what settles it either way.
+  let facilitiesDeclared: Record<string, boolean> | undefined;
+  const facilitiesRaw = formData.get("facilitiesJson");
+  if (typeof facilitiesRaw === "string" && facilitiesRaw.trim() !== "") {
+    try {
+      const parsed = JSON.parse(facilitiesRaw);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        facilitiesDeclared = Object.fromEntries(
+          Object.entries(parsed as Record<string, unknown>)
+            .filter(([, v]) => typeof v === "boolean")
+            .map(([k, v]) => [k, v as boolean]),
+        );
+      }
+    } catch {
+      // A malformed list is not worth failing an application over; the
+      // inspection records what is actually there.
+    }
+  }
+
   // Check for duplicate CAC or ASIN
   const [existingCac, existingAsin] = await Promise.all([
     db.massTransitCompany.findUnique({
@@ -267,6 +288,7 @@ export async function submitFleetApplication(
         cacDocumentId: companyData.cacDocumentId,
         landOwnershipDocId: companyData.landOwnershipDocId,
         corporateAsinDocumentId: companyData.corporateAsinDocumentId,
+        facilitiesAvailable: facilitiesDeclared,
         toiletPhotoId: companyData.toiletPhotoId || null,
         waitingAreaPhotoId: companyData.waitingAreaPhotoId || null,
         signagePhotoId: companyData.signagePhotoId || null,

@@ -34,6 +34,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Upload, X, FileText, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
+import { FACILITY_ITEMS } from "@/lib/facilities";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -87,6 +89,9 @@ interface WizardData {
 
   // Step 3: Vehicle counts
   vehicleTypeCounts: Record<VehicleType, number>;
+
+  /** What the terminal has, over FACILITY_ITEMS. Every entry is optional. */
+  facilitiesAvailable: Record<string, boolean>;
 }
 
 interface OwnerDisplayData {
@@ -156,6 +161,7 @@ const EMPTY: WizardData = {
     LIGHT_COMMERCIAL: 0,
     TANKER: 0,
   },
+  facilitiesAvailable: {},
 };
 
 const STEPS = [
@@ -663,13 +669,9 @@ export default function ApplyFleetPage() {
 
     // Step 3: Terminals & Managers
     if (step === 3) {
-      // A terminal becomes a motor park on approval, so it is asked for the
-      // same facility evidence a park is asked for.
-      if (!data.toiletPhotoId) errors.toiletPhotoId = "Required";
-      if (!data.waitingAreaPhotoId) errors.waitingAreaPhotoId = "Required";
-      if (!data.signagePhotoId) errors.signagePhotoId = "Required";
-      if (!data.waterFacilityPhotoId) errors.waterFacilityPhotoId = "Required";
-      if (!data.cctvPhotoId) errors.cctvPhotoId = "Required";
+      // Facility photographs are optional: a terminal that has no borehole
+      // cannot photograph one, and blocking the application on it only
+      // produced invented uploads. What is there is settled at inspection.
       if (data.terminals.length === 0) {
         setStepErrors({ ...errors });
         return false;
@@ -743,6 +745,7 @@ export default function ApplyFleetPage() {
       fd.set("signagePhotoId", data.signagePhotoId);
       fd.set("waterFacilityPhotoId", data.waterFacilityPhotoId);
       fd.set("cctvPhotoId", data.cctvPhotoId);
+      fd.set("facilitiesJson", JSON.stringify(data.facilitiesAvailable));
       fd.set(
         "terminalsJson",
         JSON.stringify(
@@ -1143,8 +1146,9 @@ export default function ApplyFleetPage() {
                   Facility Infrastructure Photos
                 </CardTitle>
                 <CardDescription>
-                  Photographs of the terminal / depot facilities. These are
-                  verified during the terminal inspection.
+                  Photographs of the terminal / depot facilities. All
+                  optional — upload what you have; they are verified during
+                  the terminal inspection.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -1202,6 +1206,38 @@ export default function ApplyFleetPage() {
                   onSelect={handleCctvUpload}
                   onClear={clearCctvPhoto}
                 />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Facilities Available</CardTitle>
+                <CardDescription>
+                  Tick what the terminal has. Leave out anything it does not —
+                  nothing here is required, and what you tick is verified at
+                  the terminal inspection.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {FACILITY_ITEMS.map((facility) => (
+                  <label
+                    key={facility}
+                    className="flex items-center gap-2.5 rounded-lg border border-border px-3 py-2.5 text-sm transition-colors hover:bg-secondary/50 cursor-pointer">
+                    <Checkbox
+                      checked={!!data.facilitiesAvailable[facility]}
+                      onCheckedChange={(checked) =>
+                        setData((prev) => ({
+                          ...prev,
+                          facilitiesAvailable: {
+                            ...prev.facilitiesAvailable,
+                            [facility]: !!checked,
+                          },
+                        }))
+                      }
+                    />
+                    <span>{facility}</span>
+                  </label>
+                ))}
               </CardContent>
             </Card>
           </>
