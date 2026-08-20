@@ -342,10 +342,9 @@ export async function submitCapturedCompany(companyId: string) {
   if (!company.cacDocumentId) missing.push("CAC certificate");
   if (!company.landOwnershipDocId) missing.push("land ownership document");
   if (!company.corporateAsinDocumentId) missing.push("corporate ASIN certificate");
-  if (!company.toiletPhotoId) missing.push("toilet photograph");
-  if (!company.waitingAreaPhotoId) missing.push("waiting area photograph");
-  if (!company.signagePhotoId) missing.push("signage photograph");
-  if (!company.waterFacilityPhotoId) missing.push("water facility photograph");
+  // Facility photographs are deliberately NOT required: a terminal without a
+  // borehole cannot photograph one. What the terminal actually has is
+  // declared in facilitiesAvailable and settled at the inspection.
   if (company.terminals.length === 0) missing.push("at least one terminal");
 
   if (missing.length > 0) {

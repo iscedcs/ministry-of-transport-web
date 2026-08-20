@@ -19,6 +19,7 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { OwnerCompletionPanel } from "@/components/field-capture/owner-completion-panel";
+import { TerminalApplicationsPanel } from "@/components/mass-transit/terminal-applications-panel";
 import {
   getFleetApplication,
   type FleetApplicationDetail,
@@ -245,6 +246,25 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
     (capture.applicationStatus === "DRAFT" || !!capture.capturedByUserId) &&
     ["HOD_TRANSPORT_OPS","HOD_PARKS_REVALIDATION","HOD_PARKS","SYSTEM_ADMIN","ADMIN"].includes(session.role);
 
+  // Terminals carry their own approval state once the company is live, so
+  // they are read directly rather than through the application detail.
+  const terminalRows = await db.terminal.findMany({
+    where: { companyId: id },
+    orderBy: { terminalNumber: "asc" },
+    select: {
+      id: true,
+      terminalNumber: true,
+      locationAddress: true,
+      managerName: true,
+      managerPhone: true,
+      businessPremisesCertNo: true,
+      applicationStatus: true,
+      rejectionReason: true,
+      motorParkId: true,
+      addedAt: true,
+    },
+  });
+
   const result = await getFleetApplication(id);
 
   if (!result.success) {
@@ -308,6 +328,21 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
           }}
         />
       )}
+
+      <TerminalApplicationsPanel
+        companyId={co.id}
+        companyApproved={["APPROVED", "TEMPORAL_APPROVAL"].includes(
+          co.applicationStatus,
+        )}
+        terminals={terminalRows}
+        currentUserRole={session.role}
+        canAdd={
+          session.role === "EXTERNAL_APPLICANT" ||
+          ["ENUMERATOR", "HOD_TRANSPORT_OPS", "SYSTEM_ADMIN", "ADMIN"].includes(
+            session.role,
+          )
+        }
+      />
 
       {/* Action Bar */}
       <ActionBar company={co} role={session.role} />
