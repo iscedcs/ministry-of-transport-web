@@ -117,8 +117,10 @@ export {
   FLEET_WRITE_ROLES,
   FLEET_VIEW_ROLES,
   FLEET_EDIT_ROLES,
+  DRIVER_EDIT_ROLES,
   canWriteFleet,
   canEditFleet,
+  canEditDriver,
   canViewFleet,
 } from "./fleet-roles";
 
