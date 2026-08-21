@@ -332,13 +332,7 @@ export default function ApplyMotorParkPage() {
           setCompletedSteps(done);
         }
         if (profileResult.success) {
-          const profile = profileResult.data as UserProfile;
-          setOwnerProfile(profile);
-          // The owner step is not rendered for an Enumerator, so never leave
-          // them sitting on it.
-          if (profile.role === "ENUMERATOR" && (draft?.stepReached ?? 1) < 2) {
-            setCurrentStep(2);
-          }
+          setOwnerProfile(profileResult.data as UserProfile);
         }
       })
       .catch(() => {
@@ -353,7 +347,10 @@ export default function ApplyMotorParkPage() {
    * fills those details in afterwards — and the record is saved as a draft.
    */
   const isFieldCapture = ownerProfile?.role === "ENUMERATOR";
-  const steps = isFieldCapture ? STEPS.filter((x) => x.id !== 1) : STEPS;
+  // Step 1 is shown to everyone. For an applicant it is their own account
+  // details; for an Enumerator it records who captured the park and then
+  // asks, optionally, for the owner's — mirroring the mass transit form.
+  const steps = STEPS;
   const firstStep = steps[0].id;
   const lastStep = steps[steps.length - 1].id;
 
@@ -810,6 +807,73 @@ export default function ApplyMotorParkPage() {
       )}
 
       {/* -- Step 1: Owner Details (not shown for a field capture) -- */}
+      {currentStep === 1 && isFieldCapture && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Your Information</CardTitle>
+              <CardDescription>
+                From your Ministry account. This records who captured the
+                park, not who owns it.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field id="capturedByName" label="Captured by">
+                <Input
+                  value={`${ownerProfile?.firstName || ""} ${ownerProfile?.lastName || ""}`.trim()}
+                  disabled
+                />
+              </Field>
+              <Field id="capturedByPhone" label="Your phone">
+                <Input value={ownerProfile?.phone || ""} disabled />
+              </Field>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Owner Information</CardTitle>
+              <CardDescription>
+                The park owner or manager. All optional — record whatever you
+                can get on site and leave the rest; the Ministry completes it
+                before the application is submitted.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <Field id="ownerContactPerson" label="Owner / Manager Name">
+                <Input
+                  id="ownerContactPerson"
+                  value={data.contactPerson}
+                  onChange={(e) => set("contactPerson", e.target.value)}
+                  placeholder="Full name"
+                />
+              </Field>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field id="ownerContactPhone" label="Phone Number">
+                  <Input
+                    id="ownerContactPhone"
+                    type="tel"
+                    value={data.contactPhone}
+                    onChange={(e) => set("contactPhone", e.target.value)}
+                    placeholder="08012345678"
+                  />
+                </Field>
+                <Field id="ownerContactEmail" label="Email Address">
+                  <Input
+                    id="ownerContactEmail"
+                    type="email"
+                    value={data.contactEmail}
+                    onChange={(e) => set("contactEmail", e.target.value)}
+                    placeholder="Leave blank if they have none"
+                  />
+                </Field>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
       {currentStep === 1 && !isFieldCapture && (
         <Card>
           <CardHeader>
@@ -986,6 +1050,10 @@ export default function ApplyMotorParkPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
+            {/* Asked for on step 1 when an Enumerator is capturing, so the
+                same value is never requested twice. */}
+            {!isFieldCapture && (
+              <>
             <Field
               id="contactPerson"
               label="Manager / Contact Name"
@@ -1034,7 +1102,9 @@ export default function ApplyMotorParkPage() {
                 />
               </Field>
             </div>
-            
+              </>
+            )}
+
             {/* Manager Residential Address */}
             <div className="pt-4 border-t border-border">
               <h3 className="text-sm font-semibold mb-3">Manager Residential Address</h3>
