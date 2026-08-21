@@ -37,6 +37,8 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2, Upload, X, FileText, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
+import { APPLICATION_TYPES, type ApplicationType } from "@/lib/application-type";
 
 // -- Types -------------------------------------------------------------------
 
@@ -347,6 +349,9 @@ export default function ApplyMotorParkPage() {
    * fills those details in afterwards — and the record is saved as a draft.
    */
   const isFieldCapture = ownerProfile?.role === "ENUMERATOR";
+  const [applicationType, setApplicationType] =
+    useState<ApplicationType>("NEW");
+  const router = useRouter();
   // Step 1 is shown to everyone. For an applicant it is their own account
   // details; for an Enumerator it records who captured the park and then
   // asks, optionally, for the owner's — mirroring the mass transit form.
@@ -670,6 +675,7 @@ export default function ApplyMotorParkPage() {
     if (data.cacRegistrationNumber)
       fd.append("cacRegistrationNumber", data.cacRegistrationNumber);
     fd.append("anssidNumber", data.anssidNumber);
+    fd.append("applicationType", applicationType);
     fd.append("streetAddress", data.streetAddress);
     fd.append("lga", data.lga);
     fd.append("townCity", data.townCity);
@@ -700,6 +706,12 @@ export default function ApplyMotorParkPage() {
         clearParkDraft().catch(() => {
           /* best-effort */
         });
+        // A revalidation lives in the revalidation queue, not on the park
+        // register, so it has a different home to go to.
+        if (result.data?.isRevalidation) {
+          router.push("/revalidation");
+          return;
+        }
         setSubmitted({ parkId: result.data?.parkId ?? "" });
       } else {
         setSubmitError(result?.error ?? "Submission failed. Please try again.");
@@ -807,6 +819,35 @@ export default function ApplyMotorParkPage() {
       )}
 
       {/* -- Step 1: Owner Details (not shown for a field capture) -- */}
+      {currentStep === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Application Type</CardTitle>
+            <CardDescription>
+              Tell us which this is. A revalidation goes to the revalidation
+              queue rather than onto the register as a new park.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2">
+            {APPLICATION_TYPES.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => setApplicationType(t.value)}
+                className={cn(
+                  "flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-colors",
+                  applicationType === t.value
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:bg-secondary/50",
+                )}>
+                <span className="text-sm font-semibold">{t.label}</span>
+                <span className="text-xs text-muted-foreground">{t.hint}</span>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {currentStep === 1 && isFieldCapture && (
         <>
           <Card>

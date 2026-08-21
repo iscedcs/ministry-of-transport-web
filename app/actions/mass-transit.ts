@@ -22,6 +22,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { isRevalidation } from "@/lib/application-type";
+import { createRevalidationFromApplication } from "@/lib/revalidation-from-application";
 import { SCHEDULE_ROLES } from "@/lib/workflow-roles";
 import { getNumberSetting } from "@/lib/system-config";
 import { nextParkIds, terminalDesignation } from "@/lib/park-id";
@@ -119,9 +121,9 @@ const fleetCompanyFieldCaptureSchema = fleetCompanySchema.partial({
  * Full vehicle details are collected AFTER approval via VehicleSubmissionRequest.
  */
 export async function submitFleetApplication(
-  prevState: ActionResult<{ companyId: string }> | undefined,
+  prevState: ActionResult<{ companyId: string; isRevalidation?: boolean }> | undefined,
   formData: FormData,
-): Promise<ActionResult<{ companyId: string }>> {
+): Promise<ActionResult<{ companyId: string; isRevalidation?: boolean }>> {
   const session = await requireRole(["EXTERNAL_APPLICANT", "ENUMERATOR"]);
 
   // Parse vehicle counts (simplified: just type + count)
@@ -266,6 +268,34 @@ export async function submitFleetApplication(
     return {
       success: false,
       error: "A fleet application with this ASIN number already exists.",
+    };
+  }
+
+  // A mass transit operator renewing an existing approval completes this
+  // same form — there is no separate revalidation form and we are not
+  // building one — and the submission goes to the revalidation queue.
+  if (isRevalidation(formData.get("applicationType"))) {
+    const seeded = await createRevalidationFromApplication({
+      serviceCategory: "MASS_TRANSIT",
+      parkName: companyData.companyName,
+      ownerName: companyData.companyName,
+      asinNumber: companyData.asinNumber,
+      applicantUserId: isFieldCapture ? null : session.userId,
+      cacRegistrationNumber: companyData.cacNumber,
+      representativeName: companyData.contactPerson ?? null,
+      phoneNumber: companyData.contactPhone ?? null,
+      emailAddress: companyData.contactEmail ?? null,
+      physicalLocation:
+        (terminals[0] as { locationAddress?: string } | undefined)
+          ?.locationAddress ?? null,
+      facilitiesAvailable: facilitiesDeclared,
+    });
+    if (!seeded.success) return { success: false, error: seeded.error };
+
+    revalidatePath("/revalidation");
+    return {
+      success: true,
+      data: { companyId: seeded.data.revalidationId, isRevalidation: true },
     };
   }
 
