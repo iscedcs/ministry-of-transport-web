@@ -172,9 +172,10 @@ export function TriagePanel({
 
               <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                A fresh application leaves this queue. The operator applies
-                normally and must produce the documents and site evidence — the
-                Ministry has not waived them.
+                A fresh application still runs here — inspection, then the
+                approval chain. What changes is what the operator must
+                produce: the documents and site evidence a first-time
+                applicant provides, which the Ministry has not waived.
               </p>
             </>
           )}

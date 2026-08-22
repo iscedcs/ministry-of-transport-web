@@ -36,6 +36,7 @@ import { Upload, X, FileText, Loader2, CheckCircle2, AlertCircle } from "lucide-
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FACILITY_ITEMS } from "@/lib/facilities";
+import { APPLICATION_TYPES, type ApplicationType } from "@/lib/application-type";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -397,6 +398,8 @@ export default function ApplyFleetPage() {
    * cannot get them on site, and the Ministry fills them in afterwards.
    */
   const isFieldCapture = ownerProfile?.role === "ENUMERATOR";
+  const [applicationType, setApplicationType] =
+    useState<ApplicationType>("NEW");
 
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
@@ -746,6 +749,7 @@ export default function ApplyFleetPage() {
       fd.set("waterFacilityPhotoId", data.waterFacilityPhotoId);
       fd.set("cctvPhotoId", data.cctvPhotoId);
       fd.set("facilitiesJson", JSON.stringify(data.facilitiesAvailable));
+      fd.set("applicationType", applicationType);
       fd.set(
         "terminalsJson",
         JSON.stringify(
@@ -770,10 +774,16 @@ export default function ApplyFleetPage() {
         )
       );
 
-      const result: ActionResult<{ companyId: string }> =
+      const result: ActionResult<{ companyId: string; isRevalidation?: boolean }> =
         await submitFleetApplication(undefined, fd);
       if (result.success) {
-        router.push(`/fleet-operators/${result.data!.companyId}`);
+        // A revalidation lives in the revalidation queue, not on the fleet
+        // operator register, so it has a different home to go to.
+        router.push(
+          result.data!.isRevalidation
+            ? "/revalidation"
+            : `/fleet-operators/${result.data!.companyId}`,
+        );
       } else {
         setGlobalError(result.error);
       }
@@ -816,6 +826,37 @@ export default function ApplyFleetPage() {
         {/* ── STEP 1: Your Information ──────────────────────────────────────── */}
         {currentStep === 1 && (
           <>
+            <Card>
+              <CardHeader>
+                <CardTitle>Application Type</CardTitle>
+                <CardDescription>
+                  Tell us which this is. A revalidation goes to the
+                  revalidation queue rather than onto the register as a new
+                  record.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3 sm:grid-cols-2">
+                {APPLICATION_TYPES.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setApplicationType(t.value)}
+                    className={cn(
+                      "flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-colors",
+                      applicationType === t.value
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-secondary/50",
+                    )}>
+                    <span className="text-sm font-semibold">{t.label}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {t.hint}
+                    </span>
+                  </button>
+                ))}
+              </CardContent>
+            </Card>
+
+
             <Card>
               <CardHeader>
                 <CardTitle>Your Information</CardTitle>

@@ -21,6 +21,8 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { isRevalidation } from "@/lib/application-type";
+import { createRevalidationFromApplication } from "@/lib/revalidation-from-application";
 import { SCHEDULE_ROLES } from "@/lib/workflow-roles";
 import { sendInspectionApprovalNotification } from "@/lib/email";
 import {
@@ -49,9 +51,9 @@ import type { ActionResult } from "@/lib/server-actions-pattern";
  * Validates input, creates MotorPark record, triggers routing notification (FR-011).
  */
 export async function submitParkApplication(
-  prevState: ActionResult<{ parkId: string }>,
+  prevState: ActionResult<{ parkId: string; isRevalidation?: boolean }>,
   formData: FormData,
-): Promise<ActionResult<{ parkId: string }>> {
+): Promise<ActionResult<{ parkId: string; isRevalidation?: boolean }>> {
   const session = await requireRole(["EXTERNAL_APPLICANT", "ENUMERATOR"]);
 
   const getCleanString = (
@@ -125,6 +127,44 @@ export async function submitParkApplication(
   }
 
   const data = parsed.data;
+
+  // An operator who already holds an approval fills in this same form and
+  // ticks "Revalidation" at the top. That submission belongs in the
+  // revalidation queue, not on the register as a second park.
+  if (isRevalidation(formData.get("applicationType"))) {
+    const seeded = await createRevalidationFromApplication({
+      serviceCategory: "MOTOR_PARK",
+      parkName: data.businessName,
+      ownerName: data.transportCompanyName || data.contactPerson || data.businessName,
+      asinNumber: data.anssidNumber,
+      applicantUserId: isFieldCapture ? null : session.userId,
+      cacRegistrationNumber: data.cacRegistrationNumber,
+      representativeName: data.contactPerson,
+      phoneNumber: data.contactPhone,
+      emailAddress: data.contactEmail,
+      residentialAddress: data.managerResidentialAddress,
+      physicalLocation: data.streetAddress,
+      townCommunity: data.townCity,
+      lga: data.lga,
+    });
+    if (!seeded.success) return { success: false, error: seeded.error };
+
+    await db.auditLog.create({
+      data: {
+        performedByUserId: session.userId,
+        action: "REVALIDATION_SUBMITTED_FROM_PARK_FORM",
+        entityType: "REVALIDATION",
+        entityId: seeded.data.revalidationId,
+        changeDescription: `${data.businessName} submitted as a revalidation`,
+      },
+    });
+
+    revalidatePath("/revalidation");
+    return {
+      success: true,
+      data: { parkId: seeded.data.revalidationId, isRevalidation: true },
+    };
+  }
 
   // Check for duplicate ANSSID only (CAC is now optional and non-unique)
   const existingAnssid = await db.motorPark.findUnique({

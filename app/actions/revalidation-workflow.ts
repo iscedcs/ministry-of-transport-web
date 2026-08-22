@@ -963,6 +963,11 @@ export async function setRevalidationCertificateTerms(
   },
 ) {
   const authz = await authorize([
+    // The HOD of Operations runs the inspection and is the first to
+    // recommend, so they are the one who proposes the fee. The panel already
+    // rendered for them; only this list refused, which is why they could see
+    // the form and not save it.
+    "HOD_TRANSPORT_OPS",
     "HOD_PARKS_REVALIDATION",
     "HOD_PARKS",
     "PERMANENT_SECRETARY",

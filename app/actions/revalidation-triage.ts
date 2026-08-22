@@ -105,13 +105,14 @@ export async function classifyRevalidationApplication(
 /**
  * Decide whether this operator revalidates or applies afresh.
  *
- * REVALIDATION keeps the application where it is. NEW_APPLICATION takes it
- * out of the queue: the operator holds no approval, so they are a first-time
- * applicant and must apply normally — with the documents and site evidence
- * that requires, which the Ministry has confirmed are not waived.
+ * Both routes leave the application workable. The decision is recorded on
+ * triageRoute and shown to the officers; it does not park the record.
  *
- * The captured fieldwork is not thrown away. The record is retained, marked,
- * and is what the new application is pre-filled from.
+ * NEW_APPLICATION means the operator holds no existing approval and is
+ * therefore a first-time applicant — they must meet the documents and site
+ * evidence a new application requires, which the Ministry has confirmed are
+ * not waived. It does NOT mean the record stops here: the inspection is
+ * still scheduled and the chain still runs.
  */
 export async function routeRevalidationApplication(
   applicationId: string,
@@ -167,8 +168,12 @@ export async function routeRevalidationApplication(
       // Capturing the approval number here fills the Section F field the
       // vendor's export never carried.
       ...(approvalNumber ? { existingApprovalNum: approvalNumber } : {}),
-      // An operator sent to the normal process is no longer in this queue.
-      ...(route === "NEW_APPLICATION" ? { status: "WAITLISTED" as const } : {}),
+      // Triage is a routing decision, not a halt, so it does not move the
+      // status — except to release a record that an earlier version parked as
+      // WAITLISTED, which took it out of the schedulable statuses and left it
+      // stranded with no inspection bookable. Anything already progressed
+      // keeps the stage it has reached.
+      ...(app.status === "WAITLISTED" ? { status: "SUBMITTED" as const } : {}),
     },
   });
 
