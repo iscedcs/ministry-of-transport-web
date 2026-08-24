@@ -96,9 +96,22 @@ export function DriverIdCard({
   )}`;
 
   const issueDateStr = fmt(driver.createdAt, format(now, "dd MMM yyyy"));
-  const expiryDateStr = driver.licenseExpiryDate
-    ? fmt(driver.licenseExpiryDate)
-    : `31 Jan ${now.getFullYear() + 1}`;
+
+  /**
+   * The card runs to 31 December of the year it was issued, whenever in the
+   * year the driver was onboarded. The Ministry renews the whole fleet on one
+   * annual cycle, so a card that expired on its own anniversary would put
+   * every driver on a different renewal date.
+   *
+   * Deliberately NOT licenseExpiryDate: that is the driver's own driving
+   * licence, a separate document with its own expiry, and printing it here
+   * made the card appear to run to whatever date DVLA had set.
+   */
+  const issuedAt = driver.createdAt ? new Date(driver.createdAt) : now;
+  const expiryYear = Number.isNaN(issuedAt.getTime())
+    ? now.getFullYear()
+    : issuedAt.getFullYear();
+  const expiryDateStr = `31 Dec ${expiryYear}`;
 
   const origin = [driver.lga, driver.stateOfOrigin].filter(Boolean).join(", ");
   const assignedVehicle = driver.vehicles?.[0];
@@ -114,10 +127,15 @@ export function DriverIdCard({
         dangerouslySetInnerHTML={{
           __html: `
           @media print {
-            /* CR80 (ISO/IEC 7810 ID-1). The card is laid out at exactly twice
-               CR80 at 96dpi, so scaling by 0.5 lands it at 53.98 x 85.60 mm
-               on paper — an exact factor, not an approximation. */
-            @page { size: 53.98mm 85.6mm; margin: 0; }
+            /* Both faces on ONE sheet, side by side. Each face is still
+               exactly CR80 (ISO/IEC 7810 ID-1): laid out at twice CR80 at
+               96dpi and scaled by 0.5, which lands it at 53.98 x 85.60 mm —
+               an exact factor, not an approximation.
+
+               The page was previously sized to a single card with a forced
+               break between the faces, which is why the front and the back
+               came out on two sheets. */
+            @page { size: 120mm 92mm; margin: 3mm; }
 
             aside, header, nav, .no-print { display: none !important; }
             body * { visibility: hidden !important; }
@@ -140,11 +158,14 @@ export function DriverIdCard({
               width: auto !important;
               margin: 0 !important;
               padding: 0 !important;
-              gap: 0 !important;
-              display: block !important;
+              /* 4mm between the two faces, so they can be guillotined apart
+                 without cutting into either card. */
+              gap: 4mm !important;
+              display: flex !important;
+              flex-wrap: nowrap !important;
+              align-items: flex-start !important;
             }
 
-            /* Each face is its own CR80 page: front, then back. */
             /* zoom, not transform: a transform leaves the element occupying
                its full 408x647px in layout, so each face overflowed onto a
                second sheet. zoom scales the layout box as well. */
@@ -153,16 +174,11 @@ export function DriverIdCard({
               box-shadow: none !important;
               border-radius: 0 !important;
               margin: 0 !important;
+              flex: 0 0 auto !important;
               break-inside: avoid !important;
               page-break-inside: avoid !important;
-              break-after: page;
-              page-break-after: always;
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
-            }
-            #id-card-sheet [data-face]:last-child {
-              break-after: auto;
-              page-break-after: auto;
             }
           }
         `,
@@ -179,7 +195,7 @@ export function DriverIdCard({
       {/* Both faces — side by side on screen and on paper */}
       <div
         id="id-card-sheet"
-        className="flex flex-wrap items-start justify-center gap-8">
+        className="flex flex-wrap items-start justify-center gap-8 print:flex-nowrap print:gap-0">
         {/* ══════════════════ FRONT ══════════════════ */}
         <div
           data-face="front"
