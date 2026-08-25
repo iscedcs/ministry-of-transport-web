@@ -677,6 +677,20 @@ model Terminal {
   businessPremisesCertNo    String?
   businessPremisesCertDocId String? // Document.id
 
+  /// What this terminal has, as { [facility]: boolean } over FACILITY_ITEMS.
+  /// Held per terminal rather than per company: the terminal is inspected on
+  /// its own and becomes a park, so it is the site that has a borehole or
+  /// does not, never the company.
+  facilitiesAvailable Json?
+
+  /// Facility photographs for this site. Optional throughout — a terminal
+  /// without a facility cannot photograph one; the inspection settles it.
+  toiletPhotoId        String? // Document.id
+  waitingAreaPhotoId   String? // Document.id
+  signagePhotoId       String? // Document.id
+  waterFacilityPhotoId String? // Document.id
+  cctvPhotoId          String? // Document.id
+
   // Status
   inspectionStatus InspectionStatus @default(SCHEDULED)
   inspectionDueAt  DateTime?

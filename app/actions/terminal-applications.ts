@@ -46,6 +46,18 @@ export interface AddTerminalInput {
   /** Certificate number and the uploaded document — both are required. */
   businessPremisesCertNo: string;
   businessPremisesCertDocId: string;
+
+  /**
+   * What the site has, and the photographs of it. Optional, exactly as on a
+   * first application: the terminal is inspected before it becomes a park, and
+   * the inspection settles what is actually there.
+   */
+  facilitiesAvailable?: Record<string, boolean>;
+  toiletPhotoId?: string;
+  waitingAreaPhotoId?: string;
+  signagePhotoId?: string;
+  waterFacilityPhotoId?: string;
+  cctvPhotoId?: string;
 }
 
 // ── Adding ──────────────────────────────────────────────────────────────────
@@ -118,6 +130,12 @@ export async function addTerminalToCompany(
       managerResidentialAddress: input.managerResidentialAddress.trim(),
       businessPremisesCertNo: input.businessPremisesCertNo.trim(),
       businessPremisesCertDocId: input.businessPremisesCertDocId,
+      facilitiesAvailable: input.facilitiesAvailable ?? undefined,
+      toiletPhotoId: input.toiletPhotoId || null,
+      waitingAreaPhotoId: input.waitingAreaPhotoId || null,
+      signagePhotoId: input.signagePhotoId || null,
+      waterFacilityPhotoId: input.waterFacilityPhotoId || null,
+      cctvPhotoId: input.cctvPhotoId || null,
       terminalNumber: nextNumber,
       applicationStatus: "SUBMITTED",
       addedByUserId: authz.session.userId,
@@ -459,6 +477,12 @@ export async function commissionerApproveTerminal(terminalId: string) {
         landOwnershipDocId: company.landOwnershipDocId,
         cacDocumentId: company.cacDocumentId,
         corporateAsinDocumentId: company.corporateAsinDocumentId,
+        // This site's own photographs, captured when the terminal was added.
+        toiletPhotoId: terminal.toiletPhotoId,
+        waitingAreaPhotoId: terminal.waitingAreaPhotoId,
+        signagePhotoId: terminal.signagePhotoId,
+        waterFacilityPhotoId: terminal.waterFacilityPhotoId,
+        cctvPhotoId: terminal.cctvPhotoId,
 
         applicationStatus: isTemporal ? "TEMPORAL_APPROVAL" : "APPROVED",
         permitStatus: "ACTIVE",

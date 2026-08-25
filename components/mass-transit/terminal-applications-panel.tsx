@@ -15,6 +15,17 @@ import {
 } from "@/app/actions/terminal-applications";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { FACILITY_ITEMS } from "@/lib/facilities";
+import { uploadCacDocument } from "@/app/actions/upload";
+
+/** The site evidence a park is asked for, so a terminal is asked the same. */
+const SITE_PHOTOS = [
+  { key: "toilet", label: "Toilet facilities" },
+  { key: "waitingArea", label: "Passenger waiting area" },
+  { key: "signage", label: "Safety signage" },
+  { key: "waterFacility", label: "Water facility / borehole" },
+  { key: "cctv", label: "Camera / CCTV installation" },
+] as const;
 
 export interface TerminalRow {
   id: string;
@@ -80,13 +91,45 @@ export function TerminalApplicationsPanel({
     businessPremisesCertNo: "",
     businessPremisesCertDocId: "",
   });
+  const [certFileName, setCertFileName] = useState("");
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [facilities, setFacilities] = useState<Record<string, boolean>>({});
+  const [photos, setPhotos] = useState<Record<string, string>>({});
+  const [photoNames, setPhotoNames] = useState<Record<string, string>>({});
+
+  /**
+   * One upload path for every document on this form. The panel previously
+   * asked for a "document reference", which an operator had no way to obtain
+   * - the field was required and unfillable.
+   */
+  async function upload(
+    file: File,
+    onDone: (documentId: string) => void,
+    key: string,
+  ) {
+    setUploading(key);
+    const fd = new globalThis.FormData();
+    fd.append("file", file);
+    const res = await uploadCacDocument(fd);
+    if (res.success) onDone(res.documentId);
+    else toast.error(res.error || "Upload failed.");
+    setUploading(null);
+  }
 
   const set = (k: keyof typeof form, v: string) =>
     setForm((p) => ({ ...p, [k]: v }));
 
   const submitNew = () =>
     startTransition(async () => {
-      const res = await addTerminalToCompany(companyId, form);
+      const res = await addTerminalToCompany(companyId, {
+        ...form,
+        facilitiesAvailable: facilities,
+        toiletPhotoId: photos.toilet,
+        waitingAreaPhotoId: photos.waitingArea,
+        signagePhotoId: photos.signage,
+        waterFacilityPhotoId: photos.waterFacility,
+        cctvPhotoId: photos.cctv,
+      });
       if (res.success) {
         toast.success("Terminal submitted for approval.");
         setAdding(false);
@@ -186,12 +229,37 @@ export function TerminalApplicationsPanel({
                 value={form.businessPremisesCertNo}
                 onChange={(v) => set("businessPremisesCertNo", v)}
               />
-              <Field
-                label="Certificate document ID"
-                value={form.businessPremisesCertDocId}
-                onChange={(v) => set("businessPremisesCertDocId", v)}
-                placeholder="Uploaded document reference"
-              />
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Business premises certificate (upload)
+                </span>
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  disabled={uploading === "cert"}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setCertFileName(file.name);
+                    upload(
+                      file,
+                      (id) => set("businessPremisesCertDocId", id),
+                      "cert",
+                    );
+                  }}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-secondary file:px-2 file:py-1 file:text-xs"
+                />
+                {uploading === "cert" && (
+                  <span className="text-xs text-muted-foreground">
+                    Uploading...
+                  </span>
+                )}
+                {form.businessPremisesCertDocId && (
+                  <span className="text-xs text-green-600 dark:text-green-400">
+                    Attached: {certFileName}
+                  </span>
+                )}
+              </label>
             </div>
 
             <p className="text-xs text-muted-foreground">
@@ -199,6 +267,82 @@ export function TerminalApplicationsPanel({
               certificate for this terminal is required — the company&apos;s own
               certificate does not cover it.
             </p>
+
+            {/* The terminal is inspected and becomes a park, so it is asked
+                for the same facility evidence a park is asked for. */}
+            <div className="flex flex-col gap-2 border-t pt-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Facilities at this terminal
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Tick what the site has and leave out what it does not. Nothing
+                here is required - the inspection settles what is there.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {FACILITY_ITEMS.map((facility) => (
+                  <label
+                    key={facility}
+                    className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:bg-secondary/50">
+                    <input
+                      type="checkbox"
+                      checked={!!facilities[facility]}
+                      onChange={(e) =>
+                        setFacilities((prev) => ({
+                          ...prev,
+                          [facility]: e.target.checked,
+                        }))
+                      }
+                    />
+                    <span>{facility}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 border-t pt-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Site photographs (optional)
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {SITE_PHOTOS.map((photo) => (
+                  <label key={photo.key} className="flex flex-col gap-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {photo.label}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={uploading === photo.key}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setPhotoNames((prev) => ({
+                          ...prev,
+                          [photo.key]: file.name,
+                        }));
+                        upload(
+                          file,
+                          (id) =>
+                            setPhotos((prev) => ({ ...prev, [photo.key]: id })),
+                          photo.key,
+                        );
+                      }}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-secondary file:px-2 file:py-1 file:text-xs"
+                    />
+                    {uploading === photo.key && (
+                      <span className="text-xs text-muted-foreground">
+                        Uploading...
+                      </span>
+                    )}
+                    {photos[photo.key] && (
+                      <span className="text-xs text-green-600 dark:text-green-400">
+                        {photoNames[photo.key]}
+                      </span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            </div>
 
             <div className="flex gap-2">
               <button
