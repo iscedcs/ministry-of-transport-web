@@ -13,6 +13,7 @@
 
 import { db } from "@/lib/db";
 import { getRevalidationDueAssets } from "@/lib/revalidation-due";
+import { getRevalidatedParkIds } from "@/lib/park-approval-origin";
 
 export interface ActionItem {
   key: string;
@@ -250,8 +251,14 @@ export async function getApplicantDashboard(
     });
   }
 
+  // Parks approved through revalidation already appear above as a
+  // revalidation letter and certificate. Listing the motor park letter as
+  // well gave the operator two documents for one decision.
+  const revalidatedParkIds = await getRevalidatedParkIds(parks.map((p) => p.id));
+
   for (const p of parks) {
     if (!APPROVED.includes(p.applicationStatus)) continue;
+    if (revalidatedParkIds.has(p.id)) continue;
     documents.push({
       key: `park-letter-${p.id}`,
       title: `${p.businessName} — approval letter`,

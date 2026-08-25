@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
 import { authorizeDocument } from "@/lib/document-access";
+import { getRevalidationForPark } from "@/lib/park-approval-origin";
 import { getSession } from "@/lib/auth";
 import { getNumberSetting } from "@/lib/system-config";
 import { SIGNATURES } from "@/lib/signatures";
@@ -27,6 +28,14 @@ export default async function MotorParkApprovalLetterPage({
   // Ministry staff, or the applicant this letter belongs to. Previously any
   // signed-in account could read any park's letter by editing the URL.
   await authorizeDocument({ kind: "motorPark", id });
+
+  // A park approved through revalidation was never granted a motor park
+  // approval letter; its certificate is the document. Redirecting rather than
+  // hiding the button means a saved link cannot produce the wrong paper.
+  const revalidation = await getRevalidationForPark(id);
+  if (revalidation) {
+    redirect(`/revalidation/${revalidation.id}/certificate`);
+  }
 
   const park = await db.motorPark.findUnique({
     where: { id },

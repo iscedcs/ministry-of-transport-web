@@ -18,6 +18,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getRevalidationForPark } from "@/lib/park-approval-origin";
 import { OwnerCompletionPanel } from "@/components/field-capture/owner-completion-panel";
 import {
   getMotorPark,
@@ -48,7 +49,16 @@ import { canSchedule as canScheduleInspectionRole } from "@/lib/workflow-roles";
 
 // ── Status-based workflow actions ──────────────────────────────────────────────
 
-function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
+function ActionBar({
+  park,
+  role,
+  revalidationId,
+}: {
+  park: MotorParkDetail;
+  role: string;
+  /** Set when this park's approval came from the revalidation chain. */
+  revalidationId?: string | null;
+}) {
   const status = park.applicationStatus;
 
   const pendingApplicationFee = park.fees?.find(
@@ -187,7 +197,7 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
             </Link>
           </Button>
         )}
-        {canDownloadTemporal && (
+        {canDownloadTemporal && !revalidationId && (
           <Button
             asChild
             size="sm"
@@ -201,7 +211,20 @@ function ActionBar({ park, role }: { park: MotorParkDetail; role: string }) {
             </Link>
           </Button>
         )}
-        {canIssueFinal && (
+        {revalidationId && (
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="border-primary text-primary hover:bg-primary/10">
+            <Link
+              href={`/revalidation/${revalidationId}/certificate`}
+              target="_blank">
+              <Download className="w-4 h-4 mr-2" /> Revalidation Certificate
+            </Link>
+          </Button>
+        )}
+        {canIssueFinal && !revalidationId && (
           <Button asChild size="sm">
             <Link href={`/motor-parks/${park.id}/issue-final-approval`}>
               Issue Final Approval
@@ -493,6 +516,10 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
 
   // A record an Enumerator captured has no owner yet. Only the officers who
   // complete it need to see the panel.
+  // A park whose approval came from revalidation is offered its certificate,
+  // not a motor park letter it never received.
+  const revalidationOrigin = await getRevalidationForPark(id);
+
   const capture = await db.motorPark.findUnique({
     where: { id },
     select: {
@@ -592,7 +619,11 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
       )}
 
       {/* Action bar — role-gated */}
-      <ActionBar park={park} role={session.role} />
+      <ActionBar
+        park={park}
+        role={session.role}
+        revalidationId={revalidationOrigin?.id ?? null}
+      />
 
       {/* Sequential Executive Workflow Actions */}
       <MotorParkWorkflowActions
@@ -667,7 +698,11 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
               size="sm"
               className="bg-green-600 hover:bg-green-700 text-white">
               <Link
-                href={`/motor-parks/${park.id}/temporal-certificate`}
+                href={
+                  revalidationOrigin
+                    ? `/revalidation/${revalidationOrigin.id}/certificate`
+                    : `/motor-parks/${park.id}/temporal-certificate`
+                }
                 target="_blank">
                 <Download className="w-4 h-4 mr-2" /> Download Certificate (PDF)
               </Link>
