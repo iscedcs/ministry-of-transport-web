@@ -1395,6 +1395,9 @@ export async function issuePermitToOperate(
       asinNumber: true,
       cacNumber: true,
       monthlyLevyAmount: true,
+      // The chain that approved the company; the park inherits it.
+      hodApprovedAt: true,
+      psApprovedAt: true,
       // A terminal becomes a park on approval, so everything a park needs is
       // read here.
       toiletPhotoId: true,
@@ -1524,6 +1527,11 @@ export async function issuePermitToOperate(
           monthlyLevyAmount: company.monthlyLevyAmount,
           approvedAt: now,
           approvedByUserId: session.userId,
+          // The park exists because the company passed the whole chain, so it
+          // carries those signatures rather than showing three blanks.
+          hodApprovedAt: company.hodApprovedAt,
+          psApprovedAt: company.psApprovedAt,
+          commissionerApprovedAt: now,
         },
         select: { id: true },
       });

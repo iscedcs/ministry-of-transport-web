@@ -468,6 +468,12 @@ export async function commissionerApproveTerminal(terminalId: string) {
         nextRevalidationDue: expiresAt,
         monthlyLevyAmount: company.monthlyLevyAmount,
         approvedAt: now,
+        // The terminal passed HOD, PS and Commissioner in its own right, so
+        // the park it becomes shows those signatures rather than three blanks.
+        hodApprovedAt: terminal.hodApprovedAt,
+        psApprovedAt: terminal.psApprovedAt,
+        commissionerApprovedAt: now,
+        approvedByUserId: authz.session.userId,
       },
       select: { id: true },
     });

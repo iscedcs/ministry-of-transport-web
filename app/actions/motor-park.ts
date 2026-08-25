@@ -24,6 +24,7 @@ import { db } from "@/lib/db";
 import { isRevalidation } from "@/lib/application-type";
 import { createRevalidationFromApplication } from "@/lib/revalidation-from-application";
 import { SCHEDULE_ROLES } from "@/lib/workflow-roles";
+import { getNumberSetting } from "@/lib/system-config";
 import { sendInspectionApprovalNotification } from "@/lib/email";
 import {
   requireAuth,
@@ -1340,10 +1341,31 @@ export async function issueTemporalApproval(
     };
   }
 
+  // A temporal approval is a signed decision, so it is recorded as one. This
+  // previously wrote the status alone, which left the signatures panel saying
+  // "Pending Signature" on a park that had just been approved, and left the
+  // permit with no expiry — so it never came up for revalidation either.
+  const temporalMonths =
+    (await getNumberSetting("motorpark.validity.temporalMonths")) || 6;
+  const temporalNow = new Date();
+  const temporalExpiry = new Date(temporalNow);
+  temporalExpiry.setMonth(temporalExpiry.getMonth() + temporalMonths);
+
   await db.motorPark.update({
     where: { id: parkId },
     data: {
       applicationStatus: "TEMPORAL_APPROVAL",
+      permitStatus: "ACTIVE",
+      permitIssuedAt: temporalNow,
+      permitExpiresAt: temporalExpiry,
+      nextRevalidationDue: temporalExpiry,
+      approvedAt: temporalNow,
+      approvedByUserId: session.userId,
+      // Whichever of the two issued it is the one who signed. A permit number
+      // is deliberately NOT assigned here — that belongs to final approval.
+      ...(session.role === "COMMISSIONER"
+        ? { commissionerApprovedAt: temporalNow }
+        : { psApprovedAt: temporalNow }),
     },
   });
 
