@@ -203,6 +203,7 @@ model User {
   revalidationApps       RevalidationApplication[] @relation("RevalidationApplicant")
   inspectedRevalidations RevalidationApplication[] @relation("RevalidationInspector")
   revalidationTeams      RevalidationInspector[]   @relation("RevalidationTeamMember")
+  terminalTeams          TerminalInspector[]       @relation("TerminalTeamMember")
   revalidationDraft      RevalidationDraft?
 
   @@index([email])
@@ -720,8 +721,9 @@ model Terminal {
   updatedAt DateTime @updatedAt
 
   // Relations
-  company   MassTransitCompany @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  motorPark MotorPark?         @relation("TerminalPark", fields: [motorParkId], references: [id], onDelete: SetNull)
+  company        MassTransitCompany  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  motorPark      MotorPark?          @relation("TerminalPark", fields: [motorParkId], references: [id], onDelete: SetNull)
+  inspectionTeam TerminalInspector[]
 
   @@index([companyId])
   @@index([applicationStatus])
@@ -1582,6 +1584,29 @@ model RevalidationApplication {
 /// A revalidation inspection is carried out by a team of 2-4 officers: the HOD
 /// of Operations (always included) plus up to three others. Exactly one member
 /// is the LEAD and owns the checklist; the rest contribute a comment only.
+/// The team that inspects a terminal added to an approved operator.
+///
+/// Mirrors RevalidationInspector deliberately: the HOD of Operations takes a
+/// seat automatically, up to three more officers are selected, and one of
+/// them is the lead. Only the lead files the checklist and findings; the
+/// others leave a comment the HOD reads before recommending.
+model TerminalInspector {
+  id          String    @id @default(cuid())
+  terminalId  String
+  userId      String
+  isLead      Boolean   @default(false)
+  comment     String?   @db.Text
+  commentedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  terminal Terminal @relation(fields: [terminalId], references: [id], onDelete: Cascade)
+  user     User     @relation("TerminalTeamMember", fields: [userId], references: [id])
+
+  @@unique([terminalId, userId])
+  @@index([terminalId])
+  @@index([userId])
+}
+
 model RevalidationInspector {
   id            String    @id @default(cuid())
   applicationId String

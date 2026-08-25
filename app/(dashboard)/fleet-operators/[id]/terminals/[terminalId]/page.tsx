@@ -50,7 +50,13 @@ export default async function TerminalDetailPage({
     },
   });
 
-  if (!terminal || terminal.companyId !== id) notFound();
+  // A missing record is a 404. A terminal that exists but hangs off another
+  // operator is a wrong link, not a missing page, so it is sent to the right
+  // operator rather than dead-ending.
+  if (!terminal) notFound();
+  if (terminal.companyId !== id) {
+    redirect(`/fleet-operators/${terminal.companyId}/terminals/${terminalId}`);
+  }
 
   // An applicant sees only their own operator's terminals; Ministry staff see
   // any, since they are the ones deciding them.
