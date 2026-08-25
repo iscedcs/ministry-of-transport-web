@@ -79,6 +79,25 @@ const item = (
   tone: Tone = "action",
 ): WorkItem => ({ key, label, hint, count, href, tone });
 
+/**
+ * Terminals added to an operator that is already approved.
+ *
+ * These run their own chain and belong to no application queue, so without a
+ * count here a new terminal reaches the HOD's desk with nothing to announce
+ * it — the operator submits, and the Ministry finds out by chance.
+ */
+async function addedTerminals(statuses: string[]): Promise<number> {
+  return db.terminal.count({
+    where: {
+      motorParkId: null,
+      // Only terminals added AFTER approval; those declared on a first
+      // application move with the company and are counted with it.
+      addedAt: { not: null },
+      applicationStatus: { in: statuses as never },
+    },
+  });
+}
+
 export async function getRoleDashboard(
   role: UserRole,
   userId: string,
@@ -164,6 +183,32 @@ export async function getRoleDashboard(
         ),
       );
 
+    const [termSchedule, termRecommend] = await Promise.all([
+      addedTerminals(["SUBMITTED", "UNDER_REVIEW", "REJECTED"]),
+      addedTerminals(["INSPECTION_COMPLETED"]),
+    ]);
+
+    if (termSchedule)
+      actions.push(
+        item(
+          "term-schedule",
+          "New terminals to inspect",
+          "Added to an approved operator - schedule the site visit",
+          termSchedule,
+          "/fleet-operators?status=APPROVED",
+        ),
+      );
+    if (termRecommend)
+      actions.push(
+        item(
+          "term-recommend",
+          "Terminal inspections awaiting your recommendation",
+          "The site has been inspected - forward to the PS",
+          termRecommend,
+          "/fleet-operators?status=APPROVED",
+        ),
+      );
+
     if (returned)
       actions.push(
         item(
@@ -246,12 +291,25 @@ export async function getRoleDashboard(
 
   // ── Permanent Secretary: two distinct revalidation gates ────────────────
   if (isPs || isAdmin) {
-    const [psApproval, parkApproval, mtPs, schedules] = await Promise.all([
-      revalidations(REVALIDATION_STAGES.PS_APPROVAL),
-      motorParks(["PENDING_PS_APPROVAL"]),
-      fleetOperators(["PENDING_PS_APPROVAL"]),
-      pendingInspectionSchedules(),
-    ]);
+    const [psApproval, parkApproval, mtPs, schedules, termPs] =
+      await Promise.all([
+        revalidations(REVALIDATION_STAGES.PS_APPROVAL),
+        motorParks(["PENDING_PS_APPROVAL"]),
+        fleetOperators(["PENDING_PS_APPROVAL"]),
+        pendingInspectionSchedules(),
+        addedTerminals(["PENDING_PS_APPROVAL"]),
+      ]);
+
+    if (termPs)
+      actions.push(
+        item(
+          "ps-terminal",
+          "New terminals awaiting your approval",
+          "Inspected and recommended - approve, or return with a reason",
+          termPs,
+          "/fleet-operators?status=APPROVED",
+        ),
+      );
 
     if (psApproval)
       actions.push(
@@ -298,13 +356,25 @@ export async function getRoleDashboard(
 
   // ── Commissioner: the final signature on four separate chains ───────────
   if (isCommissioner || isAdmin) {
-    const [reval, letters, idCards, parks, mtCom] = await Promise.all([
+    const [reval, letters, idCards, parks, mtCom, termCom] = await Promise.all([
       revalidations(REVALIDATION_STAGES.COMMISSIONER),
       tracasLetters("PENDING_COMMISSIONER_APPROVAL"),
       tracasIdCards("PENDING_COMMISSIONER_APPROVAL"),
       motorParks(["PENDING_APPROVAL", "PENDING_COMMISSIONER_APPROVAL"]),
       fleetOperators(["PENDING_COMMISSIONER_APPROVAL"]),
+      addedTerminals(["PENDING_COMMISSIONER_APPROVAL"]),
     ]);
+
+    if (termCom)
+      actions.push(
+        item(
+          "com-terminal",
+          "New terminals to approve",
+          "Your approval turns the terminal into a park with its own letter",
+          termCom,
+          "/fleet-operators?status=APPROVED",
+        ),
+      );
 
     if (reval)
       actions.push(

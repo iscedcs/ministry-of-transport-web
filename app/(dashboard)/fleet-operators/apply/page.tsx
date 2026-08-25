@@ -50,6 +50,10 @@ interface Terminal {
   managerPhone: string;
   managerEmail: string;
   managerResidentialAddress: string;
+  /** Each site is certificated separately; the company's does not cover it. */
+  businessPremisesCertNo: string;
+  businessPremisesCertDocId: string;
+  businessPremisesCertName: string;
 }
 
 interface WizardData {
@@ -112,6 +116,9 @@ function emptyTerminal(): Terminal {
     managerPhone: "",
     managerEmail: "",
     managerResidentialAddress: "",
+    businessPremisesCertNo: "",
+    businessPremisesCertDocId: "",
+    businessPremisesCertName: "",
   };
 }
 
@@ -400,6 +407,10 @@ export default function ApplyFleetPage() {
   const isFieldCapture = ownerProfile?.role === "ENUMERATOR";
   const [applicationType, setApplicationType] =
     useState<ApplicationType>("NEW");
+  /** Which terminal's certificate is uploading, if any. */
+  const [uploadingTerminalCert, setUploadingTerminalCert] = useState<
+    string | null
+  >(null);
 
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
@@ -687,14 +698,17 @@ export default function ApplyFleetPage() {
           terminal.managerName.trim() &&
           terminal.managerPhone.trim() &&
           terminal.managerEmail.trim() &&
-          terminal.managerResidentialAddress.trim();
+          terminal.managerResidentialAddress.trim() &&
+          terminal.businessPremisesCertNo.trim() &&
+          terminal.businessPremisesCertDocId;
         if (terminalValid) {
           hasAtLeastOneValid = true;
           break;
         }
       }
       if (!hasAtLeastOneValid) {
-        errors.terminals = "At least one terminal with complete manager details is required";
+        errors.terminals =
+          "Each terminal needs its manager details and its own business premises certificate (number and document).";
       }
     }
 
@@ -760,6 +774,8 @@ export default function ApplyFleetPage() {
             managerPhone: t.managerPhone,
             managerEmail: t.managerEmail,
             managerResidentialAddress: t.managerResidentialAddress,
+            businessPremisesCertNo: t.businessPremisesCertNo,
+            businessPremisesCertDocId: t.businessPremisesCertDocId,
           }))
         )
       );
@@ -1497,6 +1513,77 @@ export default function ApplyFleetPage() {
                         />
                       </Field>
                     </div>
+
+                    {/* Certificated per site, whether declared here or added
+                        to the operator later. */}
+                    <Field
+                      id={`terminal-${terminal.id}-cert-no`}
+                      label="Business Premises Certificate No."
+                      required>
+                      <Input
+                        id={`terminal-${terminal.id}-cert-no`}
+                        value={terminal.businessPremisesCertNo}
+                        onChange={(e) => {
+                          setData((prev) => ({
+                            ...prev,
+                            terminals: prev.terminals.map((t) =>
+                              t.id === terminal.id
+                                ? { ...t, businessPremisesCertNo: e.target.value }
+                                : t
+                            ),
+                          }));
+                        }}
+                        placeholder="Certificate number"
+                      />
+                    </Field>
+
+                    <Field
+                      id={`terminal-${terminal.id}-cert-doc`}
+                      label="Business Premises Certificate"
+                      required>
+                      <input
+                        id={`terminal-${terminal.id}-cert-doc`}
+                        type="file"
+                        accept="image/*,application/pdf"
+                        disabled={uploadingTerminalCert === terminal.id}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          setUploadingTerminalCert(terminal.id);
+                          const fd = new globalThis.FormData();
+                          fd.append("file", file);
+                          const res = await uploadCacDocument(fd);
+                          if (res.success) {
+                            setData((prev) => ({
+                              ...prev,
+                              terminals: prev.terminals.map((t) =>
+                                t.id === terminal.id
+                                  ? {
+                                      ...t,
+                                      businessPremisesCertDocId: res.documentId,
+                                      businessPremisesCertName: file.name,
+                                    }
+                                  : t
+                              ),
+                            }));
+                          } else {
+                            setGlobalError(res.error || "Upload failed");
+                          }
+                          setUploadingTerminalCert(null);
+                        }}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-secondary file:px-2 file:py-1 file:text-xs"
+                      />
+                      {uploadingTerminalCert === terminal.id && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Uploading...
+                        </p>
+                      )}
+                      {terminal.businessPremisesCertDocId && (
+                        <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+                          Attached: {terminal.businessPremisesCertName}
+                        </p>
+                      )}
+                    </Field>
                   </CardContent>
                 </Card>
               ))}

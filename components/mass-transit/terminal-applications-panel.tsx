@@ -481,14 +481,16 @@ export function TerminalApplicationsPanel({
                     <div className="flex min-w-0 items-start gap-2.5">
                       <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold">
+                        <Link
+                          href={`/fleet-operators/${companyId}/terminals/${t.id}`}
+                          className="text-sm font-semibold transition-colors hover:text-primary hover:underline">
                           Terminal {t.terminalNumber}
-                          {t.addedAt && (
-                            <span className="ml-2 text-xs font-normal text-muted-foreground">
-                              added after approval
-                            </span>
-                          )}
-                        </p>
+                        </Link>
+                        {t.addedAt && (
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">
+                            added after approval
+                          </span>
+                        )}
                         <p className="truncate text-xs text-muted-foreground">
                           {t.locationAddress}
                         </p>

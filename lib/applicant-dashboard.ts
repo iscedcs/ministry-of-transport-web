@@ -55,6 +55,22 @@ export interface ApplicantDashboard {
   };
 }
 
+/**
+ * What a terminal's status means to the operator waiting on it.
+ *
+ * A terminal added to an approved company runs its own chain, and until it
+ * becomes a park it appears nowhere else on this dashboard — it is not a park
+ * yet, and the company it belongs to was approved long ago.
+ */
+const TERMINAL_STAGE: Record<string, string> = {
+  SUBMITTED: "Submitted — the Ministry will schedule an inspection",
+  UNDER_REVIEW: "Under review",
+  INSPECTION_SCHEDULED: "Inspection scheduled",
+  INSPECTION_COMPLETED: "Inspected — with the HOD for recommendation",
+  PENDING_PS_APPROVAL: "With the Permanent Secretary",
+  PENDING_COMMISSIONER_APPROVAL: "With the Commissioner for approval",
+};
+
 const APPROVED = ["APPROVED", "TEMPORAL_APPROVAL"];
 
 export async function getApplicantDashboard(
@@ -114,8 +130,49 @@ export async function getApplicantDashboard(
     }),
   ]);
 
+  // Terminals the operator has added that have not yet become parks. Once
+  // approved a terminal IS a park and appears under holdings, so only the
+  // in-flight ones are collected here.
+  const pendingTerminals = await db.terminal.findMany({
+    where: {
+      company: { contactUserId: userId },
+      motorParkId: null,
+      applicationStatus: { notIn: ["APPROVED", "TEMPORAL_APPROVAL"] },
+    },
+    select: {
+      id: true,
+      terminalNumber: true,
+      locationAddress: true,
+      applicationStatus: true,
+      rejectionReason: true,
+      companyId: true,
+      company: { select: { companyName: true } },
+    },
+    orderBy: { terminalNumber: "asc" },
+  });
+
   const actions: ActionItem[] = [];
   const documents: DocumentItem[] = [];
+
+  // ── Terminals awaiting a decision, or sent back ──────────────────────────
+  for (const t of pendingTerminals) {
+    const returned = t.applicationStatus === "REJECTED";
+    actions.push({
+      key: `terminal-${t.id}`,
+      label: returned
+        ? `Terminal ${t.terminalNumber} returned for correction`
+        : `Terminal ${t.terminalNumber} — ${t.company.companyName}`,
+      hint: returned
+        ? t.rejectionReason ?? "A reason has been given. Correct it and resubmit."
+        : `${t.locationAddress}. ${
+            TERMINAL_STAGE[t.applicationStatus] ?? t.applicationStatus
+          }.`,
+      href: `/fleet-operators/${t.companyId}`,
+      // A returned terminal needs them to act; one in the chain is progress
+      // they should be able to see, not a task.
+      tone: returned ? "urgent" : "action",
+    });
+  }
 
   // ── Approvals coming up for renewal ───────────────────────────────────────
   // The revalidation page already lists these, but an operator who does not
