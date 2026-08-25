@@ -20,7 +20,12 @@ import { fmtDateShort as formatDate } from "@/lib/utils/format";
 // ── Page ────────────────────────────────────────────────────────────────────────
 
 interface PageProps {
-  searchParams: Promise<{ status?: string; search?: string; page?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    search?: string;
+    page?: string;
+    mine?: string;
+  }>;
 }
 
 export default async function MotorParksPage({ searchParams }: PageProps) {
@@ -33,7 +38,14 @@ export default async function MotorParksPage({ searchParams }: PageProps) {
   const search = params.search ?? undefined;
   const page = Number(params.page ?? 1);
 
-  const result = await listMotorParks({ status, search, page, limit: 20 });
+  const mine = params.mine === "1";
+  const result = await listMotorParks({
+    status,
+    search,
+    page,
+    mine,
+    limit: 20,
+  });
   const parks: MotorParkListItem[] = result.success ? result.data!.parks : [];
   const total = result.success ? result.data!.total : 0;
   const isApplicant = session.role === "EXTERNAL_APPLICANT";
@@ -47,6 +59,7 @@ export default async function MotorParksPage({ searchParams }: PageProps) {
     if (params.status) p.set("status", params.status);
     if (params.search) p.set("search", params.search);
     if (params.page) p.set("page", params.page);
+    if (params.mine) p.set("mine", params.mine);
     for (const [k, v] of Object.entries(overrides)) {
       if (v) p.set(k, v);
       else p.delete(k);
@@ -76,6 +89,55 @@ export default async function MotorParksPage({ searchParams }: PageProps) {
           </Button>
         )}
       </div>
+
+      {/* Search — a plain GET form, so it runs once on submit rather than on
+          every keystroke, and the result is a shareable URL. */}
+      <form method="GET" action="/motor-parks" className="flex gap-2">
+        {status && <input type="hidden" name="status" value={status} />}
+        <input
+          type="search"
+          name="search"
+          defaultValue={search ?? ""}
+          placeholder="Search by name, park ID, ASIN, LGA, phone…"
+          aria-label="Search motor parks"
+          className="h-10 w-full max-w-md rounded-lg border border-border bg-background px-3 text-sm"
+        />
+        <Button type="submit" variant="outline">
+          Search
+        </Button>
+        {search && (
+          <Button asChild variant="ghost">
+            <Link href={filterUrl({ search: undefined, page: undefined })}>
+              Clear
+            </Link>
+          </Button>
+        )}
+      </form>
+
+      {search && (
+        <p className="-mt-3 text-xs text-muted-foreground">
+          {total} result{total === 1 ? "" : "s"} for{" "}
+          <span className="font-medium text-foreground">{search}</span>. Every
+          word must appear somewhere in the record.
+        </p>
+      )}
+
+      {/* An Enumerator captures across the whole register, so their own
+          drafts are otherwise lost among everyone else's records. */}
+      {isEnumerator && (
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant={mine ? "default" : "outline"} size="sm">
+            <Link href={filterUrl({ mine: mine ? undefined : "1", page: undefined })}>
+              {mine ? "Showing my captures" : "Show only my captures"}
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={filterUrl({ status: "DRAFT", page: undefined })}>
+              Drafts awaiting completion
+            </Link>
+          </Button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">

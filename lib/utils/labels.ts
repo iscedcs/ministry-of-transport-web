@@ -35,6 +35,9 @@ export const STAFF_ROLE_OPTIONS = (Object.keys(UserRole) as UserRole[])
 /** Application status options for filter selects. */
 export const APPLICATION_STATUS_OPTIONS = [
   { value: "ALL", label: "All Statuses" },
+  // A field capture is saved as a draft. Without a chip of its own there was
+  // no way to find one, and nothing on any screen said drafts existed.
+  { value: "DRAFT", label: "Draft (field capture)" },
   { value: "SUBMITTED", label: "Submitted" },
   { value: "UNDER_REVIEW", label: "Under Review" },
   {

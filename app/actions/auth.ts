@@ -432,6 +432,8 @@ export type UserProfile = {
   residentialAddress: string | null;
   /** Lets a form know it is being filled by an Enumerator in the field. */
   role: string;
+  /** Job title, where the account holds one. Pre-fills Section A. */
+  designation: string | null;
 };
 
 /**
@@ -452,6 +454,7 @@ export async function getMyProfile(): Promise<ActionResult<UserProfile>> {
         asinNumber: true,
         residentialAddress: true,
         role: true,
+        designation: true,
       },
     });
 
@@ -473,6 +476,7 @@ export async function getMyProfile(): Promise<ActionResult<UserProfile>> {
           phone: true,
           asinNumber: true,
           role: true,
+          designation: true,
         },
       });
 

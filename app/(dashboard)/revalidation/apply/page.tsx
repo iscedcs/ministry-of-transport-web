@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition, useRef } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   submitRevalidationApplication,
   getExistingParkForRevalidation,
@@ -109,6 +110,10 @@ function Field({ id, label, required, error, children }: { id?: string; label: s
 export default function ApplyRevalidationPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+  const searchParams = useSearchParams();
+  const assetId = searchParams.get("assetId");
+  const assetType = searchParams.get("assetType");
+
   const [data, setData] = useState<RevalidationDraftData>(EMPTY);
   const [errors, setErrors] = useState<Partial<Record<keyof RevalidationDraftData, string>>>({});
   const [submitting, startSubmit] = useTransition();
@@ -121,26 +126,57 @@ export default function ApplyRevalidationPage() {
     Promise.all([
       loadRevalidationDraft(),
       getMyProfile(),
-      getExistingParkForRevalidation(),
+      getExistingParkForRevalidation(
+        assetId && (assetType === "MOTOR_PARK" || assetType === "MASS_TRANSIT")
+          ? { kind: assetType, id: assetId }
+          : undefined,
+      ),
     ])
       .then(([draft, profileResult, existingPark]) => {
-        if (draft) {
+        // An asset picked from the due list is an explicit choice, so it
+        // takes precedence over whatever half-finished draft was left behind.
+        if (draft && !assetId) {
           setData(draft.data);
           setCurrentStep(draft.stepReached);
           const done = new Set<number>();
           for (let i = 1; i < draft.stepReached; i++) done.add(i);
           setCompletedSteps(done);
         } else if (existingPark) {
+          // The profile is the floor and the record is the ceiling: anything
+          // the park or the last revalidation knows wins, anything it does
+          // not is filled from the account. Previously this was an either/or,
+          // so a designation or NIN held on the profile was left blank
+          // whenever a park was found.
+          const prof = profileResult.success
+            ? (profileResult.data as UserProfile)
+            : null;
+
           setData((prev) => ({
             ...prev,
             motorParkId: existingPark.id,
+            ownershipType: existingPark.ownershipType || prev.ownershipType,
+            designation:
+              existingPark.designation || prof?.designation || prev.designation,
+            alternatePhoneNumber:
+              existingPark.alternatePhoneNumber || prev.alternatePhoneNumber,
+            nin: existingPark.nin || prev.nin,
+            tin: existingPark.tin || prev.tin,
             parkName: existingPark.parkName || prev.parkName,
             ownerName: existingPark.ownerName || prev.ownerName,
-            representativeName: existingPark.ownerName || prev.representativeName,
-            phoneNumber: existingPark.phoneNumber || prev.phoneNumber,
-            emailAddress: existingPark.emailAddress || prev.emailAddress,
-            residentialAddress: existingPark.residentialAddress || prev.residentialAddress,
-            asinNumber: existingPark.asinNumber || prev.asinNumber,
+            representativeName:
+              existingPark.representativeName ||
+              existingPark.ownerName ||
+              prev.representativeName,
+            phoneNumber:
+              existingPark.phoneNumber || prof?.phone || prev.phoneNumber,
+            emailAddress:
+              existingPark.emailAddress || prof?.email || prev.emailAddress,
+            residentialAddress:
+              existingPark.residentialAddress ||
+              prof?.residentialAddress ||
+              prev.residentialAddress,
+            asinNumber:
+              existingPark.asinNumber || prof?.asinNumber || prev.asinNumber,
             physicalLocation: existingPark.physicalLocation || prev.physicalLocation,
             townCommunity: existingPark.townCommunity || prev.townCommunity,
             lga: existingPark.lga || prev.lga,
@@ -160,7 +196,9 @@ export default function ApplyRevalidationPage() {
         }
       })
       .finally(() => setDraftLoading(false));
-  }, []);
+    // Runs once on mount; the chosen asset comes from the URL and does not
+    // change while the form is open.
+  }, [assetId, assetType]);
 
   const setField = (field: keyof RevalidationDraftData, value: any) => setData((prev) => ({ ...prev, [field]: value }));
 
@@ -188,7 +226,9 @@ export default function ApplyRevalidationPage() {
       if (!data.emailAddress) e.emailAddress = "Required";
       if (!data.residentialAddress) e.residentialAddress = "Required";
       if (!data.asinNumber) e.asinNumber = "Required";
-      if (!data.nin) e.nin = "Required";
+      // ASIN is the state's own identifier and is already required above, so
+      // an operator who has one is not blocked for want of an NIN.
+      if (!data.nin && !data.asinNumber) e.nin = "Required";
     } else if (step === 2) {
       if (!data.parkName) e.parkName = "Required";
       if (!data.physicalLocation) e.physicalLocation = "Required";
@@ -384,7 +424,11 @@ export default function ApplyRevalidationPage() {
               <Field id="asinNumber" label="ASIN Number" required error={errors.asinNumber}>
                 <Input value={data.asinNumber} onChange={(e) => setField("asinNumber", e.target.value)} />
               </Field>
-              <Field id="nin" label="NIN" required error={errors.nin}>
+              <Field
+                id="nin"
+                label="NIN"
+                required={!data.asinNumber}
+                error={errors.nin}>
                 <Input value={data.nin} onChange={(e) => setField("nin", e.target.value)} />
               </Field>
               <Field id="tin" label="TIN (Tax Identification Number)">

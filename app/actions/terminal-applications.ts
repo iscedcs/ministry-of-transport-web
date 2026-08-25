@@ -46,6 +46,18 @@ export interface AddTerminalInput {
   /** Certificate number and the uploaded document — both are required. */
   businessPremisesCertNo: string;
   businessPremisesCertDocId: string;
+
+  /**
+   * What the site has, and the photographs of it. Optional, exactly as on a
+   * first application: the terminal is inspected before it becomes a park, and
+   * the inspection settles what is actually there.
+   */
+  facilitiesAvailable?: Record<string, boolean>;
+  toiletPhotoId?: string;
+  waitingAreaPhotoId?: string;
+  signagePhotoId?: string;
+  waterFacilityPhotoId?: string;
+  cctvPhotoId?: string;
 }
 
 // ── Adding ──────────────────────────────────────────────────────────────────
@@ -118,6 +130,12 @@ export async function addTerminalToCompany(
       managerResidentialAddress: input.managerResidentialAddress.trim(),
       businessPremisesCertNo: input.businessPremisesCertNo.trim(),
       businessPremisesCertDocId: input.businessPremisesCertDocId,
+      facilitiesAvailable: input.facilitiesAvailable ?? undefined,
+      toiletPhotoId: input.toiletPhotoId || null,
+      waitingAreaPhotoId: input.waitingAreaPhotoId || null,
+      signagePhotoId: input.signagePhotoId || null,
+      waterFacilityPhotoId: input.waterFacilityPhotoId || null,
+      cctvPhotoId: input.cctvPhotoId || null,
       terminalNumber: nextNumber,
       applicationStatus: "SUBMITTED",
       addedByUserId: authz.session.userId,
@@ -149,15 +167,72 @@ export async function addTerminalToCompany(
  * The Inspection record is polymorphic; a terminal is linked as "TERMINAL"
  * so it is never confused with the company-wide inspection.
  */
+/**
+ * Who may be put on a terminal inspection team.
+ *
+ * The same pool a revalidation inspection draws from, so the HOD sees one
+ * list of officers rather than a shorter one here and a longer one there.
+ * The signed-in HOD is excluded: they attend automatically and listing them
+ * only invites someone to spend one of three seats on a person already in
+ * the room.
+ */
+export async function getTerminalTeamCandidates() {
+  const authz = await authorize(["HOD_TRANSPORT_OPS", "SYSTEM_ADMIN"]);
+  if (!authz.ok) return { success: false as const, error: authz.error };
+
+  const officers = await db.user.findMany({
+    where: {
+      isActive: true,
+      id: { not: authz.session.userId },
+      role: {
+        in: [
+          "FIELD_INSPECTOR",
+          "VEHICLE_INSPECTION_OFFICER",
+          "HOD_VIS",
+          "HOD_TRANSPORT_OPS",
+          "HOD_PARKS",
+          "HOD_PARKS_REVALIDATION",
+          "PARK_MONITOR",
+        ],
+      },
+    },
+    select: { id: true, firstName: true, lastName: true, role: true },
+    orderBy: { firstName: "asc" },
+  });
+
+  return { success: true as const, data: officers };
+}
+
+/**
+ * A terminal is inspected by a team, not a lone officer.
+ *
+ * The same shape as a revalidation inspection, deliberately: the HOD of
+ * Operations occupies one seat automatically whether or not they tick their
+ * own name, two to four officers attend, and one of them is the lead. Only
+ * the lead files the checklist and findings; everyone else leaves a comment
+ * the HOD reads before recommending.
+ *
+ * Keeping the two identical means an officer learns the process once.
+ */
+const MIN_TEAM = 2;
+const MAX_TEAM = 4;
+
 export async function scheduleAddedTerminalInspection(
   terminalId: string,
-  input: { scheduledDate: string; assignedToUserId: string; station?: string },
+  input: {
+    scheduledDate: string;
+    memberIds: string[];
+    leadId: string;
+    station?: string;
+  },
 ) {
-  const authz = await authorize([
-    "HOD_TRANSPORT_OPS",
-    "SYSTEM_ADMIN",
-  ]);
-  if (!authz.ok) return { success: false, error: authz.error };
+  const authz = await authorize(["HOD_TRANSPORT_OPS", "SYSTEM_ADMIN"]);
+  if (!authz.ok) {
+    return {
+      success: false,
+      error: "Only the HOD of Operations can schedule an inspection.",
+    };
+  }
 
   const terminal = await db.terminal.findUnique({
     where: { id: terminalId },
@@ -173,7 +248,7 @@ export async function scheduleAddedTerminalInspection(
   if (!["SUBMITTED", "REJECTED", "UNDER_REVIEW"].includes(terminal.applicationStatus)) {
     return {
       success: false,
-      error: `Cannot schedule an inspection — the terminal is currently ${terminal.applicationStatus}.`,
+      error: `Cannot schedule an inspection - the terminal is currently ${terminal.applicationStatus}.`,
     };
   }
 
@@ -181,8 +256,36 @@ export async function scheduleAddedTerminalInspection(
   if (Number.isNaN(scheduledDate.getTime()) || scheduledDate <= new Date()) {
     return { success: false, error: "Choose an inspection date in the future." };
   }
-  if (!input.assignedToUserId) {
-    return { success: false, error: "Assign an inspector." };
+
+  // The HOD always attends, whether or not they ticked their own name.
+  const team = Array.from(
+    new Set([...(input.memberIds ?? []), authz.session.userId]),
+  ).filter(Boolean);
+
+  if (team.length < MIN_TEAM) {
+    return {
+      success: false,
+      error: `An inspection needs at least ${MIN_TEAM} officers - select at least one besides yourself.`,
+    };
+  }
+  if (team.length > MAX_TEAM) {
+    return {
+      success: false,
+      error: `An inspection team may hold at most ${MAX_TEAM} officers (you are counted automatically).`,
+    };
+  }
+  if (!input.leadId || !team.includes(input.leadId)) {
+    return {
+      success: false,
+      error: "The lead inspector must be one of the selected officers.",
+    };
+  }
+
+  const found = await db.user.count({
+    where: { id: { in: team }, isActive: true },
+  });
+  if (found !== team.length) {
+    return { success: false, error: "One or more selected officers are invalid." };
   }
 
   // Five working days, matching the terminal inspection SLA.
@@ -201,30 +304,41 @@ export async function scheduleAddedTerminalInspection(
       linkedEntityId: terminalId,
       scheduledDate,
       scheduledByUserId: authz.session.userId,
-      assignedToUserId: input.assignedToUserId,
+      assignedToUserId: input.leadId,
       // Required by the model but only meaningful once the report is filed;
       // it is overwritten with the real inspector on completion.
-      completedByUserId: input.assignedToUserId,
+      completedByUserId: input.leadId,
       inspectorStationLocation: input.station || null,
     },
     select: { id: true },
   });
 
-  await db.terminal.update({
-    where: { id: terminalId },
-    data: {
-      applicationStatus: "INSPECTION_SCHEDULED",
-      inspectionDueAt: dueAt,
-      rejectionReason: null,
-    },
-  });
+  await db.$transaction([
+    // Replace any previous team - rescheduling starts the visit afresh.
+    db.terminalInspector.deleteMany({ where: { terminalId } }),
+    db.terminalInspector.createMany({
+      data: team.map((userId) => ({
+        terminalId,
+        userId,
+        isLead: userId === input.leadId,
+      })),
+    }),
+    db.terminal.update({
+      where: { id: terminalId },
+      data: {
+        applicationStatus: "INSPECTION_SCHEDULED",
+        inspectionDueAt: dueAt,
+        rejectionReason: null,
+      },
+    }),
+  ]);
 
   await recordAudit({
     action: "TERMINAL_INSPECTION_SCHEDULED",
     entityType: "MASS_TRANSIT",
     entityId: terminal.companyId,
-    changeDescription: `Inspection scheduled for terminal ${terminal.terminalNumber} of ${terminal.company.companyName} on ${scheduledDate.toDateString()}`,
-    newValues: { inspectionId: inspection.id },
+    changeDescription: `Inspection scheduled for terminal ${terminal.terminalNumber} of ${terminal.company.companyName} on ${scheduledDate.toDateString()} - ${team.length} officers, lead assigned`,
+    newValues: { inspectionId: inspection.id, team: team.length, leadId: input.leadId },
   });
 
   revalidatePath(`/fleet-operators/${terminal.companyId}`);
@@ -232,20 +346,61 @@ export async function scheduleAddedTerminalInspection(
 }
 
 /**
- * File the report. Once it is in, the terminal is ready for the HOD — which
- * is the only door into the approval chain.
+ * A team member who is not the lead records what they saw.
+ *
+ * The HOD reads these alongside the lead's checklist, so a disagreement on
+ * site reaches the decision rather than being settled in the car park.
+ */
+export async function commentOnTerminalInspection(
+  terminalId: string,
+  comment: string,
+) {
+  const session = await requireAuth();
+
+  if (!comment?.trim()) {
+    return { success: false, error: "Write what you observed." };
+  }
+
+  const membership = await db.terminalInspector.findFirst({
+    where: { terminalId, userId: session.userId },
+    select: { id: true, isLead: true },
+  });
+  if (!membership) {
+    return { success: false, error: "You are not on this inspection team." };
+  }
+
+  await db.terminalInspector.update({
+    where: { id: membership.id },
+    data: { comment: comment.trim(), commentedAt: new Date() },
+  });
+
+  const terminal = await db.terminal.findUnique({
+    where: { id: terminalId },
+    select: { companyId: true, terminalNumber: true },
+  });
+
+  await recordAudit({
+    action: "TERMINAL_INSPECTION_COMMENT",
+    entityType: "MASS_TRANSIT",
+    entityId: terminal?.companyId ?? terminalId,
+    changeDescription: `Team member commented on terminal ${terminal?.terminalNumber ?? ""} inspection`,
+  });
+
+  if (terminal) revalidatePath(`/fleet-operators/${terminal.companyId}`);
+  return { success: true };
+}
+
+/**
+ * File the report. Only the lead does this - the others comment.
+ *
+ * Once it is in, the terminal is ready for the HOD, which is the only door
+ * into the approval chain.
  */
 export async function completeAddedTerminalInspection(
   terminalId: string,
   input: { findings: string; checklist?: unknown; evidenceUrls?: unknown },
 ) {
-  const authz = await authorize([
-    "FIELD_INSPECTOR",
-    "VEHICLE_INSPECTION_OFFICER",
-    "HOD_TRANSPORT_OPS",
-    "SYSTEM_ADMIN",
-  ]);
-  if (!authz.ok) return { success: false, error: authz.error };
+  const session = await requireAuth();
 
   if (!input.findings?.trim()) {
     return { success: false, error: "Record what was found at the site." };
@@ -258,9 +413,25 @@ export async function completeAddedTerminalInspection(
       companyId: true,
       terminalNumber: true,
       company: { select: { companyName: true } },
+      inspectionTeam: { select: { userId: true, isLead: true } },
     },
   });
   if (!terminal) return { success: false, error: "Terminal not found." };
+
+  const isLead = terminal.inspectionTeam.some(
+    (m) => m.userId === session.userId && m.isLead,
+  );
+  // A System Admin can file on the team's behalf when something has gone
+  // wrong on site; nobody else can.
+  const isOverride = session.role === "SYSTEM_ADMIN";
+
+  if (!isLead && !isOverride) {
+    return {
+      success: false,
+      error:
+        "Only the lead inspector files the report. If you attended, leave a comment instead.",
+    };
+  }
 
   if (terminal.applicationStatus !== "INSPECTION_SCHEDULED") {
     return {
@@ -280,7 +451,7 @@ export async function completeAddedTerminalInspection(
       where: { id: inspection.id },
       data: {
         status: "COMPLETED",
-        completedByUserId: authz.session.userId,
+        completedByUserId: session.userId,
         overallAssessment: input.findings.trim(),
         inspectionEndTime: new Date(),
         ...(input.checklist ? { inspectionChecklist: input.checklist as never } : {}),
@@ -459,6 +630,12 @@ export async function commissionerApproveTerminal(terminalId: string) {
         landOwnershipDocId: company.landOwnershipDocId,
         cacDocumentId: company.cacDocumentId,
         corporateAsinDocumentId: company.corporateAsinDocumentId,
+        // This site's own photographs, captured when the terminal was added.
+        toiletPhotoId: terminal.toiletPhotoId,
+        waitingAreaPhotoId: terminal.waitingAreaPhotoId,
+        signagePhotoId: terminal.signagePhotoId,
+        waterFacilityPhotoId: terminal.waterFacilityPhotoId,
+        cctvPhotoId: terminal.cctvPhotoId,
 
         applicationStatus: isTemporal ? "TEMPORAL_APPROVAL" : "APPROVED",
         permitStatus: "ACTIVE",
@@ -468,6 +645,12 @@ export async function commissionerApproveTerminal(terminalId: string) {
         nextRevalidationDue: expiresAt,
         monthlyLevyAmount: company.monthlyLevyAmount,
         approvedAt: now,
+        // The terminal passed HOD, PS and Commissioner in its own right, so
+        // the park it becomes shows those signatures rather than three blanks.
+        hodApprovedAt: terminal.hodApprovedAt,
+        psApprovedAt: terminal.psApprovedAt,
+        commissionerApprovedAt: now,
+        approvedByUserId: authz.session.userId,
       },
       select: { id: true },
     });

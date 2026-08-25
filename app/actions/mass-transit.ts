@@ -74,6 +74,15 @@ const terminalSchema = z.object({
     .string()
     .min(10, "Manager address required")
     .max(500),
+  // Every site is certificated separately, whether it is declared on the
+  // first application or added later — the company certificate covers none
+  // of them.
+  businessPremisesCertNo: z
+    .string()
+    .min(3, "Business premises certificate number required"),
+  businessPremisesCertDocId: z
+    .string()
+    .min(1, "Business premises certificate document required"),
 });
 
 const fleetCompanySchema = z.object({
@@ -333,18 +342,27 @@ export async function submitFleetApplication(
       select: { id: true },
     });
 
-    // Create terminals with manager details (one per terminal)
-    for (const terminalData of terminals) {
+    // Create terminals with manager details (one per terminal).
+    //
+    // terminalNumber is assigned here rather than left to its default of 1.
+    // Every terminal on a multi-terminal application was being created as
+    // number 1, which meant they all designated as "TERMINAL ONE" on their
+    // certificates, all took the same /T1 permit suffix, and a terminal added
+    // later computed its number from that broken maximum.
+    for (const [index, terminalData] of terminals.entries()) {
       const td = terminalData as any;
       await tx.terminal.create({
         data: {
           companyId: co.id,
+          terminalNumber: index + 1,
           locationAddress: td.locationAddress,
           gpsCoordinates: td.gpsCoordinates || null,
           managerName: td.managerName,
           managerPhone: td.managerPhone,
           managerEmail: td.managerEmail,
           managerResidentialAddress: td.managerResidentialAddress,
+          businessPremisesCertNo: td.businessPremisesCertNo,
+          businessPremisesCertDocId: td.businessPremisesCertDocId,
         },
       });
     }
@@ -410,6 +428,8 @@ export async function listFleetApplications(filters?: {
   search?: string;
   page?: number;
   limit?: number;
+  /** Enumerator only: limit the list to records this officer captured. */
+  mine?: boolean;
 }): Promise<
   ActionResult<{ companies: FleetApplicationListItem[]; total: number }>
 > {
@@ -423,6 +443,11 @@ export async function listFleetApplications(filters?: {
 
   if (session.role === "EXTERNAL_APPLICANT") {
     where.contactUserId = session.userId;
+  }
+
+  // See listMotorParks: an Enumerator needs to find their own captures.
+  if (filters?.mine && session.role === "ENUMERATOR") {
+    where.capturedByUserId = session.userId;
   }
 
   if (filters?.status && filters.status !== "ALL") {
@@ -1395,6 +1420,9 @@ export async function issuePermitToOperate(
       asinNumber: true,
       cacNumber: true,
       monthlyLevyAmount: true,
+      // The chain that approved the company; the park inherits it.
+      hodApprovedAt: true,
+      psApprovedAt: true,
       // A terminal becomes a park on approval, so everything a park needs is
       // read here.
       toiletPhotoId: true,
@@ -1524,6 +1552,11 @@ export async function issuePermitToOperate(
           monthlyLevyAmount: company.monthlyLevyAmount,
           approvedAt: now,
           approvedByUserId: session.userId,
+          // The park exists because the company passed the whole chain, so it
+          // carries those signatures rather than showing three blanks.
+          hodApprovedAt: company.hodApprovedAt,
+          psApprovedAt: company.psApprovedAt,
+          commissionerApprovedAt: now,
         },
         select: { id: true },
       });

@@ -5,18 +5,65 @@ import { checkStoredUrl } from "@/lib/media-url";
 import { getSession } from "@/lib/auth";
 import { clearRevalidationDraft } from "./revalidation-draft";
 
-export async function getExistingParkForRevalidation() {
+/**
+ * The record a revalidation is carried over from.
+ *
+ * Called with no argument it falls back to the operator's most recent park,
+ * which is what the free-form "New revalidation" route uses. Called with an
+ * asset chosen from the due list it loads exactly that one — picking the
+ * newest park would otherwise pre-fill the wrong record for an operator who
+ * holds several.
+ */
+export async function getExistingParkForRevalidation(asset?: {
+  kind: "MOTOR_PARK" | "MASS_TRANSIT";
+  id: string;
+}) {
   try {
     const session = await getSession();
     if (!session) return null;
+
+    if (asset?.kind === "MASS_TRANSIT") {
+      const company = await db.massTransitCompany.findFirst({
+        where: { id: asset.id, contactUserId: session.userId },
+        include: { terminals: { orderBy: { terminalNumber: "asc" }, take: 1 } },
+      });
+      if (!company) return null;
+
+      const terminal = company.terminals[0];
+      return {
+        id: company.id,
+        parkName: company.companyName,
+        ownerName: company.contactPerson || company.companyName,
+        ownershipType: "Registered Company",
+        representativeName: company.contactPerson ?? "",
+        designation: null,
+        alternatePhoneNumber: null,
+        nin: null,
+        tin: null,
+        phoneNumber: company.contactPhone ?? "",
+        emailAddress: company.contactEmail ?? "",
+        residentialAddress: terminal?.managerResidentialAddress ?? "",
+        asinNumber: company.asinNumber ?? "",
+        physicalLocation: terminal?.locationAddress ?? "",
+        townCommunity: "",
+        lga: "",
+        existingApprovalNum: company.permitNumber || company.asinNumber || "",
+        cacRegistrationNumber: company.cacNumber || "",
+        monthlyLevyAmount: company.monthlyLevyAmount,
+      };
+    }
 
     const user = await db.user.findUnique({
       where: { id: session.userId },
       select: { email: true },
     });
 
-    // Search for existing registered MotorPark by contactUserId or email
-    const park = await db.motorPark.findFirst({
+    // An explicitly chosen park wins; otherwise fall back to the most recent.
+    const park = asset?.id
+      ? await db.motorPark.findFirst({
+          where: { id: asset.id, contactUserId: session.userId },
+        })
+      : await db.motorPark.findFirst({
       where: {
         OR: [
           { contactUserId: session.userId },
@@ -28,8 +75,39 @@ export async function getExistingParkForRevalidation() {
 
     if (!park) return null;
 
+    // Section A was captured in full the last time this operator revalidated.
+    // A park record does not hold a designation, an NIN or a TIN, so without
+    // this the applicant retypes details the Ministry already has.
+    const previous = await db.revalidationApplication.findFirst({
+      where: {
+        OR: [
+          { motorParkId: park.id },
+          ...(park.anssidNumber
+            ? [{ asinNumber: park.anssidNumber, applicantUserId: session.userId }]
+            : []),
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        ownershipType: true,
+        representativeName: true,
+        designation: true,
+        alternatePhoneNumber: true,
+        nin: true,
+        tin: true,
+        residentialAddress: true,
+        facilityType: true,
+      },
+    });
+
     return {
       id: park.id,
+      ownershipType: previous?.ownershipType ?? null,
+      representativeName: previous?.representativeName ?? park.contactPerson,
+      designation: previous?.designation ?? null,
+      alternatePhoneNumber: previous?.alternatePhoneNumber ?? null,
+      nin: previous?.nin ?? null,
+      tin: previous?.tin ?? null,
       parkName: park.businessName,
       ownerName: park.contactPerson || park.transportCompanyName,
       phoneNumber: park.contactPhone,

@@ -24,6 +24,7 @@ import { db } from "@/lib/db";
 import { isRevalidation } from "@/lib/application-type";
 import { createRevalidationFromApplication } from "@/lib/revalidation-from-application";
 import { SCHEDULE_ROLES } from "@/lib/workflow-roles";
+import { getNumberSetting } from "@/lib/system-config";
 import { sendInspectionApprovalNotification } from "@/lib/email";
 import {
   requireAuth,
@@ -284,6 +285,8 @@ export type MotorParkListItem = {
 export async function listMotorParks(filters?: {
   status?: string;
   search?: string;
+  /** Enumerator only: limit the list to records this officer captured. */
+  mine?: boolean;
   page?: number;
   limit?: number;
 }): Promise<ActionResult<{ parks: MotorParkListItem[]; total: number }>> {
@@ -300,26 +303,48 @@ export async function listMotorParks(filters?: {
     where.contactUserId = session.userId;
   }
 
+  // An Enumerator works across the whole register, so their own field
+  // captures are impossible to find among everyone else's records. This lets
+  // the list narrow to what they captured.
+  if (filters?.mine && session.role === "ENUMERATOR") {
+    where.capturedByUserId = session.userId;
+  }
+
   if (filters?.status && filters.status !== "ALL") {
     where.applicationStatus = filters.status;
   }
 
-  if (filters?.search) {
-    where.OR = [
-      { businessName: { contains: filters.search, mode: "insensitive" } },
-      {
-        transportCompanyName: {
-          contains: filters.search,
-          mode: "insensitive",
-        },
-      },
-      {
-        cacRegistrationNumber: {
-          contains: filters.search,
-          mode: "insensitive",
-        },
-      },
-    ];
+  // ── Search ────────────────────────────────────────────────────────────────
+  // Matched by WORD, not by letter. Each word the officer types must appear
+  // somewhere in the record, so "abba awka" finds Abba Park in Awka South and
+  // not every park containing an "a".
+  //
+  // Two guards keep this off the database's back: a single character is
+  // ignored (it would scan the table to return everything), and the number of
+  // words is capped, since each one adds an OR group to the query.
+  const terms = (filters?.search ?? "")
+    .trim()
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2)
+    .slice(0, 5);
+
+  if (terms.length > 0) {
+    // AND across words, OR across the columns each word may live in.
+    where.AND = terms.map((term) => ({
+      OR: [
+        { businessName: { contains: term, mode: "insensitive" } },
+        { transportCompanyName: { contains: term, mode: "insensitive" } },
+        { cacRegistrationNumber: { contains: term, mode: "insensitive" } },
+        { anssidNumber: { contains: term, mode: "insensitive" } },
+        { parkId: { contains: term, mode: "insensitive" } },
+        { permitNumber: { contains: term, mode: "insensitive" } },
+        { townCity: { contains: term, mode: "insensitive" } },
+        { lga: { contains: term, mode: "insensitive" } },
+        { contactPerson: { contains: term, mode: "insensitive" } },
+        { contactPhone: { contains: term } },
+      ],
+    }));
   }
 
   const [parks, total] = await Promise.all([
@@ -557,6 +582,7 @@ export async function getMotorPark(
       hodApprovedAt: true,
       psApprovedAt: true,
       commissionerApprovedAt: true,
+      capturedByUserId: true,
       approvedAt: true,
       approvedByUserId: true,
       revokedAt: true,
@@ -617,10 +643,18 @@ export async function getMotorPark(
 
   if (!park) return { success: false, error: "Motor park not found" };
 
-  // RLS: external applicants can only view their own park
+  // RLS: external applicants can only view their own park.
+  //
+  // A field capture has no applicant yet, so this used to deny everyone and
+  // the draft could not be opened at all. The Enumerator who captured it may
+  // still open it — they are the one who has to finish it.
+  const isCapturer =
+    !!park.capturedByUserId && park.capturedByUserId === session.userId;
+
   if (
     session.role === "EXTERNAL_APPLICANT" &&
-    park.applicant?.id !== session.userId
+    park.applicant?.id !== session.userId &&
+    !isCapturer
   ) {
     return { success: false, error: "Access denied" };
   }
@@ -1340,10 +1374,31 @@ export async function issueTemporalApproval(
     };
   }
 
+  // A temporal approval is a signed decision, so it is recorded as one. This
+  // previously wrote the status alone, which left the signatures panel saying
+  // "Pending Signature" on a park that had just been approved, and left the
+  // permit with no expiry — so it never came up for revalidation either.
+  const temporalMonths =
+    (await getNumberSetting("motorpark.validity.temporalMonths")) || 6;
+  const temporalNow = new Date();
+  const temporalExpiry = new Date(temporalNow);
+  temporalExpiry.setMonth(temporalExpiry.getMonth() + temporalMonths);
+
   await db.motorPark.update({
     where: { id: parkId },
     data: {
       applicationStatus: "TEMPORAL_APPROVAL",
+      permitStatus: "ACTIVE",
+      permitIssuedAt: temporalNow,
+      permitExpiresAt: temporalExpiry,
+      nextRevalidationDue: temporalExpiry,
+      approvedAt: temporalNow,
+      approvedByUserId: session.userId,
+      // Whichever of the two issued it is the one who signed. A permit number
+      // is deliberately NOT assigned here — that belongs to final approval.
+      ...(session.role === "COMMISSIONER"
+        ? { commissionerApprovedAt: temporalNow }
+        : { psApprovedAt: temporalNow }),
     },
   });
 

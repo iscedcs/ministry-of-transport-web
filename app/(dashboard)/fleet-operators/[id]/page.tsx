@@ -262,6 +262,17 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
       rejectionReason: true,
       motorParkId: true,
       addedAt: true,
+      facilitiesAvailable: true,
+      inspectionDueAt: true,
+      inspectionTeam: {
+        select: {
+          userId: true,
+          isLead: true,
+          comment: true,
+          user: { select: { firstName: true, lastName: true } },
+        },
+        orderBy: { isLead: "desc" },
+      },
     },
   });
 
@@ -334,8 +345,19 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
         companyApproved={["APPROVED", "TEMPORAL_APPROVAL"].includes(
           co.applicationStatus,
         )}
-        terminals={terminalRows}
+        terminals={terminalRows.map((t) => ({
+          ...t,
+          // Flattened here so the panel does not have to know the shape of a
+          // Prisma relation.
+          inspectionTeam: t.inspectionTeam.map((m) => ({
+            userId: m.userId,
+            isLead: m.isLead,
+            comment: m.comment,
+            name: `${m.user.firstName} ${m.user.lastName}`,
+          })),
+        }))}
         currentUserRole={session.role}
+        currentUserId={session.userId}
         canAdd={
           session.role === "EXTERNAL_APPLICANT" ||
           ["ENUMERATOR", "HOD_TRANSPORT_OPS", "SYSTEM_ADMIN", "ADMIN"].includes(

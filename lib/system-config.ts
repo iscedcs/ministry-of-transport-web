@@ -62,6 +62,17 @@ export const SETTINGS: SettingDef[] = [
     max: 120,
   },
   {
+    key: "revalidation.dueWindowDays",
+    label: "Revalidation - due window (days)",
+    description:
+      "How far ahead of expiry an approved park or operator is offered to its owner for revalidation. Anything already past due is always offered.",
+    type: "number",
+    default: "90",
+    group: "Certificate Validity",
+    min: 1,
+    max: 365,
+  },
+  {
     key: "motorpark.validity.temporalMonths",
     label: "Motor park — temporal approval (months)",
     description:
