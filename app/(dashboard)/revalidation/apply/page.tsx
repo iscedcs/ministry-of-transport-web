@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition, useRef } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   submitRevalidationApplication,
   getExistingParkForRevalidation,
@@ -109,6 +110,10 @@ function Field({ id, label, required, error, children }: { id?: string; label: s
 export default function ApplyRevalidationPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+  const searchParams = useSearchParams();
+  const assetId = searchParams.get("assetId");
+  const assetType = searchParams.get("assetType");
+
   const [data, setData] = useState<RevalidationDraftData>(EMPTY);
   const [errors, setErrors] = useState<Partial<Record<keyof RevalidationDraftData, string>>>({});
   const [submitting, startSubmit] = useTransition();
@@ -121,10 +126,16 @@ export default function ApplyRevalidationPage() {
     Promise.all([
       loadRevalidationDraft(),
       getMyProfile(),
-      getExistingParkForRevalidation(),
+      getExistingParkForRevalidation(
+        assetId && (assetType === "MOTOR_PARK" || assetType === "MASS_TRANSIT")
+          ? { kind: assetType, id: assetId }
+          : undefined,
+      ),
     ])
       .then(([draft, profileResult, existingPark]) => {
-        if (draft) {
+        // An asset picked from the due list is an explicit choice, so it
+        // takes precedence over whatever half-finished draft was left behind.
+        if (draft && !assetId) {
           setData(draft.data);
           setCurrentStep(draft.stepReached);
           const done = new Set<number>();
@@ -160,7 +171,9 @@ export default function ApplyRevalidationPage() {
         }
       })
       .finally(() => setDraftLoading(false));
-  }, []);
+    // Runs once on mount; the chosen asset comes from the URL and does not
+    // change while the form is open.
+  }, [assetId, assetType]);
 
   const setField = (field: keyof RevalidationDraftData, value: any) => setData((prev) => ({ ...prev, [field]: value }));
 
