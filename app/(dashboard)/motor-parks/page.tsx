@@ -77,6 +77,38 @@ export default async function MotorParksPage({ searchParams }: PageProps) {
         )}
       </div>
 
+      {/* Search — a plain GET form, so it runs once on submit rather than on
+          every keystroke, and the result is a shareable URL. */}
+      <form method="GET" action="/motor-parks" className="flex gap-2">
+        {status && <input type="hidden" name="status" value={status} />}
+        <input
+          type="search"
+          name="search"
+          defaultValue={search ?? ""}
+          placeholder="Search by name, park ID, ASIN, LGA, phone…"
+          aria-label="Search motor parks"
+          className="h-10 w-full max-w-md rounded-lg border border-border bg-background px-3 text-sm"
+        />
+        <Button type="submit" variant="outline">
+          Search
+        </Button>
+        {search && (
+          <Button asChild variant="ghost">
+            <Link href={filterUrl({ search: undefined, page: undefined })}>
+              Clear
+            </Link>
+          </Button>
+        )}
+      </form>
+
+      {search && (
+        <p className="-mt-3 text-xs text-muted-foreground">
+          {total} result{total === 1 ? "" : "s"} for{" "}
+          <span className="font-medium text-foreground">{search}</span>. Every
+          word must appear somewhere in the record.
+        </p>
+      )}
+
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
         {/* Status filter */}

@@ -305,22 +305,37 @@ export async function listMotorParks(filters?: {
     where.applicationStatus = filters.status;
   }
 
-  if (filters?.search) {
-    where.OR = [
-      { businessName: { contains: filters.search, mode: "insensitive" } },
-      {
-        transportCompanyName: {
-          contains: filters.search,
-          mode: "insensitive",
-        },
-      },
-      {
-        cacRegistrationNumber: {
-          contains: filters.search,
-          mode: "insensitive",
-        },
-      },
-    ];
+  // ── Search ────────────────────────────────────────────────────────────────
+  // Matched by WORD, not by letter. Each word the officer types must appear
+  // somewhere in the record, so "abba awka" finds Abba Park in Awka South and
+  // not every park containing an "a".
+  //
+  // Two guards keep this off the database's back: a single character is
+  // ignored (it would scan the table to return everything), and the number of
+  // words is capped, since each one adds an OR group to the query.
+  const terms = (filters?.search ?? "")
+    .trim()
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2)
+    .slice(0, 5);
+
+  if (terms.length > 0) {
+    // AND across words, OR across the columns each word may live in.
+    where.AND = terms.map((term) => ({
+      OR: [
+        { businessName: { contains: term, mode: "insensitive" } },
+        { transportCompanyName: { contains: term, mode: "insensitive" } },
+        { cacRegistrationNumber: { contains: term, mode: "insensitive" } },
+        { anssidNumber: { contains: term, mode: "insensitive" } },
+        { parkId: { contains: term, mode: "insensitive" } },
+        { permitNumber: { contains: term, mode: "insensitive" } },
+        { townCity: { contains: term, mode: "insensitive" } },
+        { lga: { contains: term, mode: "insensitive" } },
+        { contactPerson: { contains: term, mode: "insensitive" } },
+        { contactPhone: { contains: term } },
+      ],
+    }));
   }
 
   const [parks, total] = await Promise.all([
