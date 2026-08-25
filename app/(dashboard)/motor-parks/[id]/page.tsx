@@ -600,6 +600,15 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
         </div>
       </div>
 
+      {capture?.applicationStatus === "DRAFT" && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          <strong className="font-semibold">Draft — not yet submitted.</strong>{" "}
+          This was captured in the field and is not in the approval chain. It
+          becomes an application once the owner details are filled in and it is
+          submitted below.
+        </div>
+      )}
+
       {showCompletion && capture && (
         <OwnerCompletionPanel
           kind="park"

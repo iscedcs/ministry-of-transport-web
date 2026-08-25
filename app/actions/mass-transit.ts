@@ -428,6 +428,8 @@ export async function listFleetApplications(filters?: {
   search?: string;
   page?: number;
   limit?: number;
+  /** Enumerator only: limit the list to records this officer captured. */
+  mine?: boolean;
 }): Promise<
   ActionResult<{ companies: FleetApplicationListItem[]; total: number }>
 > {
@@ -441,6 +443,11 @@ export async function listFleetApplications(filters?: {
 
   if (session.role === "EXTERNAL_APPLICANT") {
     where.contactUserId = session.userId;
+  }
+
+  // See listMotorParks: an Enumerator needs to find their own captures.
+  if (filters?.mine && session.role === "ENUMERATOR") {
+    where.capturedByUserId = session.userId;
   }
 
   if (filters?.status && filters.status !== "ALL") {

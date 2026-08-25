@@ -285,6 +285,8 @@ export type MotorParkListItem = {
 export async function listMotorParks(filters?: {
   status?: string;
   search?: string;
+  /** Enumerator only: limit the list to records this officer captured. */
+  mine?: boolean;
   page?: number;
   limit?: number;
 }): Promise<ActionResult<{ parks: MotorParkListItem[]; total: number }>> {
@@ -299,6 +301,13 @@ export async function listMotorParks(filters?: {
 
   if (session.role === "EXTERNAL_APPLICANT") {
     where.contactUserId = session.userId;
+  }
+
+  // An Enumerator works across the whole register, so their own field
+  // captures are impossible to find among everyone else's records. This lets
+  // the list narrow to what they captured.
+  if (filters?.mine && session.role === "ENUMERATOR") {
+    where.capturedByUserId = session.userId;
   }
 
   if (filters?.status && filters.status !== "ALL") {
@@ -573,6 +582,7 @@ export async function getMotorPark(
       hodApprovedAt: true,
       psApprovedAt: true,
       commissionerApprovedAt: true,
+      capturedByUserId: true,
       approvedAt: true,
       approvedByUserId: true,
       revokedAt: true,
@@ -633,10 +643,18 @@ export async function getMotorPark(
 
   if (!park) return { success: false, error: "Motor park not found" };
 
-  // RLS: external applicants can only view their own park
+  // RLS: external applicants can only view their own park.
+  //
+  // A field capture has no applicant yet, so this used to deny everyone and
+  // the draft could not be opened at all. The Enumerator who captured it may
+  // still open it — they are the one who has to finish it.
+  const isCapturer =
+    !!park.capturedByUserId && park.capturedByUserId === session.userId;
+
   if (
     session.role === "EXTERNAL_APPLICANT" &&
-    park.applicant?.id !== session.userId
+    park.applicant?.id !== session.userId &&
+    !isCapturer
   ) {
     return { success: false, error: "Access denied" };
   }
