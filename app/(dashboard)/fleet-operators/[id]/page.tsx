@@ -262,6 +262,8 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
       rejectionReason: true,
       motorParkId: true,
       addedAt: true,
+      facilitiesAvailable: true,
+      inspectionDueAt: true,
     },
   });
 

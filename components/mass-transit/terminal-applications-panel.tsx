@@ -4,7 +4,15 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Plus, MapPin, FileText, ArrowRight, AlertTriangle } from "lucide-react";
+import {
+  Plus,
+  MapPin,
+  FileText,
+  ArrowRight,
+  AlertTriangle,
+  CalendarClock,
+  ClipboardCheck,
+} from "lucide-react";
 import {
   addTerminalToCompany,
   hodApproveTerminal,
@@ -12,7 +20,10 @@ import {
   commissionerApproveTerminal,
   rejectTerminal,
   resubmitTerminal,
+  scheduleAddedTerminalInspection,
+  completeAddedTerminalInspection,
 } from "@/app/actions/terminal-applications";
+import { getFleetInspectors } from "@/app/actions/mass-transit";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { FACILITY_ITEMS } from "@/lib/facilities";
@@ -39,6 +50,12 @@ export interface TerminalRow {
   motorParkId: string | null;
   /** Added after the company was approved, so it has its own chain. */
   addedAt: Date | null;
+  /**
+   * What the operator declared this site has, for the inspector to verify.
+   * Typed loosely because it arrives as a Prisma JSON value.
+   */
+  facilitiesAvailable?: unknown;
+  inspectionDueAt?: Date | null;
 }
 
 /** Which control the signed-in officer gets, given where the terminal is. */
@@ -56,6 +73,27 @@ function stageFor(status: string, role: string) {
       ? { label: "Approve terminal", run: commissionerApproveTerminal }
       : null;
   return null;
+}
+
+/** Scheduling the visit is the HOD of Operations' job, as everywhere else. */
+const SCHEDULE_ROLES = ["HOD_TRANSPORT_OPS", "SYSTEM_ADMIN"];
+
+/** Whoever attends files the report. */
+const REPORT_ROLES = [
+  "FIELD_INSPECTOR",
+  "VEHICLE_INSPECTION_OFFICER",
+  "HOD_TRANSPORT_OPS",
+  "SYSTEM_ADMIN",
+];
+
+const SCHEDULABLE = ["SUBMITTED", "REJECTED", "UNDER_REVIEW"];
+
+/** The facilities the operator actually claimed, out of the JSON column. */
+function declaredFacilities(value: unknown): string[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.entries(value as Record<string, unknown>)
+    .filter(([, claimed]) => claimed === true)
+    .map(([facility]) => facility);
 }
 
 const TONE: Record<string, string> = {
@@ -96,6 +134,69 @@ export function TerminalApplicationsPanel({
   const [facilities, setFacilities] = useState<Record<string, boolean>>({});
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [photoNames, setPhotoNames] = useState<Record<string, string>>({});
+
+  /** Which terminal has its scheduling or reporting form open. */
+  const [scheduling, setScheduling] = useState<string | null>(null);
+  const [reporting, setReporting] = useState<string | null>(null);
+  const [inspectors, setInspectors] = useState<
+    { id: string; firstName: string; lastName: string }[]
+  >([]);
+  const [visit, setVisit] = useState({
+    scheduledDate: "",
+    assignedToUserId: "",
+    station: "",
+  });
+  const [findings, setFindings] = useState("");
+  const [verified, setVerified] = useState<Record<string, string>>({});
+
+  // Inspectors are only needed once a scheduling form is opened, so the list
+  // is fetched then rather than on every render of the page.
+  const openSchedule = (terminalId: string) => {
+    setScheduling(terminalId);
+    setVisit({ scheduledDate: "", assignedToUserId: "", station: "" });
+    if (inspectors.length === 0) {
+      getFleetInspectors().then((res) => {
+        if (res.success) setInspectors(res.data ?? []);
+      });
+    }
+  };
+
+  const submitSchedule = (terminalId: string) =>
+    startTransition(async () => {
+      const res = await scheduleAddedTerminalInspection(terminalId, visit);
+      if (res.success) {
+        toast.success("Inspection scheduled.");
+        setScheduling(null);
+        router.refresh();
+      } else {
+        toast.error(res.error || "Could not schedule the inspection.");
+      }
+    });
+
+  const submitReport = (terminalId: string) =>
+    startTransition(async () => {
+      // The declared facilities are sent back item by item, so the HOD sees
+      // what was claimed against what was found rather than prose alone.
+      const checklist = Object.entries(verified).map(([label, result]) => ({
+        label,
+        declared: true,
+        verified: result,
+      }));
+
+      const res = await completeAddedTerminalInspection(terminalId, {
+        findings,
+        checklist: checklist.length > 0 ? checklist : undefined,
+      });
+      if (res.success) {
+        toast.success("Inspection report filed.");
+        setReporting(null);
+        setFindings("");
+        setVerified({});
+        router.refresh();
+      } else {
+        toast.error(res.error || "Could not file the report.");
+      }
+    });
 
   /**
    * One upload path for every document on this form. The panel previously
@@ -446,6 +547,204 @@ export function TerminalApplicationsPanel({
                         Return with reason
                       </button>
                     )}
+
+                    {/* A site nobody has visited cannot be recommended, so
+                        scheduling is the only move available here. */}
+                    {!isLive &&
+                      SCHEDULABLE.includes(t.applicationStatus) &&
+                      SCHEDULE_ROLES.includes(currentUserRole) && (
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => openSchedule(t.id)}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50">
+                          <CalendarClock className="h-3.5 w-3.5" />
+                          Schedule inspection
+                        </button>
+                      )}
+
+                    {t.applicationStatus === "INSPECTION_SCHEDULED" &&
+                      REPORT_ROLES.includes(currentUserRole) && (
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => {
+                            setReporting(t.id);
+                            setFindings("");
+                            setVerified({});
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50">
+                          <ClipboardCheck className="h-3.5 w-3.5" />
+                          File inspection report
+                        </button>
+                      )}
+
+                    {t.applicationStatus === "INSPECTION_SCHEDULED" &&
+                      t.inspectionDueAt && (
+                        <span className="text-xs text-muted-foreground">
+                          Report due {new Date(t.inspectionDueAt).toDateString()}
+                        </span>
+                      )}
+                  </div>
+
+                  {/* ── Schedule the visit ──────────────────────────────── */}
+                  {scheduling === t.id && (
+                    <div className="mt-1 flex flex-col gap-3 rounded-xl border border-border p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Schedule inspection
+                      </p>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Date of visit
+                          </span>
+                          <input
+                            type="date"
+                            value={visit.scheduledDate}
+                            onChange={(e) =>
+                              setVisit((v) => ({
+                                ...v,
+                                scheduledDate: e.target.value,
+                              }))
+                            }
+                            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Inspector
+                          </span>
+                          <select
+                            value={visit.assignedToUserId}
+                            onChange={(e) =>
+                              setVisit((v) => ({
+                                ...v,
+                                assignedToUserId: e.target.value,
+                              }))
+                            }
+                            className="h-[38px] w-full rounded-lg border border-border bg-background px-3 text-sm">
+                            <option value="">Select an inspector</option>
+                            {inspectors.map((i) => (
+                              <option key={i.id} value={i.id}>
+                                {i.firstName} {i.lastName}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Station (optional)
+                          </span>
+                          <input
+                            value={visit.station}
+                            onChange={(e) =>
+                              setVisit((v) => ({ ...v, station: e.target.value }))
+                            }
+                            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                          />
+                        </label>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        The report is due five working days after the visit.
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => submitSchedule(t.id)}
+                          className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+                          {pending ? "Scheduling..." : "Schedule"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => setScheduling(null)}
+                          className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium disabled:opacity-50">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── File the report ─────────────────────────────────── */}
+                  {reporting === t.id && (
+                    <div className="mt-1 flex flex-col gap-3 rounded-xl border border-border p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Inspection report
+                      </p>
+
+                      {declaredFacilities(t.facilitiesAvailable).length > 0 && (
+                          <div className="flex flex-col gap-2">
+                            <p className="text-xs text-muted-foreground">
+                              The operator declared these. Record what you found
+                              — the HOD weighs the difference, not the prose.
+                            </p>
+                            {declaredFacilities(t.facilitiesAvailable).map(
+                              (facility) => (
+                                <div
+                                  key={facility}
+                                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
+                                  <span className="text-sm">{facility}</span>
+                                  <div className="flex gap-1">
+                                    {["YES", "PARTIAL", "NO", "N/A"].map((v) => (
+                                      <button
+                                        key={v}
+                                        type="button"
+                                        onClick={() =>
+                                          setVerified((prev) => ({
+                                            ...prev,
+                                            [facility]: v,
+                                          }))
+                                        }
+                                        className={cn(
+                                          "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
+                                          verified[facility] === v
+                                            ? "border-primary bg-primary/10 text-primary"
+                                            : "border-border hover:bg-secondary",
+                                        )}>
+                                        {v}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        )}
+
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Findings
+                        </span>
+                        <textarea
+                          rows={3}
+                          value={findings}
+                          onChange={(e) => setFindings(e.target.value)}
+                          placeholder="What was found at the site."
+                          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                        />
+                      </label>
+
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => submitReport(t.id)}
+                          className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+                          {pending ? "Filing..." : "File report"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => setReporting(null)}
+                          className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium disabled:opacity-50">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="hidden">
 
                     {t.applicationStatus === "REJECTED" && canAdd && (
                       <button
