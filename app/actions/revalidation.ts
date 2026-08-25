@@ -34,6 +34,12 @@ export async function getExistingParkForRevalidation(asset?: {
         id: company.id,
         parkName: company.companyName,
         ownerName: company.contactPerson || company.companyName,
+        ownershipType: "Registered Company",
+        representativeName: company.contactPerson ?? "",
+        designation: null,
+        alternatePhoneNumber: null,
+        nin: null,
+        tin: null,
         phoneNumber: company.contactPhone ?? "",
         emailAddress: company.contactEmail ?? "",
         residentialAddress: terminal?.managerResidentialAddress ?? "",
@@ -69,8 +75,39 @@ export async function getExistingParkForRevalidation(asset?: {
 
     if (!park) return null;
 
+    // Section A was captured in full the last time this operator revalidated.
+    // A park record does not hold a designation, an NIN or a TIN, so without
+    // this the applicant retypes details the Ministry already has.
+    const previous = await db.revalidationApplication.findFirst({
+      where: {
+        OR: [
+          { motorParkId: park.id },
+          ...(park.anssidNumber
+            ? [{ asinNumber: park.anssidNumber, applicantUserId: session.userId }]
+            : []),
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        ownershipType: true,
+        representativeName: true,
+        designation: true,
+        alternatePhoneNumber: true,
+        nin: true,
+        tin: true,
+        residentialAddress: true,
+        facilityType: true,
+      },
+    });
+
     return {
       id: park.id,
+      ownershipType: previous?.ownershipType ?? null,
+      representativeName: previous?.representativeName ?? park.contactPerson,
+      designation: previous?.designation ?? null,
+      alternatePhoneNumber: previous?.alternatePhoneNumber ?? null,
+      nin: previous?.nin ?? null,
+      tin: previous?.tin ?? null,
       parkName: park.businessName,
       ownerName: park.contactPerson || park.transportCompanyName,
       phoneNumber: park.contactPhone,

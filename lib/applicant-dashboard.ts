@@ -12,6 +12,7 @@
  */
 
 import { db } from "@/lib/db";
+import { getRevalidationDueAssets } from "@/lib/revalidation-due";
 
 export interface ActionItem {
   key: string;
@@ -115,6 +116,30 @@ export async function getApplicantDashboard(
 
   const actions: ActionItem[] = [];
   const documents: DocumentItem[] = [];
+
+  // ── Approvals coming up for renewal ───────────────────────────────────────
+  // The revalidation page already lists these, but an operator who does not
+  // go looking will let one lapse. It belongs where they land.
+  const { assets: dueAssets } = await getRevalidationDueAssets(userId);
+
+  for (const asset of dueAssets) {
+    if (asset.inProgress) continue;
+    actions.push({
+      key: `due-${asset.kind}-${asset.id}`,
+      label: asset.overdue
+        ? `${asset.name} — revalidation overdue`
+        : `${asset.name} — revalidation due`,
+      hint: asset.overdue
+        ? `Lapsed on ${asset.dueAt.toDateString()}. Start the revalidation to bring it back into force.`
+        : `Expires ${asset.dueAt.toDateString()} — ${asset.daysRemaining} day${
+            asset.daysRemaining === 1 ? "" : "s"
+          } left.`,
+      // A countdown is the number that matters here, not a quantity.
+      count: asset.overdue ? undefined : asset.daysRemaining,
+      href: `/revalidation/apply?assetType=${asset.kind}&assetId=${asset.id}`,
+      tone: "urgent",
+    });
+  }
 
   // ── Vehicles still to submit ──────────────────────────────────────────────
   for (const co of companies) {

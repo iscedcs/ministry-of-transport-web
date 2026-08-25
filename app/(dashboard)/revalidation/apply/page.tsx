@@ -142,16 +142,41 @@ export default function ApplyRevalidationPage() {
           for (let i = 1; i < draft.stepReached; i++) done.add(i);
           setCompletedSteps(done);
         } else if (existingPark) {
+          // The profile is the floor and the record is the ceiling: anything
+          // the park or the last revalidation knows wins, anything it does
+          // not is filled from the account. Previously this was an either/or,
+          // so a designation or NIN held on the profile was left blank
+          // whenever a park was found.
+          const prof = profileResult.success
+            ? (profileResult.data as UserProfile)
+            : null;
+
           setData((prev) => ({
             ...prev,
             motorParkId: existingPark.id,
+            ownershipType: existingPark.ownershipType || prev.ownershipType,
+            designation:
+              existingPark.designation || prof?.designation || prev.designation,
+            alternatePhoneNumber:
+              existingPark.alternatePhoneNumber || prev.alternatePhoneNumber,
+            nin: existingPark.nin || prev.nin,
+            tin: existingPark.tin || prev.tin,
             parkName: existingPark.parkName || prev.parkName,
             ownerName: existingPark.ownerName || prev.ownerName,
-            representativeName: existingPark.ownerName || prev.representativeName,
-            phoneNumber: existingPark.phoneNumber || prev.phoneNumber,
-            emailAddress: existingPark.emailAddress || prev.emailAddress,
-            residentialAddress: existingPark.residentialAddress || prev.residentialAddress,
-            asinNumber: existingPark.asinNumber || prev.asinNumber,
+            representativeName:
+              existingPark.representativeName ||
+              existingPark.ownerName ||
+              prev.representativeName,
+            phoneNumber:
+              existingPark.phoneNumber || prof?.phone || prev.phoneNumber,
+            emailAddress:
+              existingPark.emailAddress || prof?.email || prev.emailAddress,
+            residentialAddress:
+              existingPark.residentialAddress ||
+              prof?.residentialAddress ||
+              prev.residentialAddress,
+            asinNumber:
+              existingPark.asinNumber || prof?.asinNumber || prev.asinNumber,
             physicalLocation: existingPark.physicalLocation || prev.physicalLocation,
             townCommunity: existingPark.townCommunity || prev.townCommunity,
             lga: existingPark.lga || prev.lga,
@@ -201,7 +226,9 @@ export default function ApplyRevalidationPage() {
       if (!data.emailAddress) e.emailAddress = "Required";
       if (!data.residentialAddress) e.residentialAddress = "Required";
       if (!data.asinNumber) e.asinNumber = "Required";
-      if (!data.nin) e.nin = "Required";
+      // ASIN is the state's own identifier and is already required above, so
+      // an operator who has one is not blocked for want of an NIN.
+      if (!data.nin && !data.asinNumber) e.nin = "Required";
     } else if (step === 2) {
       if (!data.parkName) e.parkName = "Required";
       if (!data.physicalLocation) e.physicalLocation = "Required";
@@ -397,7 +424,11 @@ export default function ApplyRevalidationPage() {
               <Field id="asinNumber" label="ASIN Number" required error={errors.asinNumber}>
                 <Input value={data.asinNumber} onChange={(e) => setField("asinNumber", e.target.value)} />
               </Field>
-              <Field id="nin" label="NIN" required error={errors.nin}>
+              <Field
+                id="nin"
+                label="NIN"
+                required={!data.asinNumber}
+                error={errors.nin}>
                 <Input value={data.nin} onChange={(e) => setField("nin", e.target.value)} />
               </Field>
               <Field id="tin" label="TIN (Tax Identification Number)">
