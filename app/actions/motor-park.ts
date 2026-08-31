@@ -2381,6 +2381,10 @@ export async function updateMotorParkApplication(
   });
 
   revalidatePath(`/motor-parks/${parkId}`);
+  revalidatePath(`/motor-parks/${parkId}/approval-letter`);
+  revalidatePath(`/motor-parks/${parkId}/park-certificate`);
+  revalidatePath(`/motor-parks/${parkId}/temporal-certificate`);
+  revalidatePath(`/motor-parks/${parkId}/edit`);
   revalidatePath(`/motor-parks`);
   revalidatePath(`/letter-approvals`);
 
