@@ -59,6 +59,9 @@ export default async function EditRevalidationPage({
     "HOD_TRANSPORT_OPS",
     "HOD_PARKS_REVALIDATION",
     "SYSTEM_ADMIN",
+    "ADMIN",
+    "COMMISSIONER",
+    "PERMANENT_SECRETARY",
   ]);
   if (!authz.ok) redirect("/unauthorized");
 

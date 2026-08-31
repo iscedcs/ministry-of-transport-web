@@ -155,7 +155,10 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
   const canEdit =
     session.role === "HOD_TRANSPORT_OPS" ||
     session.role === "HOD_PARKS_REVALIDATION" ||
-    session.role === "SYSTEM_ADMIN";
+    session.role === "SYSTEM_ADMIN" ||
+    session.role === "ADMIN" ||
+    session.role === "COMMISSIONER" ||
+    session.role === "PERMANENT_SECRETARY";
 
   const incompleteSections = Array.isArray(app.incompleteSections)
     ? (app.incompleteSections as unknown[]).filter(
