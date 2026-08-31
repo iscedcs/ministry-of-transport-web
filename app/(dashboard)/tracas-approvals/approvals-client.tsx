@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -16,8 +16,11 @@ import {
   UserCheck,
   QrCode,
   Activity,
+  Search,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { TracasNavTabs } from "@/components/tracas/tracas-nav-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,16 +50,22 @@ export function ApprovalsClient({
   data,
   overview,
   role,
+  initialQuery = "",
 }: {
   data: ApprovalQueueData;
   overview: TracasOverview | null;
   role: string;
+  initialQuery?: string;
+  initialModule?: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [declineTarget, setDeclineTarget] =
     useState<ApprovalQueueVehicle | null>(null);
   const [declineReason, setDeclineReason] = useState("");
+
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [enrollmentFilter, setEnrollmentFilter] = useState<string>("ALL");
 
   const { stage, pending, counts, recentlyDeclined } = data;
 
@@ -67,7 +76,7 @@ export function ApprovalsClient({
         ? "Awaiting your approval as Ag. MD/CEO"
       : stage === "COMMISSIONER"
         ? "Awaiting your approval as Commissioner"
-        : "Letters in the approval chain (view only)";
+        : "TRACAS Letters in the approval chain (view only)";
 
   const run = (fn: () => Promise<{ success: boolean; error?: string }>) => {
     startTransition(async () => {
@@ -109,6 +118,55 @@ export function ApprovalsClient({
     );
   };
 
+  const filteredPending = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+
+    return pending.filter((v) => {
+      if (enrollmentFilter !== "ALL" && v.enrollmentType !== enrollmentFilter) {
+        return false;
+      }
+      if (!q) return true;
+
+      const text = [
+        v.registrationNumber,
+        v.fleetNumber,
+        v.authorityRef,
+        v.category,
+        v.makeModel ?? "",
+        v.ownerName ?? "",
+        v.assignedRoute ?? "",
+        v.assignedDriver?.fullName ?? "",
+        v.assignedDriver?.phoneNumber ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return text.includes(q);
+    });
+  }, [pending, searchQuery, enrollmentFilter]);
+
+  const filteredDeclined = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return recentlyDeclined;
+
+    return recentlyDeclined.filter((v) => {
+      const text = [
+        v.registrationNumber,
+        v.fleetNumber,
+        v.authorityRef,
+        v.ownerName ?? "",
+        v.assignedDriver?.fullName ?? "",
+        v.assignedDriver?.phoneNumber ?? "",
+        v.makeModel ?? "",
+        v.declineReason ?? "",
+        v.declinedAtStage ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return text.includes(q);
+    });
+  }, [recentlyDeclined, searchQuery]);
+
   return (
     <div className="space-y-8 py-2">
       <TracasNavTabs role={role} />
@@ -116,7 +174,7 @@ export function ApprovalsClient({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            TRACAS Dashboard
+            TRACAS Letter Approvals
           </h1>
           <p className="text-sm text-muted-foreground mt-1">{stageLabel}</p>
         </div>
@@ -130,7 +188,7 @@ export function ApprovalsClient({
         </div>
       </div>
 
-      {/* Chain overview — the MD sees the whole picture, not just her step */}
+      {/* Chain overview */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           label="Awaiting VIO"
@@ -167,164 +225,224 @@ export function ApprovalsClient({
         />
       </div>
 
-      {/* Fleet-wide overview — her remit is the whole company, not just the
-          letters sitting on her desk. */}
+      {/* Fleet-wide overview */}
       {overview && (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <Card className="bg-card border-border/60">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Fleet
-                  </p>
-                  <Bus className="w-4 h-4 text-primary" />
-                </div>
-                <h3 className="text-3xl font-bold text-foreground mt-1">
-                  {overview.fleet.total}
-                </h3>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {overview.fleet.active} active
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="bg-card border-border/60">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Fleet
                 </p>
-                <dl className="mt-3 space-y-1.5 text-xs">
-                  <Row label="State fleet" value={overview.fleet.government} />
-                  <Row label="Private owner" value={overview.fleet.individual} />
-                  <Row label="Franchise" value={overview.fleet.collaborative} />
-                  <Row
-                    label="New joiners"
-                    value={overview.fleet.newJoiners}
-                    accent="text-amber-500"
-                  />
-                </dl>
-              </CardContent>
-            </Card>
+                <Bus className="w-4 h-4 text-primary" />
+              </div>
+              <h3 className="text-3xl font-bold text-foreground mt-1">
+                {overview.fleet.total}
+              </h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {overview.fleet.active} active
+              </p>
+              <dl className="mt-3 space-y-1.5 text-xs">
+                <Row label="State fleet" value={overview.fleet.government} />
+                <Row label="Private owner" value={overview.fleet.individual} />
+                <Row label="Franchise" value={overview.fleet.collaborative} />
+                <Row
+                  label="New joiners"
+                  value={overview.fleet.newJoiners}
+                  accent="text-amber-500"
+                />
+              </dl>
+            </CardContent>
+          </Card>
 
-            <Card className="bg-card border-border/60">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Drivers
-                  </p>
-                  <UserCheck className="w-4 h-4 text-emerald-500" />
-                </div>
-                <h3 className="text-3xl font-bold text-foreground mt-1">
-                  {overview.drivers.total}
-                </h3>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {overview.drivers.active} active
+          <Card className="bg-card border-border/60">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Drivers
                 </p>
-                <dl className="mt-3 space-y-1.5 text-xs">
-                  <Row label="Assigned" value={overview.drivers.assigned} />
-                  <Row
-                    label="Unassigned"
-                    value={overview.drivers.unassigned}
-                    accent={
-                      overview.drivers.unassigned > 0
-                        ? "text-amber-500"
-                        : undefined
-                    }
-                  />
-                </dl>
-              </CardContent>
-            </Card>
+                <UserCheck className="w-4 h-4 text-emerald-500" />
+              </div>
+              <h3 className="text-3xl font-bold text-foreground mt-1">
+                {overview.drivers.total}
+              </h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {overview.drivers.active} active
+              </p>
+              <dl className="mt-3 space-y-1.5 text-xs">
+                <Row label="Assigned" value={overview.drivers.assigned} />
+                <Row
+                  label="Unassigned"
+                  value={overview.drivers.unassigned}
+                  accent={
+                    overview.drivers.unassigned > 0
+                      ? "text-amber-500"
+                      : undefined
+                  }
+                />
+              </dl>
+            </CardContent>
+          </Card>
 
-            <Card className="bg-card border-border/60">
-              <CardContent className="p-5">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    QR Stickers
-                  </p>
-                  <QrCode className="w-4 h-4 text-amber-500" />
-                </div>
-                <h3 className="text-3xl font-bold text-foreground mt-1">
-                  {overview.stickers.total}
-                </h3>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  in inventory
+          <Card className="bg-card border-border/60">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  QR Stickers
                 </p>
-                <dl className="mt-3 space-y-1.5 text-xs">
-                  <Row
-                    label="Bound to vehicles"
-                    value={overview.stickers.assigned}
-                  />
-                  <Row
-                    label="Available"
-                    value={overview.stickers.available}
-                    accent={
-                      overview.stickers.available === 0
-                        ? "text-red-500"
-                        : undefined
-                    }
-                  />
-                </dl>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Gaps worth chasing, surfaced rather than buried in the register */}
-          {(overview.fleet.withoutDriver > 0 ||
-            overview.fleet.withoutSticker > 0) && (
-            <div className="flex flex-wrap gap-3">
-              {overview.fleet.withoutDriver > 0 && (
-                <Link
-                  href="/tracas"
-                  className="flex-1 min-w-[220px] rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 hover:bg-amber-500/15 transition-colors">
-                  <p className="text-sm font-bold text-amber-500">
-                    {overview.fleet.withoutDriver} vehicle
-                    {overview.fleet.withoutDriver === 1 ? "" : "s"} without a
-                    driver
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    A Letter of Authority names its driver — assign before
-                    approving.
-                  </p>
-                </Link>
-              )}
-              {overview.fleet.withoutSticker > 0 && (
-                <Link
-                  href="/tracas"
-                  className="flex-1 min-w-[220px] rounded-xl border border-blue-500/25 bg-blue-500/10 px-4 py-3 hover:bg-blue-500/15 transition-colors">
-                  <p className="text-sm font-bold text-blue-500">
-                    {overview.fleet.withoutSticker} vehicle
-                    {overview.fleet.withoutSticker === 1 ? "" : "s"} without a
-                    sticker
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Unstickered vehicles cannot be verified by public scan.
-                  </p>
-                </Link>
-              )}
-            </div>
-          )}
-        </>
+                <QrCode className="w-4 h-4 text-amber-500" />
+              </div>
+              <h3 className="text-3xl font-bold text-foreground mt-1">
+                {overview.stickers.total}
+              </h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                in inventory
+              </p>
+              <dl className="mt-3 space-y-1.5 text-xs">
+                <Row
+                  label="Bound to vehicles"
+                  value={overview.stickers.assigned}
+                />
+                <Row
+                  label="Available"
+                  value={overview.stickers.available}
+                  accent={
+                    overview.stickers.available === 0
+                      ? "text-red-500"
+                      : undefined
+                  }
+                />
+              </dl>
+            </CardContent>
+          </Card>
+        </div>
       )}
+
+      {/* ── Search & Filter Controls ────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-md">
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setSearchQuery("");
+            }}
+            placeholder="Search by plate, fleet no, driver, owner, ref code..."
+            className="pl-10 pr-9 bg-card border-border/70 rounded-xl h-10 text-sm placeholder:text-muted-foreground/70"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              aria-label="Clear search"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer p-0.5 rounded-md">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <select
+            value={enrollmentFilter}
+            onChange={(e) => setEnrollmentFilter(e.target.value)}
+            aria-label="Filter by enrolment type"
+            className="h-10 px-3 text-xs font-medium rounded-xl border border-border/70 bg-card text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary">
+            <option value="ALL">All Enrolment Types</option>
+            <option value="NEW_JOINER">New Joiners</option>
+            <option value="EXISTING">Existing Fleet</option>
+          </select>
+
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchQuery("");
+                setEnrollmentFilter("ALL");
+              }}
+              className="h-10 text-xs text-muted-foreground hover:text-foreground">
+              Reset search
+            </Button>
+          )}
+        </div>
+      </div>
 
       {/* Action queue */}
       <Card className="bg-card border-border/60">
         <CardContent className="p-0">
-          <div className="p-4 border-b border-border/60">
-            <h2 className="font-semibold text-foreground">
-              {stage ? "Your queue" : "In the chain"} ({pending.length})
-            </h2>
+          <div className="p-4 border-b border-border/60 flex items-center justify-between">
+            <div>
+              <h2 className="font-semibold text-foreground flex items-center gap-2">
+                <span>
+                  {stage ? "Your Queue" : "In the TRACAS Approval Chain"}
+                </span>
+                <Badge variant="secondary" className="font-mono text-xs">
+                  {filteredPending.length}
+                  {searchQuery && ` of ${pending.length}`}
+                </Badge>
+              </h2>
+              {searchQuery && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Filtering for &quot;{searchQuery}&quot;
+                </p>
+              )}
+            </div>
           </div>
 
-          {pending.length === 0 ? (
-            <p className="p-10 text-center text-sm text-muted-foreground">
-              Nothing awaiting approval. All caught up.
-            </p>
+          {filteredPending.length === 0 ? (
+            <div className="p-12 text-center flex flex-col items-center justify-center gap-3">
+              <div className="p-3 rounded-full bg-muted/30 text-muted-foreground">
+                <Search className="w-6 h-6" />
+              </div>
+              {searchQuery || enrollmentFilter !== "ALL" ? (
+                <>
+                  <p className="font-medium text-foreground">
+                    No vehicles match your search
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Try searching by registration number, fleet number, or
+                    driver name.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setEnrollmentFilter("ALL");
+                    }}
+                    className="mt-2 text-xs">
+                    Clear search
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium text-foreground">
+                    Nothing awaiting approval
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    All caught up. New onboarding submissions will land here
+                    once ready.
+                  </p>
+                </>
+              )}
+            </div>
           ) : (
             <ul className="divide-y divide-border/50">
-              {pending.map((v) => (
+              {filteredPending.map((v) => (
                 <li
                   key={v.id}
-                  className="p-4 flex flex-col lg:flex-row lg:items-center gap-4">
+                  className="p-4 flex flex-col lg:flex-row lg:items-center gap-4 hover:bg-muted/15 transition-colors">
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-foreground">
                         {v.registrationNumber}
                       </span>
                       <Badge variant="outline" className="text-[10px] font-mono">
                         {v.fleetNumber}
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px] font-mono">
+                        {v.authorityRef}
                       </Badge>
                       <Badge
                         className={
@@ -336,27 +454,36 @@ export function ApprovalsClient({
                           ? "New Joiner"
                           : "Existing"}
                       </Badge>
-                      {v.letterStatus === "PENDING_MD_APPROVAL" && (
-                        <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20 text-[10px] font-bold">
-                          VIO verified
-                        </Badge>
-                      )}
-                      {v.letterStatus === "PENDING_COMMISSIONER_APPROVAL" && (
-                        <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-[10px] font-bold">
-                          MD signed
-                        </Badge>
-                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {v.makeModel ?? "—"} · {v.category} ·{" "}
-                      {v.assignedDriver
-                        ? `${v.assignedDriver.fullName} (${v.assignedDriver.phoneNumber})`
-                        : "No driver assigned"}
+
+                    <p className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span>{v.makeModel ?? "Vehicle"}</span>
+                      <span className="text-border">·</span>
+                      <span>{v.category}</span>
+                      {v.assignedRoute && (
+                        <>
+                          <span className="text-border">·</span>
+                          <span>Route: {v.assignedRoute}</span>
+                        </>
+                      )}
+                      {v.ownerName && (
+                        <>
+                          <span className="text-border">·</span>
+                          <span>Owner: {v.ownerName}</span>
+                        </>
+                      )}
                     </p>
-                    <p className="text-[11px] text-muted-foreground font-mono mt-0.5">
-                      {v.authorityRef}
-                      {v.ownerName ? ` · ${v.ownerName}` : ""}
-                    </p>
+
+                    {v.assignedDriver ? (
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Driver: {v.assignedDriver.fullName} (
+                        {v.assignedDriver.phoneNumber})
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-amber-500 mt-0.5">
+                        No driver assigned yet
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -399,28 +526,36 @@ export function ApprovalsClient({
         </CardContent>
       </Card>
 
-      {/* Declined letters — visible so corrections can be chased */}
-      {recentlyDeclined.length > 0 && (
+      {/* Declined letters — visible so the MD/Admin can see what got kicked back */}
+      {filteredDeclined.length > 0 && (
         <Card className="bg-card border-border/60">
           <CardContent className="p-0">
-            <div className="p-4 border-b border-border/60">
-              <h2 className="font-semibold text-foreground">
-                Declined ({counts.declined})
-              </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Returned to the enumerator for correction.
-              </p>
+            <div className="p-4 border-b border-border/60 flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold text-foreground flex items-center gap-2">
+                  <span>Declined Letters</span>
+                  <Badge variant="outline" className="text-red-500 font-mono text-xs">
+                    {filteredDeclined.length}
+                  </Badge>
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Returned to the enumerator for correction.
+                </p>
+              </div>
             </div>
             <ul className="divide-y divide-border/50">
-              {recentlyDeclined.map((v) => (
+              {filteredDeclined.map((v) => (
                 <li
                   key={v.id}
                   className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-foreground">
                         {v.registrationNumber}
                       </span>
+                      <Badge variant="outline" className="text-[10px] font-mono">
+                        {v.fleetNumber}
+                      </Badge>
                       <Badge className="bg-red-500/10 text-red-500 border-red-500/20 text-[10px] font-bold">
                         Declined at {v.declinedAtStage ?? "—"}
                       </Badge>
@@ -437,7 +572,7 @@ export function ApprovalsClient({
                       onClick={() => run(() => resubmitLetterForApproval(v.id))}
                       className="gap-1.5 cursor-pointer flex-shrink-0">
                       <RefreshCw className="w-3.5 h-3.5" />
-                      Resubmit to MD
+                      Resubmit to VIO
                     </Button>
                   )}
                 </li>
@@ -447,14 +582,14 @@ export function ApprovalsClient({
         </Card>
       )}
 
-      {/* Recent TRACAS activity, read from the audit trail */}
+      {/* Recent TRACAS activity */}
       {overview && overview.activity.length > 0 && (
         <Card className="bg-card border-border/60">
           <CardContent className="p-0">
             <div className="p-4 border-b border-border/60 flex items-center gap-2">
               <Activity className="w-4 h-4 text-muted-foreground" />
               <h2 className="font-semibold text-foreground">
-                Recent TRACAS activity
+                Recent TRACAS Activity
               </h2>
             </div>
             <ul className="divide-y divide-border/50">
@@ -485,7 +620,7 @@ export function ApprovalsClient({
         </Card>
       )}
 
-      {/* Decline reason capture — a reason is mandatory server-side too */}
+      {/* Decline reason modal */}
       <Dialog
         open={!!declineTarget}
         onOpenChange={(open) => !open && setDeclineTarget(null)}>
@@ -508,7 +643,7 @@ export function ApprovalsClient({
               value={declineReason}
               onChange={(e) => setDeclineReason(e.target.value)}
               rows={4}
-              placeholder="e.g. Chassis number does not match the vehicle particulars."
+              placeholder="e.g. Chassis number does not match vehicle particulars."
               className="w-full rounded-xl border border-border bg-background/50 p-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
           </div>
@@ -533,7 +668,6 @@ export function ApprovalsClient({
   );
 }
 
-/** Label/value line inside an overview card. */
 function Row({
   label,
   value,
@@ -566,10 +700,14 @@ function StatCard({
 }) {
   return (
     <Card
-      className={`bg-card ${highlight ? "border-primary/50 ring-1 ring-primary/30" : "border-border/60"}`}>
+      className={`bg-card transition-all ${
+        highlight
+          ? "border-primary/60 ring-1 ring-primary/40 shadow-sm"
+          : "border-border/60"
+      }`}>
       <CardContent className="p-4 flex items-center justify-between">
         <div>
-          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {label}
           </p>
           <h3 className="text-2xl font-bold text-foreground mt-1">{value}</h3>

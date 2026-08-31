@@ -46,6 +46,19 @@ const NAV_ITEMS: NavItem[] = [
     allowedRoles: "ALL",
   },
 
+  // ── Executive Approvals ──
+  {
+    label: "Letter Approvals",
+    href: "/letter-approvals",
+    icon: "🖊️",
+    allowedRoles: [
+      "COMMISSIONER",
+      "PERMANENT_SECRETARY",
+      "SYSTEM_ADMIN",
+      "ADMIN",
+    ],
+  },
+
   // ── TRACAS Module ──
   // A single entry; the four sections are reachable from the in-page tab bar.
   // allowedRoles is derived from lib/tracas-nav.ts at render time.
