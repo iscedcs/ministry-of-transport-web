@@ -2218,3 +2218,172 @@ export async function getFieldInspectors(): Promise<
 
   return { success: true, data: inspectors };
 }
+
+// ==================== ADMIN EDIT MOTOR PARK ====================
+
+/**
+ * Update a motor park application's details (Address, business particulars, contact info).
+ * Available to Admins, HODs, and Executives.
+ */
+export async function updateMotorParkApplication(
+  parkId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  const session = await requireRole([
+    "ADMIN",
+    "SYSTEM_ADMIN",
+    "HOD_PARKS",
+    "HOD_TRANSPORT_OPS",
+    "HOD_PARKS_REVALIDATION",
+    "COMMISSIONER",
+    "PERMANENT_SECRETARY",
+  ]);
+
+  const park = await db.motorPark.findUnique({
+    where: { id: parkId },
+  });
+  if (!park) return { success: false, error: "Motor park not found" };
+
+  const businessName = formData.get("businessName") as string;
+  const transportCompanyName = formData.get("transportCompanyName") as string;
+  const streetAddress = formData.get("streetAddress") as string;
+  const townCity = formData.get("townCity") as string;
+  const lga = formData.get("lga") as string;
+  const gpsCoordinates = formData.get("gpsCoordinates") as string;
+  const cacRegistrationNumber = formData.get("cacRegistrationNumber") as string;
+  const anssidNumber = formData.get("anssidNumber") as string;
+  const parkIdCustom = formData.get("parkId") as string;
+  const contactPerson = formData.get("contactPerson") as string;
+  const contactPhone = formData.get("contactPhone") as string;
+  const contactEmail = formData.get("contactEmail") as string;
+  const managerResidentialAddress = formData.get("managerResidentialAddress") as string;
+  const nextOfKinName = formData.get("nextOfKinName") as string;
+  const nextOfKinPhone = formData.get("nextOfKinPhone") as string;
+
+  // Workflow / Financial overrides
+  const applicationStatus = formData.get("applicationStatus") as string;
+  const permitStatus = formData.get("permitStatus") as string;
+  const permitNumber = formData.get("permitNumber") as string;
+  const psRecommendationNotes = formData.get("psRecommendationNotes") as string;
+
+  const monthlyLevyNairaRaw = formData.get("monthlyLevyAmount") as string;
+  const assessedFeeNairaRaw = formData.get("assessedFeeAmount") as string;
+
+  const monthlyLevyAmount = monthlyLevyNairaRaw
+    ? Math.round(parseFloat(monthlyLevyNairaRaw) * 100)
+    : park.monthlyLevyAmount;
+
+  const assessedFeeAmount = assessedFeeNairaRaw
+    ? Math.round(parseFloat(assessedFeeNairaRaw) * 100)
+    : park.assessedFeeAmount;
+
+  if (!businessName?.trim()) return { success: false, error: "Business / Park name is required" };
+  if (!streetAddress?.trim()) return { success: false, error: "Street address is required" };
+  if (!townCity?.trim()) return { success: false, error: "Town / City is required" };
+  if (!lga?.trim()) return { success: false, error: "LGA is required" };
+  if (!anssidNumber?.trim()) return { success: false, error: "ANSSID number is required" };
+  if (!contactPerson?.trim()) return { success: false, error: "Contact person is required" };
+  if (!contactPhone?.trim()) return { success: false, error: "Contact phone is required" };
+
+  // Check unique constraints if anssidNumber is changed
+  if (anssidNumber.trim() !== park.anssidNumber) {
+    const existing = await db.motorPark.findUnique({
+      where: { anssidNumber: anssidNumber.trim() },
+    });
+    if (existing && existing.id !== parkId) {
+      return { success: false, error: "ANSSID number is already used by another park." };
+    }
+  }
+
+  // Check unique constraints if parkId is changed
+  if (parkIdCustom?.trim() && parkIdCustom.trim() !== park.parkId) {
+    const existingParkId = await db.motorPark.findUnique({
+      where: { parkId: parkIdCustom.trim() },
+    });
+    if (existingParkId && existingParkId.id !== parkId) {
+      return { success: false, error: "Park ID is already assigned to another park." };
+    }
+  }
+
+  // Check unique constraints if permitNumber is changed
+  if (permitNumber?.trim() && permitNumber.trim() !== park.permitNumber) {
+    const existingPermit = await db.motorPark.findUnique({
+      where: { permitNumber: permitNumber.trim() },
+    });
+    if (existingPermit && existingPermit.id !== parkId) {
+      return { success: false, error: "Permit number is already assigned to another park." };
+    }
+  }
+
+  await db.$transaction(async (tx) => {
+    const res = await tx.motorPark.update({
+      where: { id: parkId },
+      data: {
+        businessName: businessName.trim(),
+        transportCompanyName: transportCompanyName?.trim() || null,
+        streetAddress: streetAddress.trim(),
+        townCity: townCity.trim(),
+        lga: lga.trim(),
+        gpsCoordinates: gpsCoordinates?.trim() || null,
+        cacRegistrationNumber: cacRegistrationNumber?.trim() || null,
+        anssidNumber: anssidNumber.trim(),
+        parkId: parkIdCustom?.trim() || park.parkId,
+        contactPerson: contactPerson.trim(),
+        contactPhone: contactPhone.trim(),
+        contactEmail: contactEmail?.trim() || park.contactEmail,
+        managerResidentialAddress: managerResidentialAddress?.trim() || null,
+        nextOfKinName: nextOfKinName?.trim() || null,
+        nextOfKinPhone: nextOfKinPhone?.trim() || null,
+        applicationStatus: (applicationStatus?.trim() as any) || park.applicationStatus,
+        permitStatus: (permitStatus?.trim() as any) || park.permitStatus,
+        permitNumber: permitNumber?.trim() || park.permitNumber,
+        psRecommendationNotes: psRecommendationNotes?.trim() || park.psRecommendationNotes,
+        monthlyLevyAmount:
+          typeof monthlyLevyAmount === "number" && !isNaN(monthlyLevyAmount)
+            ? monthlyLevyAmount
+            : null,
+        assessedFeeAmount:
+          typeof assessedFeeAmount === "number" && !isNaN(assessedFeeAmount)
+            ? assessedFeeAmount
+            : null,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        performedByUserId: session.userId,
+        action: "MOTOR_PARK_UPDATED_BY_ADMIN",
+        entityType: "MOTOR_PARK",
+        entityId: parkId,
+        oldValues: JSON.stringify({
+          businessName: park.businessName,
+          streetAddress: park.streetAddress,
+          townCity: park.townCity,
+          lga: park.lga,
+          contactPerson: park.contactPerson,
+          contactPhone: park.contactPhone,
+          applicationStatus: park.applicationStatus,
+          permitNumber: park.permitNumber,
+        }),
+        newValues: JSON.stringify({
+          businessName: res.businessName,
+          streetAddress: res.streetAddress,
+          townCity: res.townCity,
+          lga: res.lga,
+          contactPerson: res.contactPerson,
+          contactPhone: res.contactPhone,
+          applicationStatus: res.applicationStatus,
+          permitNumber: res.permitNumber,
+        }),
+        changeDescription: `Application details updated by ${session.role}.`,
+      },
+    });
+  });
+
+  revalidatePath(`/motor-parks/${parkId}`);
+  revalidatePath(`/motor-parks`);
+  revalidatePath(`/letter-approvals`);
+
+  return { success: true };
+}
+

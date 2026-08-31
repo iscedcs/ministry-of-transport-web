@@ -9,3 +9,28 @@ export const PAGE_SIZE = 20;
 
 /** Admin/audit pagination page size */
 export const ADMIN_PAGE_SIZE = 25;
+
+/** 21 Local Government Areas of Anambra State */
+export const ANAMBRA_LGAS = [
+  "Aguata",
+  "Anambra East",
+  "Anambra West",
+  "Anaocha",
+  "Awka North",
+  "Awka South",
+  "Ayamelum",
+  "Dunukofia",
+  "Ekwusigo",
+  "Idemili North",
+  "Idemili South",
+  "Ihiala",
+  "Njikoka",
+  "Nnewi North",
+  "Nnewi South",
+  "Ogbaru",
+  "Onitsha North",
+  "Onitsha South",
+  "Orumba North",
+  "Orumba South",
+  "Oyi",
+] as const;

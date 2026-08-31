@@ -113,7 +113,18 @@ function ActionBar({
       "PENDING_APPROVAL",
     ].includes(status);
 
+  const canEdit = [
+    "ADMIN",
+    "SYSTEM_ADMIN",
+    "HOD_PARKS",
+    "HOD_TRANSPORT_OPS",
+    "HOD_PARKS_REVALIDATION",
+    "COMMISSIONER",
+    "PERMANENT_SECRETARY",
+  ].includes(role);
+
   if (
+    !canEdit &&
     !canScheduleInspection &&
     !canInspect &&
     !canApproveBranding &&
@@ -136,6 +147,14 @@ function ActionBar({
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-2">
+        {canEdit && (
+          <Button asChild size="sm" variant="outline" className="border-border">
+            <Link href={`/fleet-operators/${company.id}/edit`}>
+              <FileText className="w-3.5 h-3.5 mr-1.5" />
+              Edit Application
+            </Link>
+          </Button>
+        )}
         {canScheduleInspection && (
           <Button asChild size="sm">
             <Link href={`/fleet-operators/${company.id}/schedule-inspection`}>
@@ -316,7 +335,27 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
             </p>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {[
+            "ADMIN",
+            "SYSTEM_ADMIN",
+            "HOD_PARKS",
+            "HOD_TRANSPORT_OPS",
+            "HOD_PARKS_REVALIDATION",
+            "COMMISSIONER",
+            "PERMANENT_SECRETARY",
+          ].includes(session.role) && (
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="border-border text-xs">
+              <Link href={`/fleet-operators/${co.id}/edit`}>
+                <FileText className="w-3.5 h-3.5 mr-1.5" />
+                Edit Application
+              </Link>
+            </Button>
+          )}
           <StatusPill status={co.applicationStatus} />
           {co.permitStatus && <StatusPill status={co.permitStatus} />}
         </div>

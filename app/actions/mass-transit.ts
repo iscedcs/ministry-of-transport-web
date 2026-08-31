@@ -2379,3 +2379,278 @@ export async function requestVehicleSubmission(
   revalidatePath(`/fleet-operators/${companyId}`);
   return { success: true };
 }
+
+// ==================== ADMIN EDIT MASS TRANSIT ====================
+
+/**
+ * Update a mass transit company application's details:
+ * - Company name, CAC, ASIN, brand colour, fleet sizes, documents
+ * - Contact particulars (person, phone, email)
+ * - Primary terminal location and manager details
+ * - Declared facilities checklist
+ * - Workflow status overrides, permit details, and assessed fee/levy
+ * Available to Admins, HODs, and Executives.
+ */
+export async function updateMassTransitCompany(
+  companyId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  const session = await requireRole([
+    "ADMIN",
+    "SYSTEM_ADMIN",
+    "HOD_PARKS",
+    "HOD_TRANSPORT_OPS",
+    "HOD_PARKS_REVALIDATION",
+    "COMMISSIONER",
+    "PERMANENT_SECRETARY",
+  ]);
+
+  const company = await db.massTransitCompany.findUnique({
+    where: { id: companyId },
+    include: {
+      terminals: {
+        orderBy: { terminalNumber: "asc" },
+        take: 1,
+      },
+    },
+  });
+  if (!company) return { success: false, error: "Mass transit company not found" };
+
+  const companyName = formData.get("companyName") as string;
+  const cacNumber = formData.get("cacNumber") as string;
+  const asinNumber = formData.get("asinNumber") as string;
+  const contactPerson = formData.get("contactPerson") as string;
+  const contactPhone = formData.get("contactPhone") as string;
+  const contactEmail = formData.get("contactEmail") as string;
+  const businessPremisesCert = formData.get("businessPremisesCert") as string;
+  const ansaaRegistration = formData.get("ansaaRegistration") as string;
+  const approvedColour = formData.get("approvedColour") as string;
+
+  const currentFleetSizeRaw = formData.get("currentFleetSize") as string;
+  const currentFleetSize = currentFleetSizeRaw
+    ? parseInt(currentFleetSizeRaw, 10)
+    : company.currentFleetSize;
+
+  const minFleetSizeRaw = formData.get("minFleetSize") as string;
+  const minFleetSize = minFleetSizeRaw
+    ? parseInt(minFleetSizeRaw, 10)
+    : company.minFleetSize;
+
+  // Workflow / Permit / Fee overrides
+  const applicationStatus = formData.get("applicationStatus") as string;
+  const permitStatus = formData.get("permitStatus") as string;
+  const permitNumber = formData.get("permitNumber") as string;
+  const psRecommendationNotes = formData.get("psRecommendationNotes") as string;
+
+  const monthlyLevyNairaRaw = formData.get("monthlyLevyAmount") as string;
+  const assessedFeeNairaRaw = formData.get("assessedFeeAmount") as string;
+
+  const monthlyLevyAmount = monthlyLevyNairaRaw
+    ? Math.round(parseFloat(monthlyLevyNairaRaw) * 100)
+    : company.monthlyLevyAmount;
+
+  const assessedFeeAmount = assessedFeeNairaRaw
+    ? Math.round(parseFloat(assessedFeeNairaRaw) * 100)
+    : company.assessedFeeAmount;
+
+  // Facilities JSON
+  const facilitiesJsonRaw = formData.get("facilitiesAvailable") as string;
+  let facilitiesAvailable = company.facilitiesAvailable;
+  if (facilitiesJsonRaw) {
+    try {
+      facilitiesAvailable = JSON.parse(facilitiesJsonRaw);
+    } catch {
+      // Keep existing if unparseable
+    }
+  }
+
+  // Terminal fields
+  const terminalId = formData.get("terminalId") as string;
+  const terminalLocationAddress = formData.get("terminalLocationAddress") as string;
+  const terminalGpsCoordinates = formData.get("terminalGpsCoordinates") as string;
+  const terminalManagerName = formData.get("terminalManagerName") as string;
+  const terminalManagerPhone = formData.get("terminalManagerPhone") as string;
+  const terminalManagerEmail = formData.get("terminalManagerEmail") as string;
+  const terminalManagerResidentialAddress = formData.get(
+    "terminalManagerResidentialAddress",
+  ) as string;
+  const terminalBusinessPremisesCertNo = formData.get(
+    "terminalBusinessPremisesCertNo",
+  ) as string;
+
+  if (!companyName?.trim()) {
+    return { success: false, error: "Company name is required." };
+  }
+
+  // Check unique constraints if cacNumber is changed
+  if (cacNumber?.trim() && cacNumber.trim() !== company.cacNumber) {
+    const existing = await db.massTransitCompany.findUnique({
+      where: { cacNumber: cacNumber.trim() },
+    });
+    if (existing && existing.id !== companyId) {
+      return {
+        success: false,
+        error: "CAC Number is already used by another company.",
+      };
+    }
+  }
+
+  // Check unique constraints if asinNumber is changed
+  if (asinNumber?.trim() && asinNumber.trim() !== company.asinNumber) {
+    const existing = await db.massTransitCompany.findUnique({
+      where: { asinNumber: asinNumber.trim() },
+    });
+    if (existing && existing.id !== companyId) {
+      return {
+        success: false,
+        error: "ASIN Number is already used by another company.",
+      };
+    }
+  }
+
+  // Check unique constraints if permitNumber is changed
+  if (permitNumber?.trim() && permitNumber.trim() !== company.permitNumber) {
+    const existingPermit = await db.massTransitCompany.findUnique({
+      where: { permitNumber: permitNumber.trim() },
+    });
+    if (existingPermit && existingPermit.id !== companyId) {
+      return {
+        success: false,
+        error: "Permit number is already assigned to another company.",
+      };
+    }
+  }
+
+  await db.$transaction(async (tx) => {
+    const res = await tx.massTransitCompany.update({
+      where: { id: companyId },
+      data: {
+        companyName: companyName.trim(),
+        cacNumber: cacNumber?.trim() || null,
+        asinNumber: asinNumber?.trim() || null,
+        contactPerson: contactPerson?.trim() || null,
+        contactPhone: contactPhone?.trim() || null,
+        contactEmail: contactEmail?.trim() || null,
+        businessPremisesCert: businessPremisesCert?.trim() || null,
+        ansaaRegistration: ansaaRegistration?.trim() || null,
+        approvedColour: approvedColour?.trim() || null,
+        currentFleetSize:
+          typeof currentFleetSize === "number" && !isNaN(currentFleetSize)
+            ? currentFleetSize
+            : (company.currentFleetSize ?? 0),
+        minFleetSize:
+          typeof minFleetSize === "number" && !isNaN(minFleetSize)
+            ? minFleetSize
+            : (company.minFleetSize ?? 5),
+        applicationStatus:
+          (applicationStatus?.trim() as any) || company.applicationStatus,
+        permitStatus: (permitStatus?.trim() as any) || company.permitStatus,
+        permitNumber: permitNumber?.trim() || company.permitNumber,
+        psRecommendationNotes:
+          psRecommendationNotes?.trim() || company.psRecommendationNotes,
+        monthlyLevyAmount:
+          typeof monthlyLevyAmount === "number" && !isNaN(monthlyLevyAmount)
+            ? monthlyLevyAmount
+            : null,
+        assessedFeeAmount:
+          typeof assessedFeeAmount === "number" && !isNaN(assessedFeeAmount)
+            ? assessedFeeAmount
+            : null,
+        facilitiesAvailable: facilitiesAvailable ?? undefined,
+      },
+    });
+
+    // Update primary terminal if address or manager details were provided
+    if (
+      terminalLocationAddress?.trim() ||
+      terminalManagerName?.trim() ||
+      terminalManagerPhone?.trim()
+    ) {
+      const primaryTerm =
+        (terminalId && (await tx.terminal.findUnique({ where: { id: terminalId } }))) ||
+        company.terminals[0];
+
+      if (primaryTerm) {
+        await tx.terminal.update({
+          where: { id: primaryTerm.id },
+          data: {
+            locationAddress:
+              terminalLocationAddress?.trim() || primaryTerm.locationAddress,
+            gpsCoordinates:
+              terminalGpsCoordinates?.trim() || primaryTerm.gpsCoordinates,
+            managerName:
+              terminalManagerName?.trim() || primaryTerm.managerName,
+            managerPhone:
+              terminalManagerPhone?.trim() || primaryTerm.managerPhone,
+            managerEmail:
+              terminalManagerEmail?.trim() || primaryTerm.managerEmail,
+            managerResidentialAddress:
+              terminalManagerResidentialAddress?.trim() ||
+              primaryTerm.managerResidentialAddress,
+            businessPremisesCertNo:
+              terminalBusinessPremisesCertNo?.trim() ||
+              primaryTerm.businessPremisesCertNo,
+            facilitiesAvailable: facilitiesAvailable ?? undefined,
+          },
+        });
+      } else if (
+        terminalLocationAddress?.trim() &&
+        terminalManagerName?.trim() &&
+        terminalManagerPhone?.trim()
+      ) {
+        await tx.terminal.create({
+          data: {
+            companyId,
+            locationAddress: terminalLocationAddress.trim(),
+            gpsCoordinates: terminalGpsCoordinates?.trim() || null,
+            managerName: terminalManagerName.trim(),
+            managerPhone: terminalManagerPhone.trim(),
+            managerEmail: terminalManagerEmail?.trim() || "",
+            managerResidentialAddress:
+              terminalManagerResidentialAddress?.trim() || "",
+            businessPremisesCertNo:
+              terminalBusinessPremisesCertNo?.trim() || null,
+            facilitiesAvailable: facilitiesAvailable ?? undefined,
+            terminalNumber: 1,
+            applicationStatus: "SUBMITTED",
+          },
+        });
+      }
+    }
+
+    await tx.auditLog.create({
+      data: {
+        performedByUserId: session.userId,
+        action: "MASS_TRANSIT_UPDATED_BY_ADMIN",
+        entityType: "MASS_TRANSIT",
+        entityId: companyId,
+        oldValues: JSON.stringify({
+          companyName: company.companyName,
+          cacNumber: company.cacNumber,
+          asinNumber: company.asinNumber,
+          contactPerson: company.contactPerson,
+          contactPhone: company.contactPhone,
+          applicationStatus: company.applicationStatus,
+          permitNumber: company.permitNumber,
+        }),
+        newValues: JSON.stringify({
+          companyName: res.companyName,
+          cacNumber: res.cacNumber,
+          asinNumber: res.asinNumber,
+          contactPerson: res.contactPerson,
+          contactPhone: res.contactPhone,
+          applicationStatus: res.applicationStatus,
+          permitNumber: res.permitNumber,
+        }),
+        changeDescription: `Mass transit application details and terminal updated by ${session.role}.`,
+      },
+    });
+  });
+
+  revalidatePath(`/fleet-operators/${companyId}`);
+  revalidatePath("/fleet-operators");
+  revalidatePath("/letter-approvals");
+
+  return { success: true };
+}
+

@@ -141,7 +141,18 @@ function ActionBar({
     (i) => i.status === "SCHEDULED",
   );
 
+  const canEdit = [
+    "ADMIN",
+    "SYSTEM_ADMIN",
+    "HOD_PARKS",
+    "HOD_TRANSPORT_OPS",
+    "HOD_PARKS_REVALIDATION",
+    "COMMISSIONER",
+    "PERMANENT_SECRETARY",
+  ].includes(role);
+
   if (
+    !canEdit &&
     !canSchedule &&
     !canInspect &&
     !canIssuePTB &&
@@ -281,6 +292,14 @@ function ActionBar({
           <Button asChild size="sm">
             <Link href={`/motor-parks/${park.id}/pay?feeId=${pendingFee.id}`}>
               Pay Fee
+            </Link>
+          </Button>
+        )}
+        {canEdit && (
+          <Button asChild size="sm" variant="outline" className="border-border">
+            <Link href={`/motor-parks/${park.id}/edit`}>
+              <FileText className="w-3.5 h-3.5 mr-1.5" />
+              Edit Application
             </Link>
           </Button>
         )}
@@ -590,7 +609,29 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <StatusPill status={park.applicationStatus} />
+            <div className="flex items-center gap-2">
+              {[
+                "ADMIN",
+                "SYSTEM_ADMIN",
+                "HOD_PARKS",
+                "HOD_TRANSPORT_OPS",
+                "HOD_PARKS_REVALIDATION",
+                "COMMISSIONER",
+                "PERMANENT_SECRETARY",
+              ].includes(session.role) && (
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="border-border text-xs">
+                  <Link href={`/motor-parks/${park.id}/edit`}>
+                    <FileText className="w-3.5 h-3.5 mr-1.5" />
+                    Edit Application
+                  </Link>
+                </Button>
+              )}
+              <StatusPill status={park.applicationStatus} />
+            </div>
             {park.permitStatus && (
               <span className="text-xs text-muted-foreground">
                 Permit: <StatusPill status={park.permitStatus} />
