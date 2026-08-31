@@ -19,6 +19,7 @@ import { db } from "@/lib/db";
 import { MAX_LIST_ROWS } from "@/lib/query-limits";
 import { authorize } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
+import { ApplicationStatus } from "@prisma/client";
 
 /** The VIO stage is a verification gate — it produces no signature. */
 const VIO_ROLES = [
@@ -268,7 +269,7 @@ export async function commissionerApproveLetter(
             ? "This letter must be verified by the VIO, then approved by the TRACAS MD, first."
             : vehicle.letterStatus === "PENDING_MD_APPROVAL"
               ? "This letter must be approved by the TRACAS MD first."
-            : `This letter is not awaiting Commissioner approval (currently ${vehicle.letterStatus}).`,
+              : `This letter is not awaiting Commissioner approval (currently ${vehicle.letterStatus}).`,
       };
     }
 
@@ -480,8 +481,8 @@ const QUEUE_SELECT = {
 } as const;
 
 /**
- * The letters awaiting the viewer, plus counts across the whole chain so the
- * MD can see the full TRACAS picture rather than only her own step.
+ * The letters awaiting the viewer, plus counts across the whole chain so
+ * they can see what's upstream and downstream of their own stage.
  */
 export async function getLetterApprovalQueue(): Promise<
   { success: true; data: ApprovalQueueData } | { success: false; error: string }
@@ -492,16 +493,11 @@ export async function getLetterApprovalQueue(): Promise<
     "TRACAS_MD",
     "COMMISSIONER",
     "SYSTEM_ADMIN",
-    // Read-only oversight. The approve/decline actions in this file keep their
-    // own narrower role lists and do NOT include ADMIN.
-    "ADMIN",
-    "PERMANENT_SECRETARY",
   ]);
   if (!authz.ok) return { success: false, error: authz.error };
 
   try {
     const role = authz.session.role;
-    // System Admin and PS observe the chain; they do not own a stage.
     const stage: "VIO" | "MD" | "COMMISSIONER" | null =
       role === "VEHICLE_INSPECTION_OFFICER" || role === "HOD_VIS"
         ? "VIO"
@@ -516,9 +512,9 @@ export async function getLetterApprovalQueue(): Promise<
         ? "PENDING_VIO_APPROVAL"
         : stage === "MD"
           ? "PENDING_MD_APPROVAL"
-        : stage === "COMMISSIONER"
-          ? "PENDING_COMMISSIONER_APPROVAL"
-          : undefined;
+          : stage === "COMMISSIONER"
+            ? "PENDING_COMMISSIONER_APPROVAL"
+            : undefined;
 
     const [
       pending,
@@ -528,40 +524,39 @@ export async function getLetterApprovalQueue(): Promise<
       approved,
       declined,
       recentlyDeclined,
-    ] =
-      await Promise.all([
-        db.tracasVehicle.findMany({
-          where: pendingStatus
-            ? { letterStatus: pendingStatus }
-            : {
-                letterStatus: {
-                  in: [
-                    "PENDING_VIO_APPROVAL",
-                    "PENDING_MD_APPROVAL",
-                    "PENDING_COMMISSIONER_APPROVAL",
-                  ],
-                },
+    ] = await Promise.all([
+      db.tracasVehicle.findMany({
+        where: pendingStatus
+          ? { letterStatus: pendingStatus }
+          : {
+              letterStatus: {
+                in: [
+                  "PENDING_VIO_APPROVAL",
+                  "PENDING_MD_APPROVAL",
+                  "PENDING_COMMISSIONER_APPROVAL",
+                ],
               },
-          orderBy: { createdAt: "asc" },
-          select: QUEUE_SELECT,
-          take: MAX_LIST_ROWS,
-        }),
-        db.tracasVehicle.count({
-          where: { letterStatus: "PENDING_VIO_APPROVAL" },
-        }),
-        db.tracasVehicle.count({ where: { letterStatus: "PENDING_MD_APPROVAL" } }),
-        db.tracasVehicle.count({
-          where: { letterStatus: "PENDING_COMMISSIONER_APPROVAL" },
-        }),
-        db.tracasVehicle.count({ where: { letterStatus: "APPROVED" } }),
-        db.tracasVehicle.count({ where: { letterStatus: "DECLINED" } }),
-        db.tracasVehicle.findMany({
-          where: { letterStatus: "DECLINED" },
-          orderBy: { declinedAt: "desc" },
-          take: 10,
-          select: QUEUE_SELECT,
-        }),
-      ]);
+            },
+        orderBy: { createdAt: "asc" },
+        select: QUEUE_SELECT,
+        take: MAX_LIST_ROWS,
+      }),
+      db.tracasVehicle.count({
+        where: { letterStatus: "PENDING_VIO_APPROVAL" },
+      }),
+      db.tracasVehicle.count({ where: { letterStatus: "PENDING_MD_APPROVAL" } }),
+      db.tracasVehicle.count({
+        where: { letterStatus: "PENDING_COMMISSIONER_APPROVAL" },
+      }),
+      db.tracasVehicle.count({ where: { letterStatus: "APPROVED" } }),
+      db.tracasVehicle.count({ where: { letterStatus: "DECLINED" } }),
+      db.tracasVehicle.findMany({
+        where: { letterStatus: "DECLINED" },
+        orderBy: { declinedAt: "desc" },
+        take: 10,
+        select: QUEUE_SELECT,
+      }),
+    ]);
 
     return {
       success: true,

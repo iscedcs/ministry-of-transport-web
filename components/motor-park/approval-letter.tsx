@@ -137,7 +137,7 @@ export function MotorParkApprovalLetter({
               facility, I am directed to inform you that the Ministry has
               granted{" "}
               <span className="font-semibold">
-                {isTemporal ? "TEMPORAL APPROVAL" : "FULL APPROVAL"}
+                {isTemporal ? "TEMPORARY" : "FULL "}APPROVAL
               </span>{" "}
               for the operation of{" "}
               <span className="font-semibold">{data.parkName}</span>

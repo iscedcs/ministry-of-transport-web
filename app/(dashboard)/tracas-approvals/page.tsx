@@ -19,9 +19,20 @@ export const metadata = {
   title: "TRACAS Dashboard — Ministry of Transport",
 };
 
-export default async function TracasApprovalsPage() {
+interface PageProps {
+  searchParams?: Promise<{
+    q?: string;
+    module?: string;
+  }>;
+}
+
+export default async function TracasApprovalsPage({ searchParams }: PageProps) {
   const session = await getSession();
   if (!session) redirect("/login");
+
+  const sp = searchParams ? await searchParams : {};
+  const initialQuery = sp.q ?? "";
+  const initialModule = sp.module ?? "ALL";
 
   const [queueRes, overviewRes] = await Promise.all([
     getLetterApprovalQueue(),
@@ -35,6 +46,8 @@ export default async function TracasApprovalsPage() {
       data={queueRes.data}
       overview={overviewRes.success ? overviewRes.data : null}
       role={session.role}
+      initialQuery={initialQuery}
+      initialModule={initialModule}
     />
   );
 }
