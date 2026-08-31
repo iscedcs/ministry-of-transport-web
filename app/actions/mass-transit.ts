@@ -2648,6 +2648,8 @@ export async function updateMassTransitCompany(
   });
 
   revalidatePath(`/fleet-operators/${companyId}`);
+  revalidatePath(`/fleet-operators/${companyId}/approval-letter`);
+  revalidatePath(`/fleet-operators/${companyId}/edit`);
   revalidatePath("/fleet-operators");
   revalidatePath("/letter-approvals");
 

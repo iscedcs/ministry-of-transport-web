@@ -75,7 +75,7 @@ export default async function MassTransitLetterPage({
           id: company.id,
           companyName: company.companyName,
           contactPerson: company.contactPerson ?? "",
-          contactAddress: null,
+          contactAddress: company.terminals[0]?.locationAddress?.trim() || null,
           permitNumber: company.permitNumber,
           permitIssuedAt: company.permitIssuedAt,
           permitExpiresAt: company.permitExpiresAt,

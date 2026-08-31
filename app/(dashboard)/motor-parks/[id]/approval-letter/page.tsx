@@ -72,9 +72,12 @@ export default async function MotorParkApprovalLetterPage({
     select: { firstName: true, lastName: true },
   });
 
-  const location =
-    [park.streetAddress, park.townCity, park.lga].filter(Boolean).join(", ") ||
-    null;
+  const locationParts = [
+    park.streetAddress?.trim(),
+    park.townCity?.trim(),
+    park.lga?.trim(),
+  ].filter(Boolean);
+  const location = locationParts.length > 0 ? locationParts.join(", ") : null;
 
   return (
     <div className="flex flex-col items-center gap-4 bg-slate-900/5 p-4 dark:bg-slate-950 sm:p-8 print:min-h-0 print:bg-white print:p-0">

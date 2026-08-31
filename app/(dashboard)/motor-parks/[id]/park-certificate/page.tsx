@@ -77,9 +77,12 @@ export default async function ParkCertificatePage({
     ? park.transportCompanyName
     : "Motor Park";
 
-  const location =
-    [park.streetAddress, park.townCity, park.lga].filter(Boolean).join(", ") ||
-    null;
+  const locationParts = [
+    park.streetAddress?.trim(),
+    park.townCity?.trim(),
+    park.lga?.trim(),
+  ].filter(Boolean);
+  const location = locationParts.length > 0 ? locationParts.join(", ") : null;
 
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
