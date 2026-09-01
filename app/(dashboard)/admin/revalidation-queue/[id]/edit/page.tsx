@@ -68,11 +68,6 @@ export default async function EditRevalidationPage({
   const app = await db.revalidationApplication.findUnique({ where: { id } });
   if (!app) notFound();
 
-  // A certificate has already been issued against these values.
-  if (app.status === "APPROVED") {
-    redirect(`/admin/revalidation-queue/${id}`);
-  }
-
   const record = app as unknown as Record<string, unknown>;
   const initial: Record<string, string> = {};
   for (const key of EDITABLE) {

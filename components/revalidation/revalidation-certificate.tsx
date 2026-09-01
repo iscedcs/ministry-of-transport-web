@@ -178,9 +178,12 @@ export function RevalidationCertificate({
           ? "LOADING BAY"
           : "PRIVATE/PUBLIC";
 
-  const location = [a.physicalLocation, a.townCommunity, a.lga]
-    .filter(Boolean)
-    .join(", ");
+  const locParts = [
+    a.physicalLocation?.trim(),
+    a.townCommunity?.trim(),
+    a.lga?.trim(),
+  ].filter(Boolean);
+  const location = locParts.length > 0 ? locParts.join(", ") : null;
 
   const feeNow = naira(a.monthlyFeeAmount);
   const feePrev = naira(a.previousMonthlyFeeAmount);
@@ -386,7 +389,7 @@ export function RevalidationCertificate({
             <p className="font-semibold">{a.ownerName}</p>
             {a.representativeName && <p>{a.representativeName}</p>}
             {a.residentialAddress && <p>{a.residentialAddress}</p>}
-            <p>{location || <Blank width="14rem" />}</p>
+            {location && location !== a.residentialAddress && <p>{location}</p>}
           </div>
 
           {/* Subject */}

@@ -57,10 +57,12 @@ export default async function ParkCertificatePage({
         : "revalidation.validity.permanentMonths",
     )) || (isTemporal ? 6 : 12);
 
-  const location =
-    [app.physicalLocation, app.townCommunity, app.lga]
-      .filter(Boolean)
-      .join(", ") || null;
+  const locationParts = [
+    app.physicalLocation?.trim(),
+    app.townCommunity?.trim(),
+    app.lga?.trim(),
+  ].filter(Boolean);
+  const location = locationParts.length > 0 ? locationParts.join(", ") : null;
 
   // Loading bays and parks are both "parks" on the certificate; the type line
   // states which.

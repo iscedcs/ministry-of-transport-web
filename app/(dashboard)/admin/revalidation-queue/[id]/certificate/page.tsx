@@ -50,10 +50,28 @@ export default async function RevalidationCertificatePage({
       requiredFacilities: true,
       commissionerApprovedAt: true,
       approvalType: true,
+      motorPark: {
+        select: {
+          businessName: true,
+          streetAddress: true,
+          townCity: true,
+          lga: true,
+        },
+      },
     },
   });
 
   if (!application) notFound();
+
+  const mergedApplication = {
+    ...application,
+    parkName: application.parkName || application.motorPark?.businessName || "",
+    physicalLocation:
+      application.physicalLocation || application.motorPark?.streetAddress || null,
+    townCommunity:
+      application.townCommunity || application.motorPark?.townCity || null,
+    lga: application.lga || application.motorPark?.lga || null,
+  };
 
   return (
     <div className="p-4 sm:p-8 min-h-screen bg-slate-900/5 dark:bg-slate-950 flex flex-col items-center print:p-0 print:min-h-0">
@@ -64,7 +82,7 @@ export default async function RevalidationCertificatePage({
         Back to application
       </Link>
       <RevalidationCertificate
-        application={application}
+        application={mergedApplication}
         showActions
         signature={SIGNATURES.commissioner}
       />
