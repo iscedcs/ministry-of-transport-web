@@ -123,13 +123,6 @@ export async function updateRevalidationApplication(
   });
   if (!current) return { success: false, error: "Application not found." };
 
-  if (current.status === "APPROVED") {
-    return {
-      success: false,
-      error: "This application has been approved and a certificate issued — it can no longer be edited.",
-    };
-  }
-
   // Build the update from known fields only. Anything the form did not send is
   // left untouched rather than blanked.
   const data: Record<string, unknown> = {};
@@ -186,9 +179,49 @@ export async function updateRevalidationApplication(
   const merged = { ...(current as Record<string, unknown>), ...data };
   const stillMissing = outstandingSections(merged);
 
-  const updated = await db.revalidationApplication.update({
-    where: { id: applicationId },
-    data: { ...data, incompleteSections: stillMissing },
+  const updated = await db.$transaction(async (tx) => {
+    const res = await tx.revalidationApplication.update({
+      where: { id: applicationId },
+      data: { ...data, incompleteSections: stillMissing },
+    });
+
+    // If there is a linked MotorPark, synchronize matching fields so both records stay identical
+    if (current.motorParkId) {
+      const parkUpdates: Record<string, string> = {};
+      if (typeof data.parkName === "string" && data.parkName) {
+        parkUpdates.businessName = data.parkName;
+      }
+      if (typeof data.physicalLocation === "string" && data.physicalLocation) {
+        parkUpdates.streetAddress = data.physicalLocation;
+      }
+      if (typeof data.townCommunity === "string" && data.townCommunity) {
+        parkUpdates.townCity = data.townCommunity;
+      }
+      if (typeof data.lga === "string" && data.lga) {
+        parkUpdates.lga = data.lga;
+      }
+      if (typeof data.representativeName === "string" && data.representativeName) {
+        parkUpdates.contactPerson = data.representativeName;
+      }
+      if (typeof data.phoneNumber === "string" && data.phoneNumber) {
+        parkUpdates.contactPhone = data.phoneNumber;
+      }
+      if (typeof data.emailAddress === "string" && data.emailAddress) {
+        parkUpdates.contactEmail = data.emailAddress;
+      }
+      if (typeof data.residentialAddress === "string" && data.residentialAddress) {
+        parkUpdates.managerResidentialAddress = data.residentialAddress;
+      }
+
+      if (Object.keys(parkUpdates).length > 0) {
+        await tx.motorPark.update({
+          where: { id: current.motorParkId },
+          data: parkUpdates,
+        });
+      }
+    }
+
+    return res;
   });
 
   await recordAudit({
@@ -204,6 +237,18 @@ export async function updateRevalidationApplication(
 
   revalidatePath(`/admin/revalidation-queue/${applicationId}`);
   revalidatePath(`/admin/revalidation-queue/${applicationId}/edit`);
+  revalidatePath(`/admin/revalidation-queue/${applicationId}/certificate`);
+  revalidatePath(`/admin/revalidation-queue/${applicationId}/park-certificate`);
+  revalidatePath(`/revalidation/${applicationId}/certificate`);
+  revalidatePath(`/revalidation/${applicationId}/park-certificate`);
   revalidatePath(`/admin/revalidation-queue`);
+  revalidatePath(`/letter-approvals`);
+  if (current.motorParkId) {
+    revalidatePath(`/motor-parks/${current.motorParkId}`);
+    revalidatePath(`/motor-parks/${current.motorParkId}/approval-letter`);
+    revalidatePath(`/motor-parks/${current.motorParkId}/park-certificate`);
+    revalidatePath(`/motor-parks`);
+  }
+
   return { success: true, data: { changed: changed.length, stillMissing } };
 }

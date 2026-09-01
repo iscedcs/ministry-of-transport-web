@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { updateRevalidationApplication } from "@/app/actions/revalidation-edit";
 import { FACILITY_OPTIONS } from "@/lib/revalidation-checklist";
+import { ANAMBRA_LGAS } from "@/lib/consts";
 import { cn } from "@/lib/utils";
 
 type Field =
@@ -77,9 +78,14 @@ const SECTIONS: { key: string; title: string; blurb: string; fields: Field[] }[]
         type: "select",
         options: ["Private", "Public", "Loading Bay"],
       },
-      { name: "physicalLocation", label: "Physical location", type: "text" },
-      { name: "townCommunity", label: "Town / community", type: "text" },
-      { name: "lga", label: "LGA", type: "text" },
+      { name: "physicalLocation", label: "Physical location (Street Address)", type: "text" },
+      { name: "townCommunity", label: "Town / community / City", type: "text" },
+      {
+        name: "lga",
+        label: "LGA",
+        type: "select",
+        options: [...ANAMBRA_LGAS],
+      },
     ],
   },
   {

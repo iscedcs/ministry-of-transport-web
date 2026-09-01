@@ -292,20 +292,20 @@ model MotorPark {
   /// Permanent public identifier printed on the revalidation certificate:
   /// ANS-MOT-PK-000125 — Anambra State, Ministry of Transport, Park, serial.
   /// Assigned once, on first approval, and never reissued.
-  parkId                String? @unique @db.VarChar(30)
+  parkId String? @unique @db.VarChar(30)
 
   // Contact person (park owner link)
   // Nullable: a government-owned park has no applicant account, but it is
   // still a park on the register and still needs a Park ID. An Enumerator's
   // field capture also leaves it null until an owner is identified — the
   // record must never be owned by the officer who typed it in.
-  contactUserId String?
+  contactUserId    String?
   /// The Enumerator who captured this record in the field, if it was not
   /// submitted by the operator themselves. Never the owner.
   capturedByUserId String?
-  contactPerson String
-  contactPhone  String
-  contactEmail  String
+  contactPerson    String
+  contactPhone     String
+  contactEmail     String
 
   // Park Manager expanded details
   managerResidentialAddress String? @db.Text // Manager home address (concatenated: street, LGA, city)
@@ -439,16 +439,16 @@ model Inspection {
   checklist           InspectionChecklistResult[]
 
   // Findings
-  overallAssessment   String? @db.Text // Narrative assessment
+  overallAssessment String? @db.Text // Narrative assessment
 
   /// Item-by-item verification of the facility, mirroring the revalidation
   /// inspection: JSON array of
   /// { key, section, label, declared, verified: "YES"|"NO"|"PARTIAL", note }.
   /// The terminal inspection previously captured only free text, which gave
   /// the HOD nothing specific to weigh.
-  inspectionChecklist  Json?
+  inspectionChecklist Json?
   /// Evidence captured on site — JSON array of { url, caption }.
-  evidenceUrls         Json?
+  evidenceUrls        Json?
   recommendedAction   String? @db.VarChar(100) // APPROVE, REJECT, CONDITIONAL
   inspectionReportUrl String? @db.VarChar(500) // PDF report
 
@@ -561,14 +561,14 @@ model MassTransitCompany {
   id String @id @default(cuid())
 
   // Company details
-  companyName   String
+  companyName      String
   // Nullable throughout: a company reclassified out of the imported
   // revalidation queue has no account, and often no email — the vendor never
   // captured one. The same reason MotorPark.contactUserId is nullable.
-  contactPerson String?
-  contactEmail  String?
-  contactPhone  String?
-  contactUserId String?
+  contactPerson    String?
+  contactEmail     String?
+  contactPhone     String?
+  contactUserId    String?
   /// The Enumerator who captured this record in the field, if any.
   capturedByUserId String?
 
@@ -1426,16 +1426,16 @@ model RevalidationApplication {
   /// "MOTOR_PARK" | "MASS_TRANSIT". Null until an officer has classified it.
   /// A mass transit record is approved into a MassTransitCompany with its
   /// terminals, not into a single motor park.
-  serviceCategory   String? @db.VarChar(20)
+  serviceCategory String?   @db.VarChar(20)
   /// "REVALIDATION" | "NEW_APPLICATION". An operator who already holds an
   /// approval revalidates; one who does not is a first-time applicant and
   /// must apply normally, with the documents and evidence that requires.
-  triageRoute       String? @db.VarChar(20)
+  triageRoute     String?   @db.VarChar(20)
   /// Why the officer decided as they did. The data supports neither decision,
   /// so the decision is the only evidence there is.
-  triageBasis       String? @db.Text
-  triagedByUserId   String?
-  triagedAt         DateTime?
+  triageBasis     String?   @db.Text
+  triagedByUserId String?
+  triagedAt       DateTime?
 
   // SECTION C: MOTOR PARK INFORMATION
   parkName         String
@@ -1461,7 +1461,7 @@ model RevalidationApplication {
   paymentsUpToDate    Boolean?
   safetySignages      Boolean?
   pendingSanctions    Boolean?
-  sanctionDetails     String? @db.Text
+  sanctionDetails     String?  @db.Text
 
   // SECTION G: EMPLOYMENT & SECURITY DATA
   managementStaffCount Int     @default(0)
@@ -1477,9 +1477,9 @@ model RevalidationApplication {
   revenueCollectionMethod String? @db.VarChar(50)
 
   /// Services offered, e.g. Inter-State, Intra-State, Keke, Logistics.
-  serviceTypes     Json?
+  serviceTypes Json?
   /// Routes plied, e.g. ["Nnewi - Kwara state"].
-  routes           Json?
+  routes       Json?
 
   // DOCUMENT
   passportPhotoUrl String? @db.VarChar(500)
@@ -1488,15 +1488,15 @@ model RevalidationApplication {
   // ── LEGACY IMPORT PROVENANCE ──
   /// "VENDOR_IMPORT" for records migrated from the previous vendor's system;
   /// null for applications submitted through this portal.
-  dataSource        String?   @db.VarChar(30)
+  dataSource         String?   @db.VarChar(30)
   /// The vendor's own record id, kept so the two registers can be reconciled.
-  legacyRecordId    String?   @db.VarChar(50)
+  legacyRecordId     String?   @db.VarChar(50)
   /// The vendor's form serial. Retained for reference only — this application
   /// is issued a fresh revalidation number once the Commissioner approves.
-  legacyFormSerial  String?   @db.VarChar(60)
+  legacyFormSerial   String?   @db.VarChar(60)
   /// Which of the vendor's field agents captured the record.
-  legacyCapturedBy  String?   @db.VarChar(50)
-  importedAt        DateTime?
+  legacyCapturedBy   String?   @db.VarChar(50)
+  importedAt         DateTime?
   /// Sections the applicant must still complete, e.g. ["F","H"]. Empty or null
   /// once the record is whole.
   incompleteSections Json?
@@ -1512,9 +1512,9 @@ model RevalidationApplication {
   recommendation      String?   @db.VarChar(50)
 
   // PS clearance of the inspection SCHEDULE (before the inspector attends).
-  inspectionApprovedAt        DateTime?
-  inspectionApprovedByUserId  String?
-  inspectionRejectionReason   String?   @db.Text
+  inspectionApprovedAt       DateTime?
+  inspectionApprovedByUserId String?
+  inspectionRejectionReason  String?   @db.Text
 
   // Inspector's submission
   inspectionCompletedAt DateTime?
@@ -1555,7 +1555,7 @@ model RevalidationApplication {
 
   /// "TEMPORAL" | "PERMANENT" — chosen by the Commissioner at final approval.
   /// Drives the certificate wording and the validity period.
-  approvalType           String?   @db.VarChar(20)
+  approvalType String? @db.VarChar(20)
 
   validUntil DateTime?
   approvedAt DateTime?
@@ -1563,10 +1563,10 @@ model RevalidationApplication {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  applicant          User?               @relation("RevalidationApplicant", fields: [applicantUserId], references: [id])
-  inspectionOfficer  User?               @relation("RevalidationInspector", fields: [inspectionOfficerId], references: [id])
-  motorPark          MotorPark?          @relation("MotorParkRevalidation", fields: [motorParkId], references: [id], onDelete: SetNull)
-  massTransitCompany MassTransitCompany? @relation("MassTransitRevalidation", fields: [massTransitCompanyId], references: [id], onDelete: SetNull)
+  applicant          User?                   @relation("RevalidationApplicant", fields: [applicantUserId], references: [id])
+  inspectionOfficer  User?                   @relation("RevalidationInspector", fields: [inspectionOfficerId], references: [id])
+  motorPark          MotorPark?              @relation("MotorParkRevalidation", fields: [motorParkId], references: [id], onDelete: SetNull)
+  massTransitCompany MassTransitCompany?     @relation("MassTransitRevalidation", fields: [massTransitCompanyId], references: [id], onDelete: SetNull)
   inspectionTeam     RevalidationInspector[]
 
   @@index([applicantUserId])
@@ -1703,7 +1703,9 @@ model TracasVehicle {
   registrationNumber     String    @unique
   fleetNumber            String    @unique
   category               String    @default("BUS") @db.VarChar(50)
-  /** Seating capacity — its own field, not folded into the sub-category text. */
+  /**
+   * Seating capacity — its own field, not folded into the sub-category text.
+   */
   capacity               Int?
   makeModel              String?
   engineNumber           String?

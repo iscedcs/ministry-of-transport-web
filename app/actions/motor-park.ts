@@ -2349,6 +2349,27 @@ export async function updateMotorParkApplication(
       },
     });
 
+    // Synchronize to any linked RevalidationApplication
+    const linkedRevalidation = await tx.revalidationApplication.findFirst({
+      where: { motorParkId: parkId },
+    });
+    if (linkedRevalidation) {
+      await tx.revalidationApplication.update({
+        where: { id: linkedRevalidation.id },
+        data: {
+          parkName: businessName.trim(),
+          physicalLocation: streetAddress.trim(),
+          townCommunity: townCity.trim(),
+          lga: lga.trim(),
+          representativeName: contactPerson.trim(),
+          phoneNumber: contactPhone.trim(),
+          emailAddress: contactEmail?.trim() || linkedRevalidation.emailAddress,
+          residentialAddress:
+            managerResidentialAddress?.trim() || linkedRevalidation.residentialAddress,
+        },
+      });
+    }
+
     await tx.auditLog.create({
       data: {
         performedByUserId: session.userId,
@@ -2387,6 +2408,19 @@ export async function updateMotorParkApplication(
   revalidatePath(`/motor-parks/${parkId}/edit`);
   revalidatePath(`/motor-parks`);
   revalidatePath(`/letter-approvals`);
+
+  const linkedRev = await db.revalidationApplication.findFirst({
+    where: { motorParkId: parkId },
+    select: { id: true },
+  });
+  if (linkedRev) {
+    revalidatePath(`/admin/revalidation-queue/${linkedRev.id}`);
+    revalidatePath(`/admin/revalidation-queue/${linkedRev.id}/certificate`);
+    revalidatePath(`/admin/revalidation-queue/${linkedRev.id}/park-certificate`);
+    revalidatePath(`/revalidation/${linkedRev.id}/certificate`);
+    revalidatePath(`/revalidation/${linkedRev.id}/park-certificate`);
+    revalidatePath(`/admin/revalidation-queue`);
+  }
 
   return { success: true };
 }
