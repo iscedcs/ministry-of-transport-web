@@ -127,7 +127,7 @@ export function MotorParkApprovalLetter({
 
           <h3 className="mt-5 text-sm font-bold uppercase leading-snug underline decoration-2 underline-offset-4 sm:text-base">
             {isTemporal
-              ? "Temporal Approval to Operate a Motor Park"
+              ? "Temporary Approval to Operate a Motor Park"
               : "Approval to Operate a Motor Park"}
           </h3>
 

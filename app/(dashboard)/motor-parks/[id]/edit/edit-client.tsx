@@ -64,7 +64,7 @@ const APPLICATION_STATUSES = [
   { value: "PENDING_PS_APPROVAL", label: "Pending PS Approval" },
   { value: "PENDING_COMMISSIONER_APPROVAL", label: "Pending Commissioner Approval" },
   { value: "PENDING_APPROVAL", label: "Pending Approval" },
-  { value: "TEMPORAL_APPROVAL", label: "Temporal Approval" },
+  { value: "TEMPORAL_APPROVAL", label: "Temporary Approval" },
   { value: "APPROVED", label: "Approved" },
   { value: "REJECTED", label: "Rejected" },
   { value: "REVOKED", label: "Revoked" },

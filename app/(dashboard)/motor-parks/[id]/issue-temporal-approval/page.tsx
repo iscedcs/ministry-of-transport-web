@@ -62,15 +62,15 @@ export default function IssueTemporalApprovalPage() {
             Application
           </Link>
           <span>/</span>
-          <span className="text-foreground">Issue Temporal Approval</span>
+          <span className="text-foreground">Issue Temporary Approval</span>
         </nav>
         <h1
           className="text-2xl font-bold text-foreground"
           style={{ fontFamily: "var(--font-display)" }}>
-          Issue Temporal Approval
+          Issue Temporary Approval
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Issue a temporal approval allowing operations to commence temporarily while waiting for final approval.
+          Issue a temporary approval allowing operations to commence temporarily while waiting for final approval.
         </p>
       </div>
 
@@ -83,7 +83,7 @@ export default function IssueTemporalApprovalPage() {
       <div className="rounded-lg border border-border/50 bg-secondary/50 p-4 flex flex-col gap-2">
         <p className="text-xs text-muted-foreground leading-relaxed">
           <strong className="text-foreground">Before proceeding:</strong> Ensure
-          all required criteria for temporal operations are met.
+          all required criteria for temporary operations are met.
         </p>
         <p className="text-xs text-muted-foreground">
           The application will be set to{" "}
@@ -126,7 +126,7 @@ export default function IssueTemporalApprovalPage() {
             <Link href={`/motor-parks/${parkId}`}>Cancel</Link>
           </Button>
           <Button type="submit" disabled={isPending} aria-busy={isPending}>
-            {isPending ? "Issuing…" : "Issue Temporal Approval"}
+            {isPending ? "Issuing…" : "Issue Temporary Approval"}
           </Button>
         </div>
       </form>

@@ -122,7 +122,7 @@ export function MassTransitApprovalLetter({
 
           <h3 className="mt-5 text-center text-sm font-bold uppercase underline decoration-2 underline-offset-4 sm:text-base">
             {isTemporal
-              ? "Temporal Approval to Operate Mass Transit Services"
+              ? "Temporary Approval to Operate Mass Transit Services"
               : "Approval to Operate Mass Transit Services"}
           </h3>
 
@@ -132,7 +132,7 @@ export function MassTransitApprovalLetter({
               {isTemporal ? (
                 <>
                   granted{" "}
-                  <span className="font-semibold">TEMPORAL APPROVAL</span> to
+                  <span className="font-semibold">TEMPORARY APPROVAL</span> to
                 </>
               ) : (
                 <>approved the application of</>
@@ -154,7 +154,7 @@ export function MassTransitApprovalLetter({
               <span className="font-semibold">{fmt(data.permitExpiresAt)}</span>{" "}
               ({data.validityMonths} months)
               {isTemporal
-                ? ". This is a temporal approval, granted to permit operations while the outstanding requirements identified at inspection are met, and it lapses on that date unless full approval is granted."
+                ? ". This is a temporary approval, granted to permit operations while the outstanding requirements identified at inspection are met, and it lapses on that date unless full approval is granted."
                 : "."}
             </p>
 
