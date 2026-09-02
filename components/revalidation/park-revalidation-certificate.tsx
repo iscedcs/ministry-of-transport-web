@@ -437,7 +437,7 @@ export function ParkRevalidationCertificate({
                   style={{ color: accent }}>
                   {isTemporal ? (
                     <>
-                      Temporal
+                      Temporary
                       <br />
                       Approval
                     </>
@@ -453,7 +453,7 @@ export function ParkRevalidationCertificate({
                   {isTemporal ? (
                     <>
                       This park is granted{" "}
-                      <span className="font-bold">TEMPORAL APPROVAL</span> to
+                      <span className="font-bold">TEMPORARY APPROVAL</span> to
                       continue operations while outstanding requirements are
                       met.
                     </>

@@ -198,7 +198,7 @@ export function WorkflowActions({
   };
 
   const handleApproveType = (approvalType: "TEMPORAL" | "PERMANENT") => {
-    const label = approvalType === "TEMPORAL" ? "temporal" : "permanent";
+    const label = approvalType === "TEMPORAL" ? "temporary" : "permanent";
     if (
       !confirm(
         `Grant ${label.toUpperCase()} approval? This issues the certificate and cannot be undone.`,
@@ -631,7 +631,7 @@ export function WorkflowActions({
             <CardTitle>Commissioner — final approval</CardTitle>
             <CardDescription>
               Choose the kind of approval. The certificate is worded
-              accordingly, and a temporal approval runs for six months rather
+              accordingly, and a temporary approval runs for six months rather
               than twelve.
             </CardDescription>
           </CardHeader>
@@ -655,7 +655,7 @@ export function WorkflowActions({
                 disabled={isPending}
                 className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 text-left transition-colors hover:bg-amber-500/10 disabled:opacity-50">
                 <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
-                  Temporal approval
+                  Temporary approval
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Permission to operate while matters are put right. Valid 6

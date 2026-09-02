@@ -165,7 +165,7 @@ export function ParkSearchClient() {
                         <div>
                           <div className="flex flex-wrap items-center gap-2 mb-1">
                             <Badge className="bg-primary/15 text-primary hover:bg-primary/20 border-none font-semibold text-xs">
-                              {park.applicationStatus === "TEMPORAL_APPROVAL" ? "Temporal Approval Active" : "Approved Motor Park"}
+                              {park.applicationStatus === "TEMPORAL_APPROVAL" ? "Temporary Approval Active" : "Approved Motor Park"}
                             </Badge>
                             {park.permitStatus && (
                               <Badge variant="outline" className="text-muted-foreground text-xs font-normal border-border">

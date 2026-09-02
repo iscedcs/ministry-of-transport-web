@@ -281,7 +281,7 @@ export function IctPrintingClient({
               {initialData.stats.temporalCount}
             </Badge>
           </div>
-          <p className="font-bold text-base mt-2">Temporal Approvals</p>
+          <p className="font-bold text-base mt-2">Temporary Approvals</p>
           <p className="text-xs text-muted-foreground">
             Motor parks operating temporarily
           </p>

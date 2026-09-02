@@ -394,7 +394,7 @@ export function RevalidationCertificate({
 
           {/* Subject */}
           <h3 className="mt-5 text-sm sm:text-base font-bold underline decoration-2 underline-offset-4 uppercase leading-snug">
-            {isTemporal ? "Temporal Approval of" : "Revalidation of"} your
+            {isTemporal ? "Temporary Approval of" : "Revalidation of"} your
             Authority to Operate {headingKind} Motor Park at {location || "…"}
           </h3>
 
@@ -402,11 +402,11 @@ export function RevalidationCertificate({
             data-c="body"
             className="mt-3 space-y-3 text-sm sm:text-[15px] leading-relaxed text-justify">
             <p>
-              Further to the Ministry&apos;s Revalidation Exercise for Motor
-              Parks/Loading Bays in the State, please be informed that the
-              Ministry has{" "}
+              Further to the Ministry&apos;s Inspection of your Motor
+              Parks/Loading Bays, please be informed that the Ministry has
+              granted you{" "}
               {isTemporal
-                ? "TEMPORAL APPROVAL of"
+                ? "TEMPORARY APPROVAL of"
                 : "approved the Revalidation of"}{" "}
               Your Authority to Operate the{" "}
               <span className="font-semibold">{parkKind}</span> situated at{" "}
@@ -420,8 +420,8 @@ export function RevalidationCertificate({
               .{" "}
               {isTemporal ? (
                 <>
-                  This is a <span className="font-semibold">TEMPORAL</span>{" "}
-                  approval valid until{" "}
+                  This is a <span className="font-semibold">TEMPORARY</span>{" "}
+                  approval is valid until{" "}
                   <span className="font-semibold">
                     {a.validUntil ? (
                       fmtLong(a.validUntil)
@@ -431,8 +431,8 @@ export function RevalidationCertificate({
                   </span>
                   , granted to permit continued operation while the outstanding
                   requirements below are met. It does not constitute a full
-                  revalidation, and lapses on that date unless a full
-                  revalidation is granted.
+                  approval, and lapses on that date unless a full approval is
+                  granted.
                 </>
               ) : (
                 <>
@@ -457,8 +457,7 @@ export function RevalidationCertificate({
               </p>
             ) : (
               <p>
-                2. You are to continue the payment of monthly motor park
-                (operational) fee of{" "}
+                2. You are to pay monthly motor park (operational) fee of{" "}
                 <span className="font-semibold">
                   {feeNow ?? <Blank width="7rem" />}
                 </span>{" "}
@@ -469,7 +468,7 @@ export function RevalidationCertificate({
                     (<Blank width="9rem" /> naira only)
                   </>
                 )}
-                .
+                in Anambra paydirect, using your company Asin.
               </p>
             )}
 
@@ -489,12 +488,12 @@ export function RevalidationCertificate({
                 {a.requiredFacilities?.trim() || <Blank width="12rem" />}
               </span>{" "}
               within six (6) months period to avoid revocation of your
-              revalidation.
+              {isTemporal ? " temporary approval" : " revalidation"}.
             </p>
 
             <p className="font-semibold italic">
               5. Failure to comply with the above will lead to withdrawal of
-              this revalidation letter without prior notice.
+              this approval letter without prior notice.
             </p>
 
             <p>Congratulations and please accept my warm regards.</p>

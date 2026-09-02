@@ -119,7 +119,7 @@ const STATUS_LABELS: Record<string, string> = {
   INSPECTION_IN_PROGRESS: "Inspection In Progress",
   PENDING_APPROVAL: "Pending Approval",
   PENDING_PAYMENT: "Pending Payment",
-  TEMPORAL_APPROVAL: "Temporal Approval",
+  TEMPORAL_APPROVAL: "Temporary Approval",
   PERMIT_TO_BUILD_ISSUED: "Permit to Build",
   CONSTRUCTION_IN_PROGRESS: "Under Construction",
   FINAL_INSPECTION_SCHEDULED: "Final Insp. Scheduled",

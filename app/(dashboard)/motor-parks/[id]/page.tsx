@@ -204,7 +204,7 @@ function ActionBar({
         {canIssueTemporal && (
           <Button asChild size="sm">
             <Link href={`/motor-parks/${park.id}/issue-temporal-approval`}>
-              Issue Temporal Approval
+              Issue Temporary Approval
             </Link>
           </Button>
         )}
@@ -217,7 +217,7 @@ function ActionBar({
             <Link
               href={`/motor-parks/${park.id}/temporal-certificate`}
               target="_blank">
-              <Download className="w-4 h-4 mr-2" /> Download Temporal
+              <Download className="w-4 h-4 mr-2" /> Download Temporary
               Certificate
             </Link>
           </Button>
@@ -730,10 +730,10 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
         <Card className="border-green-500/30 bg-green-500/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-base text-green-700 dark:text-green-400 flex items-center gap-2">
-              <span>Temporal Approval Issued</span>
+              <span>Temporary Approval Issued</span>
             </CardTitle>
             <CardDescription>
-              Your loading bay has been granted temporal approval to commence
+              Your loading bay has been granted temporary approval to commence
               operations.
             </CardDescription>
           </CardHeader>

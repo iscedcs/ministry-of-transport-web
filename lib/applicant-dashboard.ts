@@ -236,7 +236,7 @@ export async function getApplicantDashboard(
       key: `rev-letter-${r.id}`,
       title: `${r.parkName} — approval letter`,
       subtitle:
-        r.approvalType === "TEMPORAL" ? "Temporal approval" : "Full approval",
+        r.approvalType === "TEMPORAL" ? "Temporary approval" : "Full approval",
       reference: r.revalidationNumber,
       href: `/revalidation/${r.id}/certificate`,
       kind: "letter",
@@ -264,7 +264,7 @@ export async function getApplicantDashboard(
       title: `${p.businessName} — approval letter`,
       subtitle:
         p.applicationStatus === "TEMPORAL_APPROVAL"
-          ? "Temporal approval"
+          ? "Temporary approval"
           : "Full approval",
       reference: p.parkId ?? p.permitNumber,
       href: `/motor-parks/${p.id}/approval-letter`,
@@ -275,7 +275,7 @@ export async function getApplicantDashboard(
       title: `${p.businessName} — park certificate`,
       subtitle:
         p.applicationStatus === "TEMPORAL_APPROVAL"
-          ? "Temporal — display at the park"
+          ? "Temporary — display at the park"
           : "Display at the park",
       reference: p.parkId ?? p.permitNumber,
       href: `/motor-parks/${p.id}/park-certificate`,
@@ -290,7 +290,7 @@ export async function getApplicantDashboard(
       title: `${co.companyName} — approval letter`,
       subtitle:
         co.applicationStatus === "TEMPORAL_APPROVAL"
-          ? "Temporal approval"
+          ? "Temporary approval"
           : "Full approval",
       reference: co.permitNumber,
       href: `/fleet-operators/${co.id}/approval-letter`,

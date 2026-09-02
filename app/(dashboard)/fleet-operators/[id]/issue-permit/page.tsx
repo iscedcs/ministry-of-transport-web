@@ -74,7 +74,7 @@ export default function IssuePermitPage() {
         </nav>
         <h1 className="text-2xl font-semibold">Issue Permit to Operate</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Grant either a temporal or a full approval. The choice determines the
+          Grant either a temporary or a full approval. The choice determines the
           permit number, how long it runs, and the wording on the approval
           letter and every terminal certificate.
         </p>
@@ -91,7 +91,7 @@ export default function IssuePermitPage() {
             <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">
               ANS-MOT-MTT
             </code>{" "}
-            for a temporal one, so the two are never confused on paper.
+            for a temporary one, so the two are never confused on paper.
           </p>
           <p className="mt-1">
             Validity periods are set in System Configuration under Certificate
@@ -153,7 +153,7 @@ export default function IssuePermitPage() {
                 disabled={isPending}
                 className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 text-left transition-colors hover:bg-amber-500/10 disabled:opacity-50">
                 <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
-                  Temporal approval
+                  Temporary approval
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Permission to operate while outstanding requirements are met.
