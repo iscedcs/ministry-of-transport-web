@@ -39,9 +39,10 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { RowGrid as Row } from "@/components/ui/row";
 import { fmtDateShort as fmt } from "@/lib/utils/format";
-import { FileText, Download, ShieldCheck } from "lucide-react";
+import { FileText, Download, ShieldCheck, Plus, Bus } from "lucide-react";
 import { FleetWorkflowActions } from "./fleet-workflow-actions";
 import { canSchedule as canScheduleInspectionRole } from "@/lib/workflow-roles";
+import { AttachStickerDialog } from "@/components/mass-transit/attach-sticker-dialog";
 
 // ── Action Bar ─────────────────────────────────────────────────────────────────
 
@@ -87,8 +88,15 @@ function ActionBar({
     company.drivers.some((d) => !d.proficiencyCardId);
 
   const canAddVehicle =
-    role === "EXTERNAL_APPLICANT" &&
-    ["SUBMITTED", "UNDER_REVIEW"].includes(status);
+    [
+      "ENUMERATOR",
+      "ADMIN",
+      "SYSTEM_ADMIN",
+      "HOD_TRANSPORT_OPS",
+      "HOD_PARKS_REVALIDATION",
+    ].includes(role) ||
+    (role === "EXTERNAL_APPLICANT" &&
+      ["DRAFT", "SUBMITTED", "UNDER_REVIEW"].includes(status));
 
   const canFleetChange =
     role === "EXTERNAL_APPLICANT" &&
@@ -311,6 +319,17 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
     "HOD_VIS",
     "SYSTEM_ADMIN",
   ].includes(session.role);
+
+  const canAddVehicle =
+    [
+      "ENUMERATOR",
+      "ADMIN",
+      "SYSTEM_ADMIN",
+      "HOD_TRANSPORT_OPS",
+      "HOD_PARKS_REVALIDATION",
+    ].includes(session.role) ||
+    (session.role === "EXTERNAL_APPLICANT" &&
+      ["DRAFT", "SUBMITTED", "UNDER_REVIEW"].includes(co.applicationStatus));
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl">
@@ -703,17 +722,26 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
       )}
 
       {/* Vehicle Fleet */}
-      <Card>
+      <Card id="fleet">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-base">
-                Vehicle Fleet ({co.currentFleetSize} vehicles)
+              <CardTitle className="text-base flex items-center gap-2">
+                <Bus className="w-4 h-4 text-primary" />
+                Vehicle Fleet ({co.vehicles.length} vehicles)
               </CardTitle>
               <CardDescription>
                 Registered vehicles in this fleet
               </CardDescription>
             </div>
+            {canAddVehicle && (
+              <Button asChild size="sm" className="gap-1.5">
+                <Link href={`/fleet-operators/${co.id}/add-vehicle`}>
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Vehicle
+                </Link>
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -734,6 +762,9 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
                     </th>
                     <th className="text-left px-4 py-2.5 font-medium text-muted-foreground hidden md:table-cell">
                       Engine No.
+                    </th>
+                    <th className="text-left px-4 py-2.5 font-medium text-muted-foreground">
+                      Physical Sticker
                     </th>
                     <th className="text-center px-4 py-2.5 font-medium text-muted-foreground">
                       QR Code
@@ -759,6 +790,14 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
                       </td>
                       <td className="px-4 py-2.5 font-mono text-xs hidden md:table-cell">
                         {v.engineNumber}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <AttachStickerDialog
+                          vehicleId={v.id}
+                          vehicleReg={v.registrationNumber}
+                          currentSticker={v.stickerNumber}
+                          canAttach={canAddVehicle}
+                        />
                       </td>
                       <td className="px-4 py-2.5 text-center">
                         {v.qrCodeId ? (

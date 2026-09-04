@@ -20,7 +20,13 @@ import {
   Layers,
   ChevronRight,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,8 +42,15 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { CvrStickerScannerModal } from "@/components/cvr/cvr-sticker-scanner-modal";
-import { createCvrRegistration, checkCvrPlateAvailability } from "@/app/actions/cvr";
-import type { CvrVehicleCategory, CvrOperationType, UserRole } from "@prisma/client";
+import {
+  createCvrRegistration,
+  checkCvrPlateAvailability,
+} from "@/app/actions/cvr";
+import type {
+  CvrVehicleCategory,
+  CvrOperationType,
+  UserRole,
+} from "@prisma/client";
 
 interface LgaWithTowns {
   id: string;
@@ -51,7 +64,10 @@ interface RegisterClientProps {
   userRole: UserRole;
 }
 
-export default function RegisterClient({ lgas, userRole }: RegisterClientProps) {
+export default function RegisterClient({
+  lgas,
+  userRole,
+}: RegisterClientProps) {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [isSubmitting, startTransition] = useTransition();
@@ -102,7 +118,8 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   // ── Step 3: Operational Information ──
-  const [operationType, setOperationType] = useState<CvrOperationType>("TOWN_SERVICE");
+  const [operationType, setOperationType] =
+    useState<CvrOperationType>("TOWN_SERVICE");
   const [selectedLgaId, setSelectedLgaId] = useState<string>(lgas[0]?.id ?? "");
   const [selectedTownId, setSelectedTownId] = useState<string>("");
   const [fromTownId, setFromTownId] = useState<string>("");
@@ -177,9 +194,13 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
     }
     setIsCheckingPlate(true);
     try {
-      const res = await checkCvrPlateAvailability(plateNumber.trim().toUpperCase());
+      const res = await checkCvrPlateAvailability(
+        plateNumber.trim().toUpperCase(),
+      );
       if (!res.available) {
-        setPlateError(res.message || "This plate number is already registered.");
+        setPlateError(
+          res.message || "This plate number is already registered.",
+        );
       } else {
         setPlateError(null);
       }
@@ -208,9 +229,13 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
     // Check plate collision across all system modules
     setIsCheckingPlate(true);
     try {
-      const res = await checkCvrPlateAvailability(plateNumber.trim().toUpperCase());
+      const res = await checkCvrPlateAvailability(
+        plateNumber.trim().toUpperCase(),
+      );
       if (!res.available) {
-        const msg = res.message || "This plate number is already registered in the system.";
+        const msg =
+          res.message ||
+          "This plate number is already registered in the system.";
         setPlateError(msg);
         toast.error(msg);
         return false;
@@ -283,8 +308,12 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
           operationType,
           lgaId: selectedLgaId || undefined,
           townId: selectedTownId || undefined,
-          fromTownId: operationType === "INTERSTATE" ? fromTownId || undefined : undefined,
-          toTownId: operationType === "INTERSTATE" ? toTownId || undefined : undefined,
+          fromTownId:
+            operationType === "INTERSTATE"
+              ? fromTownId || undefined
+              : undefined,
+          toTownId:
+            operationType === "INTERSTATE" ? toTownId || undefined : undefined,
         },
         driver: {
           fullName: driverName.trim(),
@@ -306,7 +335,9 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
         return;
       }
 
-      toast.success(`Vehicle ${plateNumber.toUpperCase()} registered successfully!`);
+      toast.success(
+        `Vehicle ${plateNumber.toUpperCase()} registered successfully!`,
+      );
       router.push(`/commercial-vehicles/${res.vehicleId}`);
     });
   };
@@ -326,7 +357,8 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
           Commercial Vehicle Onboarding
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Stage 1: Register commercial vehicle, designate driver, and configure operational route.
+          Stage 1: Register commercial vehicle, designate driver, and configure
+          operational route.
         </p>
       </div>
 
@@ -347,24 +379,26 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                 isActive
                   ? "bg-primary/10 border-primary text-primary shadow-xs"
                   : isDone
-                  ? "bg-card border-emerald-500/30 text-emerald-400"
-                  : "bg-card/40 border-border/60 text-muted-foreground"
-              }`}
-            >
+                    ? "bg-card border-emerald-500/30 text-emerald-400"
+                    : "bg-card/40 border-border/60 text-muted-foreground"
+              }`}>
               <div
-                className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 ${
+                className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
                   isActive
                     ? "bg-primary text-primary-foreground"
                     : isDone
-                    ? "bg-emerald-500 text-white"
-                    : "bg-muted text-muted-foreground"
-                }`}
-              >
+                      ? "bg-emerald-500 text-white"
+                      : "bg-muted text-muted-foreground"
+                }`}>
                 {isDone ? <CheckCircle2 className="w-4 h-4" /> : s.step}
               </div>
               <div className="min-w-0">
-                <div className="text-[10px] font-semibold uppercase tracking-wider">Step {s.step}</div>
-                <div className="text-xs sm:text-sm font-bold truncate text-foreground">{s.label}</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider">
+                  Step {s.step}
+                </div>
+                <div className="text-xs sm:text-sm font-bold truncate text-foreground">
+                  {s.label}
+                </div>
               </div>
             </div>
           );
@@ -381,7 +415,8 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
               </div>
               <CardTitle className="text-lg">Vehicle Information</CardTitle>
               <CardDescription className="text-xs">
-                Fields marked with an asterisk (<span className="text-destructive">*</span>) are mandatory.
+                Fields marked with an asterisk (
+                <span className="text-destructive">*</span>) are mandatory.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -389,7 +424,9 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                 {/* Plate Number */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="plateNumber" className="text-xs font-semibold">
+                    <Label
+                      htmlFor="plateNumber"
+                      className="text-xs font-semibold">
                       Plate Number <span className="text-destructive">*</span>
                     </Label>
                     {isCheckingPlate && (
@@ -408,7 +445,9 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                     }}
                     onBlur={handlePlateBlur}
                     className={`font-mono uppercase font-semibold ${
-                      plateError ? "border-destructive focus-visible:ring-destructive" : ""
+                      plateError
+                        ? "border-destructive focus-visible:ring-destructive"
+                        : ""
                     }`}
                     required
                   />
@@ -422,14 +461,18 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
 
                 {/* Chassis Number */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="chassisNumber" className="text-xs font-semibold">
+                  <Label
+                    htmlFor="chassisNumber"
+                    className="text-xs font-semibold">
                     Chassis Number <span className="text-destructive">*</span>
                   </Label>
                   <Input
                     id="chassisNumber"
                     placeholder="e.g. 1HGCR2F83HA001923"
                     value={chassisNumber}
-                    onChange={(e) => setChassisNumber(e.target.value.toUpperCase())}
+                    onChange={(e) =>
+                      setChassisNumber(e.target.value.toUpperCase())
+                    }
                     className="font-mono uppercase"
                     required
                   />
@@ -442,18 +485,27 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                   </Label>
                   <Select
                     value={category}
-                    onValueChange={(val) => setCategory(val as CvrVehicleCategory)}
-                  >
+                    onValueChange={(val) =>
+                      setCategory(val as CvrVehicleCategory)
+                    }>
                     <SelectTrigger id="category" className="w-full">
                       <SelectValue placeholder="Select Category" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="TRICYCLE">Tricycle (Keke) — Code K</SelectItem>
-                      <SelectItem value="SHUTTLE_BUS">Shuttle Bus — Code B</SelectItem>
+                      <SelectItem value="TRICYCLE">
+                        Tricycle (Keke) — Code K
+                      </SelectItem>
+                      <SelectItem value="SHUTTLE_BUS">
+                        Shuttle Bus — Code B
+                      </SelectItem>
                       <SelectItem value="BUS">Bus — Code B</SelectItem>
-                      <SelectItem value="TRUCK">Truck / Haulage — Code T</SelectItem>
+                      <SelectItem value="TRUCK">
+                        Truck / Haulage — Code T
+                      </SelectItem>
                       <SelectItem value="MINIBUS">Minibus — Code B</SelectItem>
-                      <SelectItem value="OTHER">Other Commercial Vehicle</SelectItem>
+                      <SelectItem value="OTHER">
+                        Other Commercial Vehicle
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -500,7 +552,9 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
 
                 {/* Vehicle Type */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="vehicleType" className="text-xs font-semibold">
+                  <Label
+                    htmlFor="vehicleType"
+                    className="text-xs font-semibold">
                     Vehicle Type
                   </Label>
                   <Input
@@ -552,30 +606,41 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
 
                 {/* Vehicle Status */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="vehicleStatus" className="text-xs font-semibold">
+                  <Label
+                    htmlFor="vehicleStatus"
+                    className="text-xs font-semibold">
                     Vehicle Status
                   </Label>
-                  <Select value={vehicleStatus} onValueChange={setVehicleStatus}>
+                  <Select
+                    value={vehicleStatus}
+                    onValueChange={setVehicleStatus}>
                     <SelectTrigger id="vehicleStatus">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Active">Active / Operational</SelectItem>
-                      <SelectItem value="Maintenance">Under Maintenance</SelectItem>
-                      <SelectItem value="Pending Inspection">Pending Inspection</SelectItem>
+                      <SelectItem value="Active">
+                        Active / Operational
+                      </SelectItem>
+                      <SelectItem value="Maintenance">
+                        Under Maintenance
+                      </SelectItem>
+                      <SelectItem value="Pending Inspection">
+                        Pending Inspection
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 {/* Physical Sticker Number with Scan QR option */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="stickerNumber" className="text-xs font-semibold flex items-center justify-between">
+                  <Label
+                    htmlFor="stickerNumber"
+                    className="text-xs font-semibold flex items-center justify-between">
                     <span>Physical Sticker Number</span>
                     <button
                       type="button"
                       onClick={() => setIsScannerOpen(true)}
-                      className="text-primary hover:underline flex items-center gap-1 font-medium cursor-pointer"
-                    >
+                      className="text-primary hover:underline flex items-center gap-1 font-medium cursor-pointer">
                       <QrCode className="w-3.5 h-3.5" /> Scan Sticker
                     </button>
                   </Label>
@@ -591,8 +656,7 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                       type="button"
                       variant="outline"
                       onClick={() => setIsScannerOpen(true)}
-                      className="gap-1.5 rounded-xl border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
-                    >
+                      className="gap-1.5 rounded-xl border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer">
                       <Camera className="w-4 h-4" /> Scan
                     </Button>
                   </div>
@@ -609,7 +673,9 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
               </div>
               <CardTitle className="text-lg">Owner Information</CardTitle>
               <CardDescription className="text-xs">
-                All owner fields are optional. Leave blank if registering as an institutional fleet or owner details are not immediately available.
+                All owner fields are optional. Leave blank if registering as an
+                institutional fleet or owner details are not immediately
+                available.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -639,7 +705,9 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="ownerWhatsApp" className="text-xs font-semibold">
+                  <Label
+                    htmlFor="ownerWhatsApp"
+                    className="text-xs font-semibold">
                     WhatsApp Number
                   </Label>
                   <Input
@@ -651,7 +719,9 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="ownerGender" className="text-xs font-semibold">
+                  <Label
+                    htmlFor="ownerGender"
+                    className="text-xs font-semibold">
                     Gender
                   </Label>
                   <Select value={ownerGender} onValueChange={setOwnerGender}>
@@ -666,10 +736,14 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="ownerMaritalStatus" className="text-xs font-semibold">
+                  <Label
+                    htmlFor="ownerMaritalStatus"
+                    className="text-xs font-semibold">
                     Marital Status
                   </Label>
-                  <Select value={ownerMaritalStatus} onValueChange={setOwnerMaritalStatus}>
+                  <Select
+                    value={ownerMaritalStatus}
+                    onValueChange={setOwnerMaritalStatus}>
                     <SelectTrigger id="ownerMaritalStatus">
                       <SelectValue placeholder="Select Status" />
                     </SelectTrigger>
@@ -703,8 +777,7 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
             <Button
               type="button"
               onClick={handleNextStep}
-              className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl px-6 cursor-pointer"
-            >
+              className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl px-6 cursor-pointer">
               Continue to Driver Info <ArrowRight className="w-4 h-4" />
             </Button>
           </div>
@@ -734,15 +807,15 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                     />
                     <Label
                       htmlFor="useOwnerAsDriver"
-                      className="text-xs font-semibold cursor-pointer text-foreground"
-                    >
+                      className="text-xs font-semibold cursor-pointer text-foreground">
                       Use Owner as Driver
                     </Label>
                   </div>
                 )}
               </div>
               <CardDescription className="text-xs">
-                Provide identity and contact details for the designated commercial vehicle driver.
+                Provide identity and contact details for the designated
+                commercial vehicle driver.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -763,7 +836,9 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
 
                 {/* Phone Number */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="driverPhone" className="text-xs font-semibold">
+                  <Label
+                    htmlFor="driverPhone"
+                    className="text-xs font-semibold">
                     Phone Number <span className="text-destructive">*</span>
                   </Label>
                   <Input
@@ -777,7 +852,9 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
 
                 {/* Gender */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="driverGender" className="text-xs font-semibold">
+                  <Label
+                    htmlFor="driverGender"
+                    className="text-xs font-semibold">
                     Gender <span className="text-destructive">*</span>
                   </Label>
                   <Select value={driverGender} onValueChange={setDriverGender}>
@@ -793,7 +870,9 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
 
                 {/* State */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="driverState" className="text-xs font-semibold">
+                  <Label
+                    htmlFor="driverState"
+                    className="text-xs font-semibold">
                     State of Residence
                   </Label>
                   <Input
@@ -820,8 +899,11 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
 
               {/* Residential Address */}
               <div className="space-y-1.5">
-                <Label htmlFor="driverAddress" className="text-xs font-semibold">
-                  Residential Address <span className="text-destructive">*</span>
+                <Label
+                  htmlFor="driverAddress"
+                  className="text-xs font-semibold">
+                  Residential Address{" "}
+                  <span className="text-destructive">*</span>
                 </Label>
                 <Textarea
                   id="driverAddress"
@@ -840,7 +922,9 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                 </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="nokFullName" className="text-xs font-semibold">
+                    <Label
+                      htmlFor="nokFullName"
+                      className="text-xs font-semibold">
                       NOK Full Name
                     </Label>
                     <Input
@@ -852,7 +936,9 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="nokPhoneNumber" className="text-xs font-semibold">
+                    <Label
+                      htmlFor="nokPhoneNumber"
+                      className="text-xs font-semibold">
                       NOK Phone Number
                     </Label>
                     <Input
@@ -864,10 +950,14 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="nokRelationship" className="text-xs font-semibold">
+                    <Label
+                      htmlFor="nokRelationship"
+                      className="text-xs font-semibold">
                       Relationship
                     </Label>
-                    <Select value={nokRelationship} onValueChange={setNokRelationship}>
+                    <Select
+                      value={nokRelationship}
+                      onValueChange={setNokRelationship}>
                       <SelectTrigger id="nokRelationship">
                         <SelectValue placeholder="Select" />
                       </SelectTrigger>
@@ -899,8 +989,7 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                       <button
                         type="button"
                         onClick={() => setPassportPhotoUrl(null)}
-                        className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1 shadow-sm hover:scale-110 transition-transform cursor-pointer"
-                      >
+                        className="absolute -top-2 -right-2 bg-destructive text-white rounded-full p-1 shadow-sm hover:scale-110 transition-transform cursor-pointer">
                         ✕
                       </button>
                     </div>
@@ -912,7 +1001,9 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                   )}
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="photoUpload" className="text-xs font-semibold block">
+                    <Label
+                      htmlFor="photoUpload"
+                      className="text-xs font-semibold block">
                       Upload Passport (DO Spaces cvr-passports)
                     </Label>
                     <input
@@ -924,7 +1015,9 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                       className="text-xs file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:opacity-90 cursor-pointer"
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      {isUploadingPhoto ? "Uploading photograph to Spaces..." : "JPG, PNG or WEBP under 5 MB."}
+                      {isUploadingPhoto
+                        ? "Uploading photograph to Spaces..."
+                        : "JPG, PNG or WEBP under 5 MB."}
                     </p>
                   </div>
                 </div>
@@ -938,15 +1031,13 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
               type="button"
               variant="outline"
               onClick={() => setCurrentStep(1)}
-              className="gap-2 rounded-xl cursor-pointer"
-            >
+              className="gap-2 rounded-xl cursor-pointer">
               <ArrowLeft className="w-4 h-4" /> Back to Vehicle
             </Button>
             <Button
               type="button"
               onClick={handleNextStep}
-              className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl px-6 cursor-pointer"
-            >
+              className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold rounded-xl px-6 cursor-pointer">
               Continue to Operation <ArrowRight className="w-4 h-4" />
             </Button>
           </div>
@@ -961,15 +1052,20 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
               <div className="flex items-center gap-2 text-primary font-semibold text-xs uppercase tracking-wider">
                 <MapPin className="w-4 h-4" /> Operational Scope
               </div>
-              <CardTitle className="text-lg">Operational & Route Information</CardTitle>
+              <CardTitle className="text-lg">
+                Operational & Route Information
+              </CardTitle>
               <CardDescription className="text-xs">
-                Select the vehicle&apos;s primary base of operation and route designation.
+                Select the vehicle&apos;s primary base of operation and route
+                designation.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Operation Type Selection */}
               <div className="space-y-1.5">
-                <Label htmlFor="operationType" className="text-xs font-semibold">
+                <Label
+                  htmlFor="operationType"
+                  className="text-xs font-semibold">
                   Category / Type of Operation
                 </Label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
@@ -993,15 +1089,20 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                     <button
                       key={op.id}
                       type="button"
-                      onClick={() => setOperationType(op.id as CvrOperationType)}
+                      onClick={() =>
+                        setOperationType(op.id as CvrOperationType)
+                      }
                       className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
                         operationType === op.id
                           ? "bg-primary/10 border-primary text-foreground shadow-xs ring-1 ring-primary/40"
                           : "bg-card border-border/60 text-muted-foreground hover:border-border"
-                      }`}
-                    >
-                      <div className="font-bold text-sm text-foreground">{op.title}</div>
-                      <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{op.desc}</p>
+                      }`}>
+                      <div className="font-bold text-sm text-foreground">
+                        {op.title}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
+                        {op.desc}
+                      </p>
                     </button>
                   ))}
                 </div>
@@ -1018,8 +1119,7 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                     onValueChange={(val) => {
                       setSelectedLgaId(val);
                       setSelectedTownId("");
-                    }}
-                  >
+                    }}>
                     <SelectTrigger id="lgaSelect">
                       <SelectValue placeholder="Select LGA" />
                     </SelectTrigger>
@@ -1040,12 +1140,13 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
                   <Select
                     value={selectedTownId}
                     onValueChange={setSelectedTownId}
-                    disabled={availableTowns.length === 0}
-                  >
+                    disabled={availableTowns.length === 0}>
                     <SelectTrigger id="townSelect">
                       <SelectValue
                         placeholder={
-                          availableTowns.length > 0 ? "Select Town / Community" : "No towns preloaded"
+                          availableTowns.length > 0
+                            ? "Select Town / Community"
+                            : "No towns preloaded"
                         }
                       />
                     </SelectTrigger>
@@ -1064,7 +1165,8 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
               {operationType === "INTERSTATE" && (
                 <div className="p-4 rounded-2xl bg-muted/40 border border-border/80 space-y-3 mt-2">
                   <div className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-primary" /> Interstate Route Endpoints
+                    <MapPin className="w-3.5 h-3.5 text-primary" /> Interstate
+                    Route Endpoints
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
@@ -1114,31 +1216,48 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
               <div className="flex items-center gap-2 text-emerald-400 font-semibold text-xs uppercase tracking-wider">
                 <CheckCircle2 className="w-4 h-4" /> Final Review
               </div>
-              <CardTitle className="text-base">Ready to Complete Stage 1 Onboarding</CardTitle>
+              <CardTitle className="text-base">
+                Ready to Complete Stage 1 Onboarding
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-xs">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-background/50 border border-border/60">
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Plate Number</span>
-                  <strong className="font-mono text-foreground">{plateNumber.toUpperCase()}</strong>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Plate Number
+                  </span>
+                  <strong className="font-mono text-foreground">
+                    {plateNumber.toUpperCase()}
+                  </strong>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Category</span>
-                  <strong className="text-foreground">{category.replace(/_/g, " ")}</strong>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Category
+                  </span>
+                  <strong className="text-foreground">
+                    {category.replace(/_/g, " ")}
+                  </strong>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Driver Name</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Driver Name
+                  </span>
                   <strong className="text-foreground">{driverName}</strong>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Sticker Number</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Sticker Number
+                  </span>
                   <strong className="font-mono text-emerald-400">
                     {stickerNumber || "None Attached"}
                   </strong>
                 </div>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Submitting will save this vehicle as <strong>REGISTERED (Stage 1 Complete)</strong> and generate an audit log entry. Designees with VIN assignment privileges can then issue a Vehicle Identification Number (Stage 2).
+                Submitting will save this vehicle as{" "}
+                <strong>REGISTERED (Stage 1 Complete)</strong> and generate an
+                audit log entry. Designees with VIN assignment privileges can
+                then issue a Vehicle Identification Number (Stage 2).
               </p>
             </CardContent>
           </Card>
@@ -1149,16 +1268,14 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
               type="button"
               variant="outline"
               onClick={() => setCurrentStep(2)}
-              className="gap-2 rounded-xl cursor-pointer"
-            >
+              className="gap-2 rounded-xl cursor-pointer">
               <ArrowLeft className="w-4 h-4" /> Back to Driver Info
             </Button>
             <Button
               type="button"
               disabled={isSubmitting}
               onClick={handleSubmit}
-              className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl px-8 shadow-lg shadow-emerald-950/20 cursor-pointer"
-            >
+              className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl px-8 shadow-lg shadow-emerald-950/20 cursor-pointer">
               {isSubmitting ? (
                 <>Submitting Registration...</>
               ) : (

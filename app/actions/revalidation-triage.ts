@@ -28,12 +28,25 @@ import { authorize } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 
+import { checkDuplicatePlateNumber } from "@/lib/plate-validation";
+import type { VehicleType } from "@prisma/client";
+
 /** Classifying is a filing decision — both HODs and the administrators. */
 const CLASSIFY_ROLES = [
   "HOD_TRANSPORT_OPS",
   "HOD_PARKS_REVALIDATION",
   "SYSTEM_ADMIN",
   "ADMIN",
+] as const;
+
+/** Roles permitted to onboard vehicles onto a mass transit revalidation record. */
+const ADD_VEHICLE_ROLES = [
+  "ENUMERATOR",
+  "ADMIN",
+  "SYSTEM_ADMIN",
+  "HOD_TRANSPORT_OPS",
+  "COMMISSIONER",
+  "PERMANENT_SECRETARY",
 ] as const;
 
 /**
@@ -46,12 +59,90 @@ export type ServiceCategory = "MOTOR_PARK" | "MASS_TRANSIT";
 export type TriageRoute = "REVALIDATION" | "NEW_APPLICATION";
 
 /**
+ * Ensure a MassTransitCompany record exists and is linked to the revalidation
+ * application. If the application is already classified as MASS_TRANSIT, it
+ * guarantees a target company so enumerators and officers can add vehicles
+ * immediately without waiting for final approval.
+ */
+export async function ensureMassTransitCompanyForRevalidation(
+  applicationId: string,
+): Promise<{ success: true; companyId: string } | { success: false; error: string }> {
+  const app = await db.revalidationApplication.findUnique({
+    where: { id: applicationId },
+    select: {
+      id: true,
+      serviceCategory: true,
+      massTransitCompanyId: true,
+      parkName: true,
+      ownerName: true,
+      asinNumber: true,
+      cacRegistrationNumber: true,
+      representativeName: true,
+      emailAddress: true,
+      phoneNumber: true,
+      applicantUserId: true,
+    },
+  });
+
+  if (!app) return { success: false, error: "Application not found." };
+  if (app.serviceCategory !== "MASS_TRANSIT") {
+    return {
+      success: false,
+      error: "Application is not classified as Mass Transit.",
+    };
+  }
+
+  // Already linked and exists?
+  if (app.massTransitCompanyId) {
+    const existing = await db.massTransitCompany.findUnique({
+      where: { id: app.massTransitCompanyId },
+      select: { id: true },
+    });
+    if (existing) return { success: true, companyId: existing.id };
+  }
+
+  // Try matching by ASIN
+  let company = app.asinNumber
+    ? await db.massTransitCompany.findFirst({
+        where: { asinNumber: app.asinNumber },
+        select: { id: true },
+      })
+    : null;
+
+  if (!company) {
+    company = await db.massTransitCompany.create({
+      data: {
+        companyName: app.ownerName?.trim() || app.parkName.trim(),
+        contactPerson: app.representativeName || null,
+        contactEmail: app.emailAddress || null,
+        contactPhone: app.phoneNumber || null,
+        contactUserId: app.applicantUserId || null,
+        asinNumber: app.asinNumber || null,
+        cacNumber: app.cacRegistrationNumber || null,
+        applicationStatus: "SUBMITTED",
+      },
+      select: { id: true },
+    });
+  }
+
+  await db.revalidationApplication.update({
+    where: { id: applicationId },
+    data: { massTransitCompanyId: company.id },
+  });
+
+  return { success: true, companyId: company.id };
+}
+
+/**
  * Mark an application as a motor park or a mass transit operator.
  *
  * This does not move the record. The application keeps its place in the
  * queue, its inspection and its history; what changes is where it is approved
  * to — a mass transit record becomes a MassTransitCompany with its terminals,
  * and each terminal then becomes a motor park exactly as it does today.
+ *
+ * When marked as MASS_TRANSIT, it immediately prepares the linked company
+ * so Enumerators and Admins can start adding vehicles right away.
  */
 export async function classifyRevalidationApplication(
   applicationId: string,
@@ -86,6 +177,11 @@ export async function classifyRevalidationApplication(
     data: { serviceCategory: category },
   });
 
+  // If marked as MASS_TRANSIT, prepare linked company so fleet onboarding is enabled
+  if (category === "MASS_TRANSIT") {
+    await ensureMassTransitCompanyForRevalidation(applicationId);
+  }
+
   await recordAudit({
     action: "REVALIDATION_CLASSIFIED",
     entityType: "REVALIDATION",
@@ -99,7 +195,142 @@ export async function classifyRevalidationApplication(
 
   revalidatePath("/admin/revalidation-queue");
   revalidatePath(`/admin/revalidation-queue/${applicationId}`);
+  revalidatePath("/fleet-operators");
   return { success: true, data: { serviceCategory: category } };
+}
+
+export interface RevalidationVehicleInput {
+  registrationNumber: string;
+  vehicleType: VehicleType;
+  make: string;
+  model: string;
+  engineNumber: string;
+  chassisNumber: string;
+  stickerNumber?: string;
+  routesServed?: string;
+  roadworthinessExpiry?: string;
+}
+
+/**
+ * Onboard a single fleet vehicle to an application on the Revalidation Queue
+ * that has been marked as Mass Transit.
+ *
+ * Accessible by: ENUMERATOR, ADMIN, SYSTEM_ADMIN, HOD_TRANSPORT_OPS.
+ * Does NOT require the application to complete approval first.
+ */
+export async function addVehicleToRevalidation(
+  applicationId: string,
+  input: RevalidationVehicleInput,
+) {
+  const authz = await authorize([...ADD_VEHICLE_ROLES]);
+  if (!authz.ok) return { success: false, error: authz.error };
+
+  const app = await db.revalidationApplication.findUnique({
+    where: { id: applicationId },
+    select: {
+      id: true,
+      parkName: true,
+      serviceCategory: true,
+      massTransitCompanyId: true,
+    },
+  });
+
+  if (!app) return { success: false, error: "Application not found." };
+  if (app.serviceCategory !== "MASS_TRANSIT") {
+    return {
+      success: false,
+      error:
+        "This application has not been marked as Mass Transit by the transport operations officer.",
+    };
+  }
+
+  const reg = input.registrationNumber.trim().toUpperCase();
+  const make = input.make.trim();
+  const model = input.model.trim();
+  const engine = input.engineNumber.trim().toUpperCase();
+  const chassis = input.chassisNumber.trim().toUpperCase();
+
+  if (!reg) return { success: false, error: "Registration / plate number is required." };
+  if (!make) return { success: false, error: "Vehicle make is required." };
+  if (!model) return { success: false, error: "Vehicle model is required." };
+  if (!engine) return { success: false, error: "Engine number is required." };
+  if (!chassis) return { success: false, error: "Chassis number is required." };
+
+  // Check collision across all modules (CVR, TRACAS, Mass Transit)
+  const plateCheck = await checkDuplicatePlateNumber(reg);
+  if (plateCheck.isTaken) {
+    return {
+      success: false,
+      error: plateCheck.message || `A vehicle with plate number '${reg}' already exists.`,
+    };
+  }
+
+  // Check engine and chassis uniqueness
+  const [existingEngine, existingChassis] = await Promise.all([
+    db.vehicle.findUnique({ where: { engineNumber: engine }, select: { id: true } }),
+    db.vehicle.findUnique({ where: { chassisNumber: chassis }, select: { id: true } }),
+  ]);
+
+  if (existingEngine) {
+    return { success: false, error: "A vehicle with this engine number already exists." };
+  }
+  if (existingChassis) {
+    return { success: false, error: "A vehicle with this chassis number already exists." };
+  }
+
+  // Ensure MassTransitCompany exists
+  const companyRes = await ensureMassTransitCompanyForRevalidation(applicationId);
+  if (!companyRes.success) return companyRes;
+  const companyId = companyRes.companyId;
+
+  const vehicle = await db.$transaction(async (tx) => {
+    const v = await tx.vehicle.create({
+      data: {
+        companyId,
+        registrationNumber: reg,
+        vehicleType: input.vehicleType,
+        make,
+        model,
+        engineNumber: engine,
+        chassisNumber: chassis,
+        stickerNumber: input.stickerNumber?.trim() || null,
+        routesServed: input.routesServed?.trim() || null,
+        roadworthinessExpiry: input.roadworthinessExpiry
+          ? new Date(input.roadworthinessExpiry)
+          : null,
+        addedByUserId: authz.session.userId,
+      },
+      select: { id: true, registrationNumber: true },
+    });
+
+    const actualTotal = await tx.vehicle.count({
+      where: { companyId, removedAt: null },
+    });
+
+    await tx.massTransitCompany.update({
+      where: { id: companyId },
+      data: { currentFleetSize: actualTotal },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        performedByUserId: authz.session.userId,
+        action: "VEHICLE_ADDED",
+        entityType: "REVALIDATION",
+        entityId: applicationId,
+        changeDescription: `Vehicle ${v.registrationNumber} (${input.vehicleType}) added to mass transit fleet for ${app.parkName}`,
+      },
+    });
+
+    return v;
+  });
+
+  revalidatePath("/admin/revalidation-queue");
+  revalidatePath(`/admin/revalidation-queue/${applicationId}`);
+  revalidatePath("/fleet-operators");
+  revalidatePath(`/fleet-operators/${companyId}`);
+
+  return { success: true, data: { vehicleId: vehicle.id, companyId } };
 }
 
 /**

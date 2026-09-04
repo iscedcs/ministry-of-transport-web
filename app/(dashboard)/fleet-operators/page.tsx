@@ -232,37 +232,37 @@ export default async function FleetOperatorsPage({ searchParams }: PageProps) {
                     <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
                       {co.contactPhone}
                     </td>
-                    {/* Submitted against declared, so this reads the same way
-                        the operator's own screen does. It previously showed a
-                        bare running count that went UP as vehicles arrived,
-                        which looked like the opposite of progress. */}
+                    {/* Fleet Submitted: reflects real active vehicles onboarded to this fleet */}
                     <td className="px-4 py-3 text-center font-medium">
                       {(() => {
                         const req = co.vehicleSubmissionReqs?.[0];
-                        const declared = req?.vehicleCount ?? 0;
-                        const submitted = req?._count.vehicles ?? 0;
-                        if (!req) {
+                        // Real active vehicles submitted to this company fleet
+                        const submitted = co._count?.vehicles ?? co.currentFleetSize ?? 0;
+                        const declared = req?.vehicleCount ?? co.minFleetSize ?? 0;
+
+                        if (declared > 0) {
                           return (
-                            <span className="text-muted-foreground">
-                              {co.currentFleetSize}
-                            </span>
+                            <>
+                              <span className="tabular-nums font-semibold">
+                                {submitted}
+                                <span className="text-muted-foreground font-normal">
+                                  {" / "}
+                                  {declared}
+                                </span>
+                              </span>
+                              {submitted < declared && (
+                                <span className="mt-0.5 block text-[11px] font-normal text-amber-600 dark:text-amber-400">
+                                  {declared - submitted} outstanding
+                                </span>
+                              )}
+                            </>
                           );
                         }
+
                         return (
-                          <>
-                            <span className="tabular-nums">
-                              {submitted}
-                              <span className="text-muted-foreground">
-                                {" / "}
-                                {declared}
-                              </span>
-                            </span>
-                            {submitted < declared && (
-                              <span className="mt-0.5 block text-[11px] font-normal text-amber-600 dark:text-amber-400">
-                                {declared - submitted} outstanding
-                              </span>
-                            )}
-                          </>
+                          <span className="tabular-nums font-semibold">
+                            {submitted}
+                          </span>
                         );
                       })()}
                     </td>
