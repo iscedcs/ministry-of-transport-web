@@ -28,7 +28,13 @@ import {
   Upload,
   Trash2,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,7 +64,12 @@ import {
   updateCvrVehicle,
   getAvailableCvrDrivers,
 } from "@/app/actions/cvr";
-import type { UserRole, CvrVehicleCategory, CvrOperationType, CvrRegistrationStatus } from "@prisma/client";
+import type {
+  UserRole,
+  CvrVehicleCategory,
+  CvrOperationType,
+  CvrRegistrationStatus,
+} from "@prisma/client";
 import { fmtDateTimeShort, fmtDateShort } from "@/lib/utils/format";
 
 interface VehicleDetail {
@@ -116,7 +127,12 @@ interface VehicleDetailClientProps {
   userRole: UserRole;
   canWrite: boolean;
   canAssignVin: boolean;
-  lgas?: { id: string; name: string; state: string; towns: { id: string; name: string }[] }[];
+  lgas?: {
+    id: string;
+    name: string;
+    state: string;
+    towns: { id: string; name: string }[];
+  }[];
   initialEditOpen?: boolean;
 }
 
@@ -137,11 +153,18 @@ export default function VehicleDetailClient({
   const [isVinDialogOpen, setIsVinDialogOpen] = useState(false);
   const [isAssignDriverOpen, setIsAssignDriverOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(initialEditOpen);
-  const [editTab, setEditTab] = useState<"vehicle" | "owner" | "operational" | "driver">("vehicle");
+  const [editTab, setEditTab] = useState<
+    "vehicle" | "owner" | "operational" | "driver"
+  >("vehicle");
 
   // Available drivers state
   const [availableDrivers, setAvailableDrivers] = useState<
-    { id: string; fullName: string; phoneNumber: string; passportPhotoUrl: string | null }[]
+    {
+      id: string;
+      fullName: string;
+      phoneNumber: string;
+      passportPhotoUrl: string | null;
+    }[]
   >([]);
   const [driverSearch, setDriverSearch] = useState("");
   const [selectedDriverId, setSelectedDriverId] = useState("");
@@ -151,46 +174,88 @@ export default function VehicleDetailClient({
   // 1. Vehicle Information
   const [editPlate, setEditPlate] = useState(vehicle.plateNumber);
   const [editChassis, setEditChassis] = useState(vehicle.chassisNumber);
-  const [editCategory, setEditCategory] = useState<CvrVehicleCategory>(vehicle.category);
+  const [editCategory, setEditCategory] = useState<CvrVehicleCategory>(
+    vehicle.category,
+  );
   const [editMake, setEditMake] = useState(vehicle.make ?? "");
   const [editModel, setEditModel] = useState(vehicle.model ?? "");
   const [editYear, setEditYear] = useState(vehicle.year ?? "");
-  const [editVehicleType, setEditVehicleType] = useState(vehicle.vehicleType ?? "");
-  const [editAsinNumber, setEditAsinNumber] = useState(vehicle.asinNumber ?? "");
+  const [editVehicleType, setEditVehicleType] = useState(
+    vehicle.vehicleType ?? "",
+  );
+  const [editAsinNumber, setEditAsinNumber] = useState(
+    vehicle.asinNumber ?? "",
+  );
   const [editTCode, setEditTCode] = useState(vehicle.tCode ?? "");
   const [editColor, setEditColor] = useState(vehicle.color ?? "");
-  const [editVehicleStatus, setEditVehicleStatus] = useState(vehicle.vehicleStatus ?? "Active");
+  const [editVehicleStatus, setEditVehicleStatus] = useState(
+    vehicle.vehicleStatus ?? "Active",
+  );
   const [editSticker, setEditSticker] = useState(vehicle.stickerNumber ?? "");
 
   // 2. Owner Information
   const [editOwnerName, setEditOwnerName] = useState(vehicle.ownerName ?? "");
-  const [editOwnerPhone, setEditOwnerPhone] = useState(vehicle.ownerPhone ?? "");
-  const [editOwnerWhatsApp, setEditOwnerWhatsApp] = useState(vehicle.ownerWhatsApp ?? "");
-  const [editOwnerGender, setEditOwnerGender] = useState(vehicle.ownerGender ?? "");
-  const [editOwnerMaritalStatus, setEditOwnerMaritalStatus] = useState(vehicle.ownerMaritalStatus ?? "");
-  const [editOwnerAddress, setEditOwnerAddress] = useState(vehicle.ownerAddress ?? "");
+  const [editOwnerPhone, setEditOwnerPhone] = useState(
+    vehicle.ownerPhone ?? "",
+  );
+  const [editOwnerWhatsApp, setEditOwnerWhatsApp] = useState(
+    vehicle.ownerWhatsApp ?? "",
+  );
+  const [editOwnerGender, setEditOwnerGender] = useState(
+    vehicle.ownerGender ?? "",
+  );
+  const [editOwnerMaritalStatus, setEditOwnerMaritalStatus] = useState(
+    vehicle.ownerMaritalStatus ?? "",
+  );
+  const [editOwnerAddress, setEditOwnerAddress] = useState(
+    vehicle.ownerAddress ?? "",
+  );
 
   // 3. Operational Information
   const [editOperationType, setEditOperationType] = useState<CvrOperationType>(
-    vehicle.operationType ?? "TOWN_SERVICE"
+    vehicle.operationType ?? "TOWN_SERVICE",
   );
-  const [editLgaId, setEditLgaId] = useState<string>(vehicle.lgaId ?? lgas[0]?.id ?? "");
+  const [editLgaId, setEditLgaId] = useState<string>(
+    vehicle.lgaId ?? lgas[0]?.id ?? "",
+  );
   const [editTownId, setEditTownId] = useState<string>(vehicle.townId ?? "");
-  const [editFromTownId, setEditFromTownId] = useState<string>(vehicle.fromTownId ?? "");
-  const [editToTownId, setEditToTownId] = useState<string>(vehicle.toTownId ?? "");
+  const [editFromTownId, setEditFromTownId] = useState<string>(
+    vehicle.fromTownId ?? "",
+  );
+  const [editToTownId, setEditToTownId] = useState<string>(
+    vehicle.toTownId ?? "",
+  );
 
   // 4. Driver Information
-  const [editDriverName, setEditDriverName] = useState(vehicle.driver?.fullName ?? "");
-  const [editDriverPhone, setEditDriverPhone] = useState(vehicle.driver?.phoneNumber ?? "");
-  const [editDriverGender, setEditDriverGender] = useState(vehicle.driver?.gender ?? "Male");
-  const [editDriverAddress, setEditDriverAddress] = useState(vehicle.driver?.residentialAddress ?? "");
-  const [editDriverState, setEditDriverState] = useState(vehicle.driver?.state ?? "Anambra");
-  const [editDriverCity, setEditDriverCity] = useState(vehicle.driver?.city ?? "");
-  const [editDriverNokName, setEditDriverNokName] = useState(vehicle.driver?.nokFullName ?? "");
-  const [editDriverNokPhone, setEditDriverNokPhone] = useState(vehicle.driver?.nokPhoneNumber ?? "");
-  const [editDriverNokRel, setEditDriverNokRel] = useState(vehicle.driver?.nokRelationship ?? "");
+  const [editDriverName, setEditDriverName] = useState(
+    vehicle.driver?.fullName ?? "",
+  );
+  const [editDriverPhone, setEditDriverPhone] = useState(
+    vehicle.driver?.phoneNumber ?? "",
+  );
+  const [editDriverGender, setEditDriverGender] = useState(
+    vehicle.driver?.gender ?? "Male",
+  );
+  const [editDriverAddress, setEditDriverAddress] = useState(
+    vehicle.driver?.residentialAddress ?? "",
+  );
+  const [editDriverState, setEditDriverState] = useState(
+    vehicle.driver?.state ?? "Anambra",
+  );
+  const [editDriverCity, setEditDriverCity] = useState(
+    vehicle.driver?.city ?? "",
+  );
+  const [editDriverNokName, setEditDriverNokName] = useState(
+    vehicle.driver?.nokFullName ?? "",
+  );
+  const [editDriverNokPhone, setEditDriverNokPhone] = useState(
+    vehicle.driver?.nokPhoneNumber ?? "",
+  );
+  const [editDriverNokRel, setEditDriverNokRel] = useState(
+    vehicle.driver?.nokRelationship ?? "",
+  );
   const [editDriverPhotoUrl, setEditDriverPhotoUrl] = useState<string | null>(
-    vehicle.driver?.passportPhotoUrl ?? null
+    vehicle.driver?.passportPhotoUrl ?? null,
   );
   const [isUploadingEditPhoto, setIsUploadingEditPhoto] = useState(false);
 
@@ -249,7 +314,9 @@ export default function VehicleDetailClient({
   };
 
   // Upload driver photo inside edit modal
-  const handleEditPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEditPhotoUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -324,7 +391,12 @@ export default function VehicleDetailClient({
 
   // Unassign Driver
   const handleUnassignDriver = () => {
-    if (!confirm("Are you sure you want to unassign the current driver from this vehicle?")) return;
+    if (
+      !confirm(
+        "Are you sure you want to unassign the current driver from this vehicle?",
+      )
+    )
+      return;
 
     startTransition(async () => {
       const res = await unassignCvrDriver(vehicle.id);
@@ -354,7 +426,9 @@ export default function VehicleDetailClient({
   // Sticker update from scanner
   const handleStickerScanSuccess = async (stickerCode: string) => {
     startTransition(async () => {
-      const res = await updateCvrVehicle(vehicle.id, { stickerNumber: stickerCode });
+      const res = await updateCvrVehicle(vehicle.id, {
+        stickerNumber: stickerCode,
+      });
       if (!res.success) {
         toast.error(res.error || "Failed to update sticker.");
         return;
@@ -418,8 +492,14 @@ export default function VehicleDetailClient({
         operationType: editOperationType,
         lgaId: editLgaId || undefined,
         townId: editTownId || undefined,
-        fromTownId: editOperationType === "INTERSTATE" ? editFromTownId || undefined : undefined,
-        toTownId: editOperationType === "INTERSTATE" ? editToTownId || undefined : undefined,
+        fromTownId:
+          editOperationType === "INTERSTATE"
+            ? editFromTownId || undefined
+            : undefined,
+        toTownId:
+          editOperationType === "INTERSTATE"
+            ? editToTownId || undefined
+            : undefined,
         driver: driverPayload as any,
       });
 
@@ -441,11 +521,15 @@ export default function VehicleDetailClient({
       {/* Breadcrumb & Navigation */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Link href="/commercial-vehicles" className="hover:underline flex items-center gap-1">
+          <Link
+            href="/commercial-vehicles"
+            className="hover:underline flex items-center gap-1">
             <ArrowLeft className="w-3.5 h-3.5" /> Commercial Vehicles
           </Link>
           <ChevronRight className="w-3.5 h-3.5" />
-          <span className="font-mono text-foreground font-semibold">{vehicle.plateNumber}</span>
+          <span className="font-mono text-foreground font-semibold">
+            {vehicle.plateNumber}
+          </span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -454,8 +538,7 @@ export default function VehicleDetailClient({
               variant="outline"
               size="sm"
               onClick={handleOpenEdit}
-              className="gap-1.5 rounded-xl cursor-pointer"
-            >
+              className="gap-1.5 rounded-xl cursor-pointer">
               <Edit className="w-3.5 h-3.5" /> Edit Record
             </Button>
           )}
@@ -468,8 +551,7 @@ export default function VehicleDetailClient({
           isIdentified
             ? "bg-gradient-to-r from-cyan-950/40 via-card to-card border-cyan-500/40 shadow-lg shadow-cyan-950/20"
             : "bg-gradient-to-r from-amber-950/30 via-card to-card border-amber-500/30 shadow-md shadow-amber-950/10"
-        }`}
-      >
+        }`}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2.5">
@@ -481,22 +563,30 @@ export default function VehicleDetailClient({
                   isIdentified
                     ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40 text-xs px-2.5 py-0.5"
                     : "bg-amber-500/20 text-amber-300 border-amber-500/40 text-xs px-2.5 py-0.5"
-                }
-              >
+                }>
                 {isIdentified ? "Stage 2: Identified" : "Stage 1: Registered"}
               </Badge>
             </div>
             <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-3">
               <span>
-                Chassis: <strong className="font-mono text-foreground">{vehicle.chassisNumber}</strong>
+                Chassis:{" "}
+                <strong className="font-mono text-foreground">
+                  {vehicle.chassisNumber}
+                </strong>
               </span>
               <span>•</span>
               <span>
-                Category: <strong className="text-foreground">{vehicle.category.replace(/_/g, " ")}</strong>
+                Category:{" "}
+                <strong className="text-foreground">
+                  {vehicle.category.replace(/_/g, " ")}
+                </strong>
               </span>
               <span>•</span>
               <span>
-                Onboarded: <strong className="text-foreground">{fmtDateShort(vehicle.createdAt)}</strong>
+                Onboarded:{" "}
+                <strong className="text-foreground">
+                  {fmtDateShort(vehicle.createdAt)}
+                </strong>
               </span>
             </div>
 
@@ -505,8 +595,12 @@ export default function VehicleDetailClient({
               <div className="pt-2 flex items-center gap-2">
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">
                   <ShieldCheck className="w-4 h-4 text-cyan-400" />
-                  <span className="text-xs font-semibold text-muted-foreground uppercase">VIN:</span>
-                  <span className="font-mono font-bold text-sm tracking-wider">{vehicle.vin}</span>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase">
+                    VIN:
+                  </span>
+                  <span className="font-mono font-bold text-sm tracking-wider">
+                    {vehicle.vin}
+                  </span>
                 </div>
                 {vehicle.vinAssignedAt && (
                   <span className="text-[11px] text-muted-foreground">
@@ -522,14 +616,15 @@ export default function VehicleDetailClient({
             <div className="flex-shrink-0">
               <Button
                 onClick={() => setIsVinDialogOpen(true)}
-                className="gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-2xl px-6 py-6 shadow-lg shadow-cyan-950/40 cursor-pointer"
-              >
+                className="gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-2xl px-6 py-6 shadow-lg shadow-cyan-950/40 cursor-pointer">
                 <ShieldCheck className="w-5 h-5" />
                 <div className="text-left">
                   <div className="text-xs font-semibold uppercase tracking-wider opacity-80">
                     Stage 2
                   </div>
-                  <div className="text-sm leading-none">Assign Official VIN</div>
+                  <div className="text-sm leading-none">
+                    Assign Official CVIN
+                  </div>
                 </div>
               </Button>
             </div>
@@ -559,36 +654,68 @@ export default function VehicleDetailClient({
             <CardContent>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Make / Manufacturer</span>
-                  <span className="font-semibold text-foreground">{vehicle.make || "Not specified"}</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Make / Manufacturer
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {vehicle.make || "Not specified"}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Model</span>
-                  <span className="font-semibold text-foreground">{vehicle.model || "Not specified"}</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Model
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {vehicle.model || "Not specified"}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Year</span>
-                  <span className="font-semibold text-foreground">{vehicle.year || "Not specified"}</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Year
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {vehicle.year || "Not specified"}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Vehicle Type</span>
-                  <span className="font-semibold text-foreground">{vehicle.vehicleType || "Commercial"}</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Vehicle Type
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {vehicle.vehicleType || "Commercial"}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Color</span>
-                  <span className="font-semibold text-foreground">{vehicle.color || "Standard"}</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Color
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {vehicle.color || "Standard"}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Operational Status</span>
-                  <span className="font-semibold text-foreground">{vehicle.vehicleStatus || "Active"}</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Operational Status
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    {vehicle.vehicleStatus || "Active"}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">ASIN Number</span>
-                  <span className="font-mono font-semibold text-foreground">{vehicle.asinNumber || "—"}</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    ASIN Number
+                  </span>
+                  <span className="font-mono font-semibold text-foreground">
+                    {vehicle.asinNumber || "—"}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">T-Code</span>
-                  <span className="font-mono font-semibold text-foreground">{vehicle.tCode || "—"}</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    T-Code
+                  </span>
+                  <span className="font-mono font-semibold text-foreground">
+                    {vehicle.tCode || "—"}
+                  </span>
                 </div>
               </div>
             </CardContent>
@@ -598,7 +725,8 @@ export default function VehicleDetailClient({
           <Card className="border-border/60 bg-card/70 backdrop-blur-xs">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-primary" /> Operational Scope & Location
+                <MapPin className="w-4 h-4 text-primary" /> Operational Scope &
+                Location
               </CardTitle>
               <CardDescription className="text-xs">
                 Municipal zone and approved transit routes
@@ -607,19 +735,27 @@ export default function VehicleDetailClient({
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Operation Type</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Operation Type
+                  </span>
                   <span className="font-bold text-foreground">
-                    {vehicle.operationType ? vehicle.operationType.replace(/_/g, " ") : "Town Service"}
+                    {vehicle.operationType
+                      ? vehicle.operationType.replace(/_/g, " ")
+                      : "Town Service"}
                   </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Local Government Area</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Local Government Area
+                  </span>
                   <span className="font-semibold text-foreground">
                     {vehicle.lga?.name ?? "Anambra State"}
                   </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Operating Town / Community</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Operating Town / Community
+                  </span>
                   <span className="font-semibold text-foreground">
                     {vehicle.town?.name ?? "Municipal Center"}
                   </span>
@@ -628,9 +764,12 @@ export default function VehicleDetailClient({
 
               {vehicle.operationType === "INTERSTATE" && (
                 <div className="mt-4 p-3 rounded-xl bg-muted/40 border border-border/80 text-xs">
-                  <div className="font-bold text-foreground mb-1">Interstate Route Corridor:</div>
+                  <div className="font-bold text-foreground mb-1">
+                    Interstate Route Corridor:
+                  </div>
                   <div className="text-muted-foreground">
-                    Designated long-haul corridor operating across state borders.
+                    Designated long-haul corridor operating across state
+                    borders.
                   </div>
                 </div>
               )}
@@ -641,7 +780,8 @@ export default function VehicleDetailClient({
           <Card className="border-border/60 bg-card/70 backdrop-blur-xs">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <User className="w-4 h-4 text-primary" /> Registered Owner Information
+                <User className="w-4 h-4 text-primary" /> Registered Owner
+                Information
               </CardTitle>
               <CardDescription className="text-xs">
                 Vehicle titleholder or enterprise custodian
@@ -651,28 +791,52 @@ export default function VehicleDetailClient({
               {vehicle.ownerName ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">Owner Full Name</span>
-                    <span className="font-bold text-foreground">{vehicle.ownerName}</span>
+                    <span className="text-muted-foreground block text-[11px]">
+                      Owner Full Name
+                    </span>
+                    <span className="font-bold text-foreground">
+                      {vehicle.ownerName}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">Phone Number</span>
-                    <span className="font-semibold text-foreground">{vehicle.ownerPhone || "—"}</span>
+                    <span className="text-muted-foreground block text-[11px]">
+                      Phone Number
+                    </span>
+                    <span className="font-semibold text-foreground">
+                      {vehicle.ownerPhone || "—"}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">WhatsApp</span>
-                    <span className="font-semibold text-foreground">{vehicle.ownerWhatsApp || "—"}</span>
+                    <span className="text-muted-foreground block text-[11px]">
+                      WhatsApp
+                    </span>
+                    <span className="font-semibold text-foreground">
+                      {vehicle.ownerWhatsApp || "—"}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">Gender</span>
-                    <span className="font-semibold text-foreground">{vehicle.ownerGender || "—"}</span>
+                    <span className="text-muted-foreground block text-[11px]">
+                      Gender
+                    </span>
+                    <span className="font-semibold text-foreground">
+                      {vehicle.ownerGender || "—"}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">Marital Status</span>
-                    <span className="font-semibold text-foreground">{vehicle.ownerMaritalStatus || "—"}</span>
+                    <span className="text-muted-foreground block text-[11px]">
+                      Marital Status
+                    </span>
+                    <span className="font-semibold text-foreground">
+                      {vehicle.ownerMaritalStatus || "—"}
+                    </span>
                   </div>
                   <div className="col-span-2 sm:col-span-3">
-                    <span className="text-muted-foreground block text-[11px]">Address</span>
-                    <span className="text-foreground">{vehicle.ownerAddress || "—"}</span>
+                    <span className="text-muted-foreground block text-[11px]">
+                      Address
+                    </span>
+                    <span className="text-foreground">
+                      {vehicle.ownerAddress || "—"}
+                    </span>
                   </div>
                 </div>
               ) : (
@@ -691,7 +855,8 @@ export default function VehicleDetailClient({
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-emerald-400" /> Designated Driver
+                  <UserCheck className="w-4 h-4 text-emerald-400" /> Designated
+                  Driver
                 </CardTitle>
                 <CardDescription className="text-xs">
                   Assigned operator for this vehicle
@@ -722,28 +887,41 @@ export default function VehicleDetailClient({
                         <span>{vehicle.driver.phoneNumber}</span>
                       </div>
                       <div className="text-[11px] text-muted-foreground">
-                        {[vehicle.driver.city, vehicle.driver.state].filter(Boolean).join(", ")}
+                        {[vehicle.driver.city, vehicle.driver.state]
+                          .filter(Boolean)
+                          .join(", ")}
                       </div>
-                      <Badge variant="outline" className="text-[10px] uppercase font-mono">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] uppercase font-mono">
                         {vehicle.driver.gender}
                       </Badge>
                     </div>
                   </div>
 
                   <div className="text-xs pt-2 border-t border-border/50 space-y-1">
-                    <span className="text-muted-foreground block text-[11px]">Residential Address:</span>
-                    <p className="text-foreground leading-relaxed">{vehicle.driver.residentialAddress}</p>
+                    <span className="text-muted-foreground block text-[11px]">
+                      Residential Address:
+                    </span>
+                    <p className="text-foreground leading-relaxed">
+                      {vehicle.driver.residentialAddress}
+                    </p>
                   </div>
 
                   {vehicle.driver.nokFullName && (
                     <div className="text-xs pt-2 border-t border-border/50 space-y-1">
-                      <span className="text-muted-foreground block text-[11px]">Next of Kin:</span>
+                      <span className="text-muted-foreground block text-[11px]">
+                        Next of Kin:
+                      </span>
                       <p className="text-foreground font-semibold">
                         {vehicle.driver.nokFullName}{" "}
-                        {vehicle.driver.nokRelationship && `(${vehicle.driver.nokRelationship})`}
+                        {vehicle.driver.nokRelationship &&
+                          `(${vehicle.driver.nokRelationship})`}
                       </p>
                       {vehicle.driver.nokPhoneNumber && (
-                        <p className="text-muted-foreground text-[11px]">{vehicle.driver.nokPhoneNumber}</p>
+                        <p className="text-muted-foreground text-[11px]">
+                          {vehicle.driver.nokPhoneNumber}
+                        </p>
                       )}
                     </div>
                   )}
@@ -754,16 +932,14 @@ export default function VehicleDetailClient({
                         size="sm"
                         variant="outline"
                         onClick={handleOpenAssignDriver}
-                        className="flex-1 text-xs rounded-xl cursor-pointer"
-                      >
+                        className="flex-1 text-xs rounded-xl cursor-pointer">
                         Reassign Driver
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={handleUnassignDriver}
-                        className="text-xs text-destructive hover:bg-destructive/10 rounded-xl cursor-pointer"
-                      >
+                        className="text-xs text-destructive hover:bg-destructive/10 rounded-xl cursor-pointer">
                         Unassign
                       </Button>
                     </div>
@@ -772,13 +948,14 @@ export default function VehicleDetailClient({
               ) : (
                 <div className="text-center py-6 space-y-3">
                   <UserX className="w-10 h-10 text-muted-foreground/40 mx-auto" />
-                  <p className="text-xs text-muted-foreground">No driver is currently linked to this vehicle.</p>
+                  <p className="text-xs text-muted-foreground">
+                    No driver is currently linked to this vehicle.
+                  </p>
                   {canWrite && (
                     <Button
                       size="sm"
                       onClick={handleOpenAssignDriver}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded-xl cursor-pointer"
-                    >
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded-xl cursor-pointer">
                       <UserCheck className="w-3.5 h-3.5 mr-1" /> Assign Driver
                     </Button>
                   )}
@@ -791,7 +968,8 @@ export default function VehicleDetailClient({
           <Card className="border-border/60 bg-card/70 backdrop-blur-xs">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <QrCode className="w-4 h-4 text-primary" /> Physical Verification Sticker
+                <QrCode className="w-4 h-4 text-primary" /> Physical
+                Verification Sticker
               </CardTitle>
               <CardDescription className="text-xs">
                 QR sticker attached to windshield / body
@@ -813,7 +991,9 @@ export default function VehicleDetailClient({
               ) : (
                 <div className="p-4 rounded-2xl border border-dashed border-border/80 text-center text-xs text-muted-foreground space-y-2">
                   <QrCode className="w-8 h-8 text-muted-foreground/40 mx-auto" />
-                  <p>No physical sticker has been attached to this vehicle yet.</p>
+                  <p>
+                    No physical sticker has been attached to this vehicle yet.
+                  </p>
                 </div>
               )}
 
@@ -821,10 +1001,11 @@ export default function VehicleDetailClient({
                 <Button
                   variant="outline"
                   onClick={() => setIsScannerOpen(true)}
-                  className="w-full gap-2 rounded-xl text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
-                >
+                  className="w-full gap-2 rounded-xl text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer">
                   <Camera className="w-3.5 h-3.5" />
-                  {vehicle.stickerNumber ? "Scan New Sticker to Replace" : "Scan Physical Sticker to Attach"}
+                  {vehicle.stickerNumber
+                    ? "Scan New Sticker to Replace"
+                    : "Scan Physical Sticker to Attach"}
                 </Button>
               )}
             </CardContent>
@@ -845,7 +1026,8 @@ export default function VehicleDetailClient({
                   Assign Vehicle Identification Number (Stage 2)
                 </DialogTitle>
                 <DialogDescription className="text-xs text-slate-400">
-                  Generate official Ministry identification number for {vehicle.plateNumber}
+                  Generate official Ministry identification number for{" "}
+                  {vehicle.plateNumber}
                 </DialogDescription>
               </div>
             </div>
@@ -857,10 +1039,12 @@ export default function VehicleDetailClient({
                 VIN Code Specification
               </div>
               <div className="font-mono text-sm text-cyan-300 font-bold">
-                MOT/{vehicle.lga?.name ?? "LGA"}/{vehicle.town?.name ?? "Town"}/[Serial][Category]
+                MOT/{vehicle.lga?.name ?? "LGA"}/{vehicle.town?.name ?? "Town"}
+                /[Serial][Category]
               </div>
               <p className="text-[11px] text-slate-400">
-                Serial is auto-incremented based on registered vehicles in {vehicle.town?.name ?? "this town"}.
+                Serial is auto-incremented based on registered vehicles in{" "}
+                {vehicle.town?.name ?? "this town"}.
               </p>
             </div>
 
@@ -871,17 +1055,21 @@ export default function VehicleDetailClient({
                   {vehicle.category === "TRICYCLE"
                     ? "K (Tricycle)"
                     : vehicle.category === "TRUCK"
-                    ? "T (Truck)"
-                    : "B (Bus/Shuttle)"}
+                      ? "T (Truck)"
+                      : "B (Bus/Shuttle)"}
                 </span>
               </div>
               <div className="flex justify-between py-1 border-b border-slate-800">
                 <span className="text-slate-400">Designated LGA:</span>
-                <span className="font-bold text-white">{vehicle.lga?.name ?? "None"}</span>
+                <span className="font-bold text-white">
+                  {vehicle.lga?.name ?? "None"}
+                </span>
               </div>
               <div className="flex justify-between py-1">
                 <span className="text-slate-400">Designated Town:</span>
-                <span className="font-bold text-white">{vehicle.town?.name ?? "None"}</span>
+                <span className="font-bold text-white">
+                  {vehicle.town?.name ?? "None"}
+                </span>
               </div>
             </div>
           </div>
@@ -890,15 +1078,13 @@ export default function VehicleDetailClient({
             <Button
               variant="ghost"
               onClick={() => setIsVinDialogOpen(false)}
-              className="text-slate-400 hover:text-white rounded-xl cursor-pointer"
-            >
+              className="text-slate-400 hover:text-white rounded-xl cursor-pointer">
               Cancel
             </Button>
             <Button
               onClick={handleAssignVin}
               disabled={isPending}
-              className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl px-5 cursor-pointer"
-            >
+              className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl px-5 cursor-pointer">
               {isPending ? "Generating VIN..." : "Confirm & Assign VIN"}
             </Button>
           </DialogFooter>
@@ -945,8 +1131,7 @@ export default function VehicleDetailClient({
                       selectedDriverId === d.id
                         ? "bg-emerald-500/20 border-emerald-500 text-white"
                         : "bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-850"
-                    }`}
-                  >
+                    }`}>
                     {d.passportPhotoUrl ? (
                       <img
                         src={d.passportPhotoUrl}
@@ -960,7 +1145,9 @@ export default function VehicleDetailClient({
                     )}
                     <div className="min-w-0 flex-1 text-xs">
                       <div className="font-bold truncate">{d.fullName}</div>
-                      <div className="text-[11px] text-slate-400">{d.phoneNumber}</div>
+                      <div className="text-[11px] text-slate-400">
+                        {d.phoneNumber}
+                      </div>
                     </div>
                   </button>
                 ))}
@@ -972,15 +1159,13 @@ export default function VehicleDetailClient({
             <Button
               variant="ghost"
               onClick={() => setIsAssignDriverOpen(false)}
-              className="text-slate-400 hover:text-white rounded-xl cursor-pointer"
-            >
+              className="text-slate-400 hover:text-white rounded-xl cursor-pointer">
               Cancel
             </Button>
             <Button
               onClick={handleAssignDriverSubmit}
               disabled={isPending || !selectedDriverId}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl px-5 cursor-pointer"
-            >
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl px-5 cursor-pointer">
               {isPending ? "Assigning..." : "Confirm Driver"}
             </Button>
           </DialogFooter>
@@ -995,13 +1180,16 @@ export default function VehicleDetailClient({
             <div className="flex items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <DialogTitle className="text-xl font-bold">Edit Complete Record</DialogTitle>
+                  <DialogTitle className="text-xl font-bold">
+                    Edit Complete Record
+                  </DialogTitle>
                   <span className="font-mono text-xs px-2.5 py-0.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-bold">
                     {editPlate || vehicle.plateNumber}
                   </span>
                 </div>
                 <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                  Update vehicle particulars, ownership details, operational scope & route, and designated driver.
+                  Update vehicle particulars, ownership details, operational
+                  scope & route, and designated driver.
                 </DialogDescription>
               </div>
             </div>
@@ -1025,8 +1213,7 @@ export default function VehicleDetailClient({
                       isActive
                         ? "border-primary text-primary"
                         : "border-transparent text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
+                    }`}>
                     <Icon className="w-3.5 h-3.5" />
                     <span>{tab.label}</span>
                   </button>
@@ -1036,17 +1223,21 @@ export default function VehicleDetailClient({
           </DialogHeader>
 
           {/* Form Content */}
-          <form onSubmit={handleEditSubmit} className="flex-1 flex flex-col overflow-hidden">
+          <form
+            onSubmit={handleEditSubmit}
+            className="flex-1 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               {/* TAB 1: VEHICLE PARTICULARS */}
               {editTab === "vehicle" && (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <Truck className="w-3.5 h-3.5 text-primary" /> Vehicle Information
+                      <Truck className="w-3.5 h-3.5 text-primary" /> Vehicle
+                      Information
                     </h3>
                     <span className="text-[11px] text-muted-foreground">
-                      Fields with <span className="text-destructive">*</span> are required
+                      Fields with <span className="text-destructive">*</span>{" "}
+                      are required
                     </span>
                   </div>
 
@@ -1058,7 +1249,9 @@ export default function VehicleDetailClient({
                       </Label>
                       <Input
                         value={editPlate}
-                        onChange={(e) => setEditPlate(e.target.value.toUpperCase())}
+                        onChange={(e) =>
+                          setEditPlate(e.target.value.toUpperCase())
+                        }
                         className="font-mono uppercase font-semibold text-xs"
                         required
                       />
@@ -1067,11 +1260,14 @@ export default function VehicleDetailClient({
                     {/* Chassis Number */}
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">
-                        Chassis Number <span className="text-destructive">*</span>
+                        Chassis Number{" "}
+                        <span className="text-destructive">*</span>
                       </Label>
                       <Input
                         value={editChassis}
-                        onChange={(e) => setEditChassis(e.target.value.toUpperCase())}
+                        onChange={(e) =>
+                          setEditChassis(e.target.value.toUpperCase())
+                        }
                         className="font-mono uppercase text-xs"
                         required
                       />
@@ -1084,14 +1280,19 @@ export default function VehicleDetailClient({
                       </Label>
                       <Select
                         value={editCategory}
-                        onValueChange={(val) => setEditCategory(val as CvrVehicleCategory)}
-                      >
+                        onValueChange={(val) =>
+                          setEditCategory(val as CvrVehicleCategory)
+                        }>
                         <SelectTrigger className="text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="TRICYCLE">Tricycle (Keke)</SelectItem>
-                          <SelectItem value="SHUTTLE_BUS">Shuttle Bus</SelectItem>
+                          <SelectItem value="TRICYCLE">
+                            Tricycle (Keke)
+                          </SelectItem>
+                          <SelectItem value="SHUTTLE_BUS">
+                            Shuttle Bus
+                          </SelectItem>
                           <SelectItem value="BUS">Bus</SelectItem>
                           <SelectItem value="TRUCK">Truck / Haulage</SelectItem>
                           <SelectItem value="MINIBUS">Minibus</SelectItem>
@@ -1124,7 +1325,9 @@ export default function VehicleDetailClient({
 
                     {/* Year */}
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Manufacture Year</Label>
+                      <Label className="text-xs font-semibold">
+                        Manufacture Year
+                      </Label>
                       <Input
                         value={editYear}
                         maxLength={4}
@@ -1136,7 +1339,9 @@ export default function VehicleDetailClient({
 
                     {/* Vehicle Type */}
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Vehicle Type</Label>
+                      <Label className="text-xs font-semibold">
+                        Vehicle Type
+                      </Label>
                       <Input
                         value={editVehicleType}
                         placeholder="e.g. Passenger, Haulage"
@@ -1158,15 +1363,25 @@ export default function VehicleDetailClient({
 
                     {/* Operational Status */}
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Vehicle Status</Label>
-                      <Select value={editVehicleStatus} onValueChange={setEditVehicleStatus}>
+                      <Label className="text-xs font-semibold">
+                        Vehicle Status
+                      </Label>
+                      <Select
+                        value={editVehicleStatus}
+                        onValueChange={setEditVehicleStatus}>
                         <SelectTrigger className="text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Active">Active / Operational</SelectItem>
-                          <SelectItem value="Maintenance">Under Maintenance</SelectItem>
-                          <SelectItem value="Pending Inspection">Pending Inspection</SelectItem>
+                          <SelectItem value="Active">
+                            Active / Operational
+                          </SelectItem>
+                          <SelectItem value="Maintenance">
+                            Under Maintenance
+                          </SelectItem>
+                          <SelectItem value="Pending Inspection">
+                            Pending Inspection
+                          </SelectItem>
                           <SelectItem value="Impounded">Impounded</SelectItem>
                         </SelectContent>
                       </Select>
@@ -1174,7 +1389,9 @@ export default function VehicleDetailClient({
 
                     {/* ASIN Number */}
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">ASIN Number</Label>
+                      <Label className="text-xs font-semibold">
+                        ASIN Number
+                      </Label>
                       <Input
                         value={editAsinNumber}
                         placeholder="e.g. ASIN-12345"
@@ -1201,8 +1418,7 @@ export default function VehicleDetailClient({
                         <button
                           type="button"
                           onClick={() => setIsScannerOpen(true)}
-                          className="text-primary hover:underline text-[11px] flex items-center gap-0.5 cursor-pointer font-medium"
-                        >
+                          className="text-primary hover:underline text-[11px] flex items-center gap-0.5 cursor-pointer font-medium">
                           <QrCode className="w-3 h-3" /> Scan
                         </button>
                       </Label>
@@ -1218,8 +1434,7 @@ export default function VehicleDetailClient({
                           variant="outline"
                           size="sm"
                           onClick={() => setIsScannerOpen(true)}
-                          className="h-8 px-2 text-xs rounded-xl border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer flex-shrink-0"
-                        >
+                          className="h-8 px-2 text-xs rounded-xl border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer flex-shrink-0">
                           <Camera className="w-3.5 h-3.5" />
                         </Button>
                       </div>
@@ -1233,14 +1448,19 @@ export default function VehicleDetailClient({
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-primary" /> Registered Owner Details
+                      <User className="w-3.5 h-3.5 text-primary" /> Registered
+                      Owner Details
                     </h3>
-                    <span className="text-[11px] text-muted-foreground">All owner fields are optional</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      All owner fields are optional
+                    </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Owner Full Name</Label>
+                      <Label className="text-xs font-semibold">
+                        Owner Full Name
+                      </Label>
                       <Input
                         value={editOwnerName}
                         placeholder="e.g. Chief Emeka Okafor"
@@ -1250,7 +1470,9 @@ export default function VehicleDetailClient({
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Phone Number</Label>
+                      <Label className="text-xs font-semibold">
+                        Phone Number
+                      </Label>
                       <Input
                         value={editOwnerPhone}
                         placeholder="e.g. 0803 123 4567"
@@ -1260,7 +1482,9 @@ export default function VehicleDetailClient({
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">WhatsApp Number</Label>
+                      <Label className="text-xs font-semibold">
+                        WhatsApp Number
+                      </Label>
                       <Input
                         value={editOwnerWhatsApp}
                         placeholder="e.g. 0803 123 4567"
@@ -1271,7 +1495,9 @@ export default function VehicleDetailClient({
 
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Gender</Label>
-                      <Select value={editOwnerGender} onValueChange={setEditOwnerGender}>
+                      <Select
+                        value={editOwnerGender}
+                        onValueChange={setEditOwnerGender}>
                         <SelectTrigger className="text-xs">
                           <SelectValue placeholder="Select Gender" />
                         </SelectTrigger>
@@ -1283,8 +1509,12 @@ export default function VehicleDetailClient({
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Marital Status</Label>
-                      <Select value={editOwnerMaritalStatus} onValueChange={setEditOwnerMaritalStatus}>
+                      <Label className="text-xs font-semibold">
+                        Marital Status
+                      </Label>
+                      <Select
+                        value={editOwnerMaritalStatus}
+                        onValueChange={setEditOwnerMaritalStatus}>
                         <SelectTrigger className="text-xs">
                           <SelectValue placeholder="Select Status" />
                         </SelectTrigger>
@@ -1299,7 +1529,9 @@ export default function VehicleDetailClient({
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Residential / Business Address</Label>
+                    <Label className="text-xs font-semibold">
+                      Residential / Business Address
+                    </Label>
                     <Textarea
                       value={editOwnerAddress}
                       placeholder="Detailed address..."
@@ -1316,12 +1548,15 @@ export default function VehicleDetailClient({
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-primary" /> Operational Scope & Designated Location
+                      <MapPin className="w-3.5 h-3.5 text-primary" />{" "}
+                      Operational Scope & Designated Location
                     </h3>
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Operation Type</Label>
+                    <Label className="text-xs font-semibold">
+                      Operation Type
+                    </Label>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                       {[
                         { id: "TOWN_SERVICE", title: "Town Service" },
@@ -1331,13 +1566,14 @@ export default function VehicleDetailClient({
                         <button
                           key={op.id}
                           type="button"
-                          onClick={() => setEditOperationType(op.id as CvrOperationType)}
+                          onClick={() =>
+                            setEditOperationType(op.id as CvrOperationType)
+                          }
                           className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                             editOperationType === op.id
                               ? "bg-primary/15 border-primary text-foreground font-bold shadow-xs"
                               : "bg-muted/30 border-border text-muted-foreground hover:border-border/80"
-                          }`}
-                        >
+                          }`}>
                           <div className="text-xs">{op.title}</div>
                         </button>
                       ))}
@@ -1346,14 +1582,15 @@ export default function VehicleDetailClient({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Operating LGA</Label>
+                      <Label className="text-xs font-semibold">
+                        Operating LGA
+                      </Label>
                       <Select
                         value={editLgaId}
                         onValueChange={(val) => {
                           setEditLgaId(val);
                           setEditTownId("");
-                        }}
-                      >
+                        }}>
                         <SelectTrigger className="text-xs">
                           <SelectValue placeholder="Select LGA" />
                         </SelectTrigger>
@@ -1368,16 +1605,19 @@ export default function VehicleDetailClient({
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Operating Town / Community</Label>
+                      <Label className="text-xs font-semibold">
+                        Operating Town / Community
+                      </Label>
                       <Select
                         value={editTownId}
                         onValueChange={setEditTownId}
-                        disabled={availableTownsForEdit.length === 0}
-                      >
+                        disabled={availableTownsForEdit.length === 0}>
                         <SelectTrigger className="text-xs">
                           <SelectValue
                             placeholder={
-                              availableTownsForEdit.length > 0 ? "Select Town" : "No towns available"
+                              availableTownsForEdit.length > 0
+                                ? "Select Town"
+                                : "No towns available"
                             }
                           />
                         </SelectTrigger>
@@ -1394,11 +1634,17 @@ export default function VehicleDetailClient({
 
                   {editOperationType === "INTERSTATE" && (
                     <div className="p-3.5 rounded-2xl bg-muted/30 border border-border/80 space-y-3 mt-2">
-                      <div className="text-xs font-bold text-foreground">Interstate Route Designation</div>
+                      <div className="text-xs font-bold text-foreground">
+                        Interstate Route Designation
+                      </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <Label className="text-xs">Departure Town (Anambra Origin)</Label>
-                          <Select value={editFromTownId} onValueChange={setEditFromTownId}>
+                          <Label className="text-xs">
+                            Departure Town (Anambra Origin)
+                          </Label>
+                          <Select
+                            value={editFromTownId}
+                            onValueChange={setEditFromTownId}>
                             <SelectTrigger className="text-xs">
                               <SelectValue placeholder="Select Origin" />
                             </SelectTrigger>
@@ -1414,7 +1660,9 @@ export default function VehicleDetailClient({
 
                         <div className="space-y-1.5">
                           <Label className="text-xs">Destination Town</Label>
-                          <Select value={editToTownId} onValueChange={setEditToTownId}>
+                          <Select
+                            value={editToTownId}
+                            onValueChange={setEditToTownId}>
                             <SelectTrigger className="text-xs">
                               <SelectValue placeholder="Select Destination" />
                             </SelectTrigger>
@@ -1438,16 +1686,21 @@ export default function VehicleDetailClient({
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                      <UserCheck className="w-3.5 h-3.5 text-primary" /> Designated Driver Information
+                      <UserCheck className="w-3.5 h-3.5 text-primary" />{" "}
+                      Designated Driver Information
                     </h3>
                     <span className="text-[11px] text-muted-foreground">
-                      {vehicle.driver ? "Linked driver" : "Fill to create & assign a driver"}
+                      {vehicle.driver
+                        ? "Linked driver"
+                        : "Fill to create & assign a driver"}
                     </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Driver Full Name</Label>
+                      <Label className="text-xs font-semibold">
+                        Driver Full Name
+                      </Label>
                       <Input
                         value={editDriverName}
                         placeholder="e.g. Sunday Chukwudi"
@@ -1457,7 +1710,9 @@ export default function VehicleDetailClient({
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold">Driver Phone Number</Label>
+                      <Label className="text-xs font-semibold">
+                        Driver Phone Number
+                      </Label>
                       <Input
                         value={editDriverPhone}
                         placeholder="e.g. 0802 345 6789"
@@ -1468,7 +1723,9 @@ export default function VehicleDetailClient({
 
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold">Gender</Label>
-                      <Select value={editDriverGender} onValueChange={setEditDriverGender}>
+                      <Select
+                        value={editDriverGender}
+                        onValueChange={setEditDriverGender}>
                         <SelectTrigger className="text-xs">
                           <SelectValue placeholder="Select Gender" />
                         </SelectTrigger>
@@ -1501,7 +1758,9 @@ export default function VehicleDetailClient({
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">Residential Address</Label>
+                    <Label className="text-xs font-semibold">
+                      Residential Address
+                    </Label>
                     <Textarea
                       value={editDriverAddress}
                       placeholder="Street address..."
@@ -1532,14 +1791,18 @@ export default function VehicleDetailClient({
                         <Input
                           value={editDriverNokPhone}
                           placeholder="e.g. 0812 345 6789"
-                          onChange={(e) => setEditDriverNokPhone(e.target.value)}
+                          onChange={(e) =>
+                            setEditDriverNokPhone(e.target.value)
+                          }
                           className="text-xs"
                         />
                       </div>
 
                       <div className="space-y-1.5">
                         <Label className="text-xs">Relationship</Label>
-                        <Select value={editDriverNokRel} onValueChange={setEditDriverNokRel}>
+                        <Select
+                          value={editDriverNokRel}
+                          onValueChange={setEditDriverNokRel}>
                           <SelectTrigger className="text-xs">
                             <SelectValue placeholder="Select" />
                           </SelectTrigger>
@@ -1571,8 +1834,7 @@ export default function VehicleDetailClient({
                           <button
                             type="button"
                             onClick={() => setEditDriverPhotoUrl(null)}
-                            className="absolute -top-1.5 -right-1.5 bg-destructive text-white rounded-full p-1 shadow-sm hover:scale-110 transition-transform cursor-pointer"
-                          >
+                            className="absolute -top-1.5 -right-1.5 bg-destructive text-white rounded-full p-1 shadow-sm hover:scale-110 transition-transform cursor-pointer">
                             <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
@@ -1584,7 +1846,9 @@ export default function VehicleDetailClient({
                       )}
 
                       <div className="space-y-1">
-                        <Label htmlFor="editDriverPhotoInput" className="text-xs font-semibold block">
+                        <Label
+                          htmlFor="editDriverPhotoInput"
+                          className="text-xs font-semibold block">
                           Upload / Replace Photograph
                         </Label>
                         <input
@@ -1596,7 +1860,9 @@ export default function VehicleDetailClient({
                           className="text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-primary-foreground hover:file:opacity-90 cursor-pointer"
                         />
                         <p className="text-[11px] text-muted-foreground">
-                          {isUploadingEditPhoto ? "Uploading photograph..." : "JPG, PNG or WEBP under 5 MB."}
+                          {isUploadingEditPhoto
+                            ? "Uploading photograph..."
+                            : "JPG, PNG or WEBP under 5 MB."}
                         </p>
                       </div>
                     </div>
@@ -1618,8 +1884,7 @@ export default function VehicleDetailClient({
                       else if (editTab === "operational") setEditTab("owner");
                       else if (editTab === "owner") setEditTab("vehicle");
                     }}
-                    className="rounded-xl text-xs gap-1 cursor-pointer"
-                  >
+                    className="rounded-xl text-xs gap-1 cursor-pointer">
                     <ArrowLeft className="w-3.5 h-3.5" /> Previous Section
                   </Button>
                 )}
@@ -1633,8 +1898,7 @@ export default function VehicleDetailClient({
                       else if (editTab === "owner") setEditTab("operational");
                       else if (editTab === "operational") setEditTab("driver");
                     }}
-                    className="rounded-xl text-xs gap-1 cursor-pointer"
-                  >
+                    className="rounded-xl text-xs gap-1 cursor-pointer">
                     Next Section <ArrowRight className="w-3.5 h-3.5" />
                   </Button>
                 )}
@@ -1645,15 +1909,13 @@ export default function VehicleDetailClient({
                   type="button"
                   variant="ghost"
                   onClick={() => setIsEditOpen(false)}
-                  className="rounded-xl text-xs cursor-pointer"
-                >
+                  className="rounded-xl text-xs cursor-pointer">
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   disabled={isPending}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs px-5 shadow-sm cursor-pointer"
-                >
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs px-5 shadow-sm cursor-pointer">
                   {isPending ? "Saving All..." : "Save All Changes"}
                 </Button>
               </div>
