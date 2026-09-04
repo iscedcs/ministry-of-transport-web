@@ -107,7 +107,7 @@ const ROLE_DENIED_PREFIXES: Record<string, string[]> = {
   // Data Export and system controls stay with the System Admin. The export
   // page is a client component, so the route itself must be blocked.
   ADMIN: ["/admin/config", "/admin/export"],
-  TRACAS_MD: ["/admin/", "/payments/", "/payment/", "/inspections/"],
+  TRACAS_MD: ["/admin/", "/payments/", "/payment/", "/inspections/", "/commercial-vehicles"],
   ICT_OFFICER_TRACAS: [
     "/admin/",
     "/payments/",
@@ -116,6 +116,7 @@ const ROLE_DENIED_PREFIXES: Record<string, string[]> = {
     "/motor-parks/",
     "/fleet-operators/",
     "/boats",
+    "/commercial-vehicles",
   ],
 };
 

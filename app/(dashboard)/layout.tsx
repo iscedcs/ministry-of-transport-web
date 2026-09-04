@@ -11,6 +11,9 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getTextSetting } from "@/lib/system-config";
+import { CVR_BASE_WRITE_ROLES } from "@/lib/cvr-roles";
+import type { UserRole } from "@prisma/client";
 import { DashboardSidebar } from "./sidebar";
 import { DashboardTopbar } from "./topbar";
 import { MobileMenuProvider } from "./mobile-menu-context";
@@ -33,6 +36,21 @@ export default async function DashboardLayout({
     registeredService = user?.registeredService ?? null;
   }
 
+  // Resolve effective CVR-accessible roles for sidebar visibility.
+  // Extra roles are configured by System Admin via /admin/config without code changes.
+  const cvrExtraRaw = await getTextSetting("cvr.access.extraRoles").catch(() => "");
+  const ALL_ROLE_VALUES = new Set<string>([
+    "COMMISSIONER","PERMANENT_SECRETARY","HOD_PARKS","HOD_VIS","HOD_TRANSPORT_OPS",
+    "HOD_PARKS_REVALIDATION","FIELD_INSPECTOR","FINANCE_OFFICER","VEHICLE_INSPECTION_OFFICER",
+    "EXTERNAL_APPLICANT","PARK_MONITOR","SYSTEM_ADMIN","ADMIN","ICT_OFFICER",
+    "ICT_OFFICER_TRACAS","ENUMERATOR","TRACAS_MD",
+  ]);
+  const extraRoles = cvrExtraRaw
+    .split(",")
+    .map((r) => r.trim())
+    .filter((r) => ALL_ROLE_VALUES.has(r)) as UserRole[];
+  const cvrAllowedRoles: UserRole[] = Array.from(new Set([...CVR_BASE_WRITE_ROLES, ...extraRoles]));
+
   return (
     <MobileMenuProvider>
       <div className="flex min-h-dvh bg-background">
@@ -42,6 +60,7 @@ export default async function DashboardLayout({
             role={session.role}
             userId={session.userId}
             registeredService={registeredService}
+            cvrAllowedRoles={cvrAllowedRoles}
           />
         </div>
 

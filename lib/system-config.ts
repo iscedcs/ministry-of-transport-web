@@ -33,6 +33,7 @@ export const SETTING_GROUPS = [
   "TRACAS Letter of Authority",
   "TRACAS Driver ID Card",
   "Fleet Numbering",
+  "Commercial Vehicle Registration",
 ] as const;
 
 export const SETTINGS: SettingDef[] = [
@@ -198,6 +199,26 @@ export const SETTINGS: SettingDef[] = [
     default: "false",
     group: "Fleet Numbering",
   },
+
+  // ── Commercial Vehicle Registration ───────────────────────────────────────
+  {
+    key: "cvr.access.extraRoles",
+    label: "Extra roles with CVR access",
+    description:
+      "Comma-separated list of additional UserRole values that can access Commercial Vehicle Registration. ENUMERATOR, ADMIN, and SYSTEM_ADMIN always have access. Example: HOD_TRANSPORT_OPS,PERMANENT_SECRETARY",
+    type: "text",
+    default: "",
+    group: "Commercial Vehicle Registration",
+  },
+  {
+    key: "cvr.vin.roles",
+    label: "Roles that can assign a VIN (Stage 2)",
+    description:
+      "Comma-separated list of UserRole values that may assign a Vehicle Identification Number to a registered vehicle. SYSTEM_ADMIN always has this permission. Example: ADMIN,HOD_TRANSPORT_OPS",
+    type: "text",
+    default: "ADMIN",
+    group: "Commercial Vehicle Registration",
+  },
 ];
 
 const BY_KEY = new Map(SETTINGS.map((s) => [s.key, s]));
@@ -257,4 +278,14 @@ export async function getBoolSettings(
     out[k] = (stored.get(k) ?? BY_KEY.get(k)?.default ?? "false") === "true";
   }
   return out;
+}
+
+/** A single text setting. Returns the stored value or the declared default. */
+export async function getTextSetting(key: string): Promise<string> {
+  const def = BY_KEY.get(key);
+  const row = await db.systemConfiguration.findUnique({
+    where: { configKey: key },
+    select: { configValue: true },
+  });
+  return row?.configValue ?? def?.default ?? "";
 }
