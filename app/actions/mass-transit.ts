@@ -36,6 +36,7 @@ import {
 } from "@/lib/auth";
 import { inspectionScheduleSchema } from "@/lib/validation-schemas";
 import type { ActionResult } from "@/lib/server-actions-pattern";
+import { checkDuplicatePlateNumber } from "@/lib/plate-validation";
 
 // ==================== SHARED SCHEMAS ====================
 
@@ -832,14 +833,11 @@ export async function addVehicle(
 
   const v = parsed.data;
 
-  const existing = await db.vehicle.findUnique({
-    where: { registrationNumber: v.registrationNumber },
-    select: { id: true },
-  });
-  if (existing) {
+  const plateCheck = await checkDuplicatePlateNumber(v.registrationNumber);
+  if (plateCheck.isTaken) {
     return {
       success: false,
-      error: "A vehicle with this registration number already exists.",
+      error: plateCheck.message || "A vehicle with this registration number already exists.",
     };
   }
 
@@ -2050,6 +2048,15 @@ export async function addVehicleToSubmission(
   }
   const v = parsed.data;
 
+  // Plate numbers are unique platform-wide
+  const plateCheck = await checkDuplicatePlateNumber(v.registrationNumber);
+  if (plateCheck.isTaken) {
+    return {
+      success: false,
+      error: plateCheck.message || `A vehicle with registration '${v.registrationNumber}' is already registered.`,
+    };
+  }
+
   // Engine and chassis numbers are unique platform-wide; a clear message here
   // beats a database constraint error.
   const clash = await db.vehicle.findFirst({
@@ -2057,7 +2064,6 @@ export async function addVehicleToSubmission(
       OR: [
         { engineNumber: v.engineNumber },
         { chassisNumber: v.chassisNumber },
-        { registrationNumber: v.registrationNumber },
       ],
     },
     select: { registrationNumber: true },
@@ -2257,6 +2263,28 @@ export async function submitVehicleDetails(
       };
     }
     parsedVehicles.push(v.data);
+  }
+
+  // Verify intra-batch uniqueness and platform-wide plate collision
+  const seenBatchPlates = new Set<string>();
+  for (let i = 0; i < parsedVehicles.length; i++) {
+    const reg = parsedVehicles[i].registrationNumber.trim().toUpperCase();
+    const compact = reg.replace(/[^A-Z0-9]/g, "");
+    if (seenBatchPlates.has(compact)) {
+      return {
+        success: false,
+        error: `Duplicate plate number '${reg}' found within your submission batch (Vehicle ${i + 1}).`,
+      };
+    }
+    seenBatchPlates.add(compact);
+
+    const plateCheck = await checkDuplicatePlateNumber(reg);
+    if (plateCheck.isTaken) {
+      return {
+        success: false,
+        error: `Vehicle ${i + 1}: ${plateCheck.message || `Plate number '${reg}' is already registered.`}`,
+      };
+    }
   }
 
   // Create vehicle submissions and create Vehicle records
