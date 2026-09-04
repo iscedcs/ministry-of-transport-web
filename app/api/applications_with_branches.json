@@ -1,0 +1,1886 @@
+{
+  "generatedAt": "2026-09-04T07:29:35.689Z",
+  "totalRecordsInSource": 264,
+  "summary": {
+    "totalApplicationsWithMultipleBranches": 16,
+    "totalStrictMassTransitApplications": 30,
+    "strictMassTransitsWithMultipleBranches": 5,
+    "strictMassTransitsWithSingleBranch": 25,
+    "totalTransportOrTransitApplications": 61
+  },
+  "multiBranchApplications": [
+    {
+      "applicationId": "278",
+      "formSerialNumber": "ASI-MOT-RVF-2026/AKWA",
+      "asinNumber": "17645629773",
+      "dateOfApplication": "2026-07-27",
+      "parkName": "Samkos (Park) Plaza",
+      "ownerName": "Akwa Ibom Transport Company Limited",
+      "ownershipType": "Government",
+      "facilityType": "Private",
+      "serviceTypes": [
+        "Inter-State",
+        "Buses"
+      ],
+      "headquarterLocation": {
+        "physicalLocation": "Unizik Term Site Awka",
+        "townCommunity": "Awka",
+        "lgaCode": "3"
+      },
+      "contact": {
+        "phoneNumber": "08035448492",
+        "alternatePhoneNumber": "",
+        "emailAddress": "edetsolo@gmail.com"
+      },
+      "totalBranchesCount": 2,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "312",
+          "parentParkId": "278",
+          "branchName": "Samkos (Park) Plaza",
+          "physicalLocation": "Unizik Term Site Awka",
+          "lga": "Awka South",
+          "townCommunity": "Awka",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State",
+            "Buses"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Mini Bus"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "313",
+          "parentParkId": "278",
+          "branchName": "AKTC",
+          "physicalLocation": "Owerri Road Onitsha",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State",
+            "Buses"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Mini Bus"
+          ]
+        }
+      ]
+    },
+    {
+      "applicationId": "258",
+      "formSerialNumber": "ASI-MOT-RVF-2026/GOOD",
+      "asinNumber": "2041033457",
+      "dateOfApplication": "2026-07-19",
+      "parkName": "Goodness & Mercy Mass Transit",
+      "ownerName": "Goodness & Mercy Mass Transit Company",
+      "ownershipType": "Registered Company",
+      "facilityType": "Private",
+      "serviceTypes": [
+        "Inter-State"
+      ],
+      "headquarterLocation": {
+        "physicalLocation": "1A/2B Ezeiweka Road Obosi",
+        "townCommunity": "Obosi",
+        "lgaCode": "10"
+      },
+      "contact": {
+        "phoneNumber": "07039242484",
+        "alternatePhoneNumber": "",
+        "emailAddress": "onyeiez@gmail.com"
+      },
+      "totalBranchesCount": 2,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "291",
+          "parentParkId": "258",
+          "branchName": "Goodness & Mercy Mass Transit",
+          "physicalLocation": "1A/2B Ezeiweka Road Obosi",
+          "lga": "Idemili North",
+          "townCommunity": "Obosi",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "21-50",
+          "vehicleTypes": [
+            "Mini Bus"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "292",
+          "parentParkId": "258",
+          "branchName": "Goodness & Mercy Mass Transit",
+          "physicalLocation": "Nnewi",
+          "lga": "Nnewi North",
+          "townCommunity": "Nnewi Town",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "21-50",
+          "vehicleTypes": [
+            "Mini Bus"
+          ]
+        }
+      ]
+    },
+    {
+      "applicationId": "254",
+      "formSerialNumber": "ASI-MOT-RVF-2026/IN G",
+      "asinNumber": "167533631876",
+      "dateOfApplication": "2026-07-19",
+      "parkName": "In God We Trust Mass Transit",
+      "ownerName": "In God We Trust Mass Transit",
+      "ownershipType": "Individual",
+      "facilityType": "Public",
+      "serviceTypes": [],
+      "headquarterLocation": {
+        "physicalLocation": "17 Nnobi Road Nnewi",
+        "townCommunity": "Nnewi Town",
+        "lgaCode": "14"
+      },
+      "contact": {
+        "phoneNumber": "08037747747",
+        "alternatePhoneNumber": "08062724346",
+        "emailAddress": "eloochidalu@gmail.com"
+      },
+      "totalBranchesCount": 2,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "286",
+          "parentParkId": "254",
+          "branchName": "In God We Trust Mass Transit",
+          "physicalLocation": "17 Nnobi Road Nnewi",
+          "lga": "Nnewi North",
+          "townCommunity": "Nnewi Town",
+          "facilityType": "Public",
+          "serviceTypes": [],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Mini Bus",
+            "Others"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "287",
+          "parentParkId": "254",
+          "branchName": "In God We Trust Mass Transit",
+          "physicalLocation": "Quality Park (P.N.Emerah) Oguta Road Onitsha",
+          "lga": "Onitsha North",
+          "townCommunity": "Onisha",
+          "facilityType": "Public",
+          "serviceTypes": [
+            "Inter-State"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Others"
+          ]
+        }
+      ]
+    },
+    {
+      "applicationId": "250",
+      "formSerialNumber": "ASI-MOT-RVF-2026/G.U.",
+      "asinNumber": "1014817389",
+      "dateOfApplication": "2026-07-18",
+      "parkName": "G.U.O Transport Co. And Logistics",
+      "ownerName": "G.U.O Transport Co. and Logistics",
+      "ownershipType": "Registered Company",
+      "facilityType": "Private",
+      "serviceTypes": [
+        "Inter-State",
+        "Intra-State",
+        "Buses",
+        "Luxury Bus",
+        "Logistics"
+      ],
+      "headquarterLocation": {
+        "physicalLocation": "Upper Iweka",
+        "townCommunity": "Onitsha",
+        "lgaCode": "20"
+      },
+      "contact": {
+        "phoneNumber": "09066398630",
+        "alternatePhoneNumber": "08033131918",
+        "emailAddress": "onyeka.nwankwo@guotransport.com"
+      },
+      "totalBranchesCount": 5,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "278",
+          "parentParkId": "250",
+          "branchName": "G.U.O Transport Co. And Logistics",
+          "physicalLocation": "Upper Iweka",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State",
+            "Intra-State",
+            "Buses",
+            "Luxury Bus",
+            "Logistics"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "21-50",
+          "vehicleTypes": [
+            "Mini Bus",
+            "Luxury Bus"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "279",
+          "parentParkId": "250",
+          "branchName": "G.U.O Transport Co. And Logistics",
+          "physicalLocation": "Temp. Site Awka",
+          "lga": "Awka South",
+          "townCommunity": "Awka",
+          "facilityType": "",
+          "serviceTypes": [
+            "Inter-State",
+            "Intra-State",
+            "Buses",
+            "Luxury Bus",
+            "Logistics"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "21-50",
+          "vehicleTypes": [
+            "Mini Bus",
+            "Luxury Bus"
+          ]
+        },
+        {
+          "branchIndex": 3,
+          "branchId": "280",
+          "parentParkId": "250",
+          "branchName": "G.U.O Transport Co. And Logistics",
+          "physicalLocation": "Solution Park Ekwulobia",
+          "lga": "Aguata",
+          "townCommunity": "Ekwulobia",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State",
+            "Intra-State",
+            "Buses",
+            "Luxury Bus",
+            "Logistics"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "21-50",
+          "vehicleTypes": [
+            "Mini Bus",
+            "Luxury Bus"
+          ]
+        },
+        {
+          "branchIndex": 4,
+          "branchId": "281",
+          "parentParkId": "250",
+          "branchName": "G.U.O Transport Co. And Logistics",
+          "physicalLocation": "Onitsha New Market Road",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State",
+            "Intra-State",
+            "Buses",
+            "Luxury Bus",
+            "Logistics"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "21-50",
+          "vehicleTypes": [
+            "Mini Bus",
+            "Luxury Bus"
+          ]
+        },
+        {
+          "branchIndex": 5,
+          "branchId": "282",
+          "parentParkId": "250",
+          "branchName": "G.U.O Transport Co. And Logistics",
+          "physicalLocation": "Nnewi Round About",
+          "lga": "Nnewi North",
+          "townCommunity": "Nnewi Town",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State",
+            "Intra-State",
+            "Buses",
+            "Logistics",
+            "Luxury Bus"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "21-50",
+          "vehicleTypes": [
+            "Mini Bus",
+            "Luxury Bus"
+          ]
+        }
+      ]
+    },
+    {
+      "applicationId": "237",
+      "formSerialNumber": "ASI-MOT-RVF-2026/PEAC",
+      "asinNumber": "2041457668",
+      "dateOfApplication": "2026-07-10",
+      "parkName": "Peace Park Oguta Road",
+      "ownerName": "Peace Mass Transit (Samuel Maduka Onyishi)",
+      "ownershipType": "Individual",
+      "facilityType": "Private",
+      "serviceTypes": [
+        "Inter-State",
+        "Buses"
+      ],
+      "headquarterLocation": {
+        "physicalLocation": "Oguta Road Onitsha",
+        "townCommunity": "Onisha",
+        "lgaCode": "21"
+      },
+      "contact": {
+        "phoneNumber": "08110803137",
+        "alternatePhoneNumber": "08039568281",
+        "emailAddress": "omesezeh@gmail.com"
+      },
+      "totalBranchesCount": 3,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "263",
+          "parentParkId": "237",
+          "branchName": "Peace Park Oguta Road",
+          "physicalLocation": "Oguta Road Onitsha",
+          "lga": "Onitsha North",
+          "townCommunity": "Onisha",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State",
+            "Buses"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Mini Bus"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "264",
+          "parentParkId": "237",
+          "branchName": "Peace Park Obosi",
+          "physicalLocation": "Obosi",
+          "lga": "Idemili North",
+          "townCommunity": "Obosi",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Buses"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": []
+        },
+        {
+          "branchIndex": 3,
+          "branchId": "265",
+          "parentParkId": "237",
+          "branchName": "Peace Park Awka",
+          "physicalLocation": "Unizik Term Site Junction Awka",
+          "lga": "Awka South",
+          "townCommunity": "Awka",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Buses"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Mini Bus"
+          ]
+        }
+      ]
+    },
+    {
+      "applicationId": "236",
+      "formSerialNumber": "ASI-MOT-RVF-2026/CHIE",
+      "asinNumber": "2045773008",
+      "dateOfApplication": "2026-07-10",
+      "parkName": "F. G. Onyenwe Park",
+      "ownerName": "Chief Ebere Onyenwe (F.G. ONYENWE)",
+      "ownershipType": "Registered Company",
+      "facilityType": "Private",
+      "serviceTypes": [
+        "Inter-State",
+        "Luxury Bus"
+      ],
+      "headquarterLocation": {
+        "physicalLocation": "Upper Iweka",
+        "townCommunity": "Onitsha",
+        "lgaCode": "20"
+      },
+      "contact": {
+        "phoneNumber": "07061807599",
+        "alternatePhoneNumber": "",
+        "emailAddress": "onyenwef.g.@gmail.com"
+      },
+      "totalBranchesCount": 2,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "261",
+          "parentParkId": "236",
+          "branchName": "F. G. Onyenwe Park",
+          "physicalLocation": "Upper Iweka",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State",
+            "Luxury Bus"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Luxury Bus"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "262",
+          "parentParkId": "236",
+          "branchName": "F. G. Onyenwe Park",
+          "physicalLocation": "KM 12 Enugu Onitsha Express Road",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Luxury Bus"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Luxury Bus"
+          ]
+        }
+      ]
+    },
+    {
+      "applicationId": "197",
+      "formSerialNumber": "ASI-MOT-RVF-2026/TOMA",
+      "asinNumber": "16301332266",
+      "dateOfApplication": "2026-07-02",
+      "parkName": "Tomarvez Park",
+      "ownerName": "Tomarvez Park",
+      "ownershipType": "Individual",
+      "facilityType": "Private",
+      "serviceTypes": [
+        "Keke",
+        "Buses"
+      ],
+      "headquarterLocation": {
+        "physicalLocation": "2B Notlidge street Onitsha",
+        "townCommunity": "Onitsha",
+        "lgaCode": "20"
+      },
+      "contact": {
+        "phoneNumber": "07069959050",
+        "alternatePhoneNumber": "07034615553",
+        "emailAddress": "toxino_mews@yahoo.com"
+      },
+      "totalBranchesCount": 2,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "221",
+          "parentParkId": "197",
+          "branchName": "Tomarvez Park",
+          "physicalLocation": "2B Notlidge street Onitsha",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Keke",
+            "Buses"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "",
+          "vehicleTypes": [
+            "Tricycle"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "222",
+          "parentParkId": "197",
+          "branchName": "Tomarvez Park 2",
+          "physicalLocation": "1 Venn road north Onitsha",
+          "lga": "Onitsha North",
+          "townCommunity": "Onisha",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Keke",
+            "Buses"
+          ],
+          "operationalStatus": "Under Renovation",
+          "vehiclesPerDay": "",
+          "vehicleTypes": [
+            "Tricycle"
+          ]
+        }
+      ]
+    },
+    {
+      "applicationId": "194",
+      "formSerialNumber": "ASI-MOT-RVF-2026/MALU",
+      "asinNumber": "16414405771",
+      "dateOfApplication": "2026-07-01",
+      "parkName": "Maluchukwu",
+      "ownerName": "Maluchukwu Odoakpu MultiPurpose Cooperative Society Onitsha",
+      "ownershipType": "Cooperative Society",
+      "facilityType": "Private",
+      "serviceTypes": [
+        "Keke"
+      ],
+      "headquarterLocation": {
+        "physicalLocation": "DMGS ROUNDABOUT ONITSHA",
+        "townCommunity": "Onisha",
+        "lgaCode": "21"
+      },
+      "contact": {
+        "phoneNumber": "07037477918",
+        "alternatePhoneNumber": "08030434822",
+        "emailAddress": ""
+      },
+      "totalBranchesCount": 2,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "217",
+          "parentParkId": "194",
+          "branchName": "Maluchukwu",
+          "physicalLocation": "DMGS ROUNDABOUT ONITSHA",
+          "lga": "Onitsha North",
+          "townCommunity": "Onisha",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Keke"
+          ],
+          "operationalStatus": "Partially Operational",
+          "vehiclesPerDay": "21-50",
+          "vehicleTypes": [
+            "Tricycle"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "218",
+          "parentParkId": "194",
+          "branchName": "Maluchukwu",
+          "physicalLocation": "Iweka Road Modebe Avenue Junction",
+          "lga": "Onitsha North",
+          "townCommunity": "Onisha",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Keke"
+          ],
+          "operationalStatus": "Partially Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Tricycle"
+          ]
+        }
+      ]
+    },
+    {
+      "applicationId": "175",
+      "formSerialNumber": "ASI-MOT-RVF-2026/SIR ",
+      "asinNumber": "171032734839",
+      "dateOfApplication": "2026-06-23",
+      "parkName": "Cojans Mass Transit Enterprises",
+      "ownerName": "Sir Godfrey Chika Charles",
+      "ownershipType": "Individual",
+      "facilityType": "Private",
+      "serviceTypes": [],
+      "headquarterLocation": {
+        "physicalLocation": "160 Portharcourt Road",
+        "townCommunity": "Onitsha",
+        "lgaCode": "20"
+      },
+      "contact": {
+        "phoneNumber": "08031364161",
+        "alternatePhoneNumber": "07032180021",
+        "emailAddress": ""
+      },
+      "totalBranchesCount": 2,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "197",
+          "parentParkId": "175",
+          "branchName": "Cojans Mass Transit Enterprises",
+          "physicalLocation": "160 Portharcourt Road",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha",
+          "facilityType": "Private",
+          "serviceTypes": [],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Mini Bus"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "198",
+          "parentParkId": "175",
+          "branchName": "Cojans Mass Transit Enterprises",
+          "physicalLocation": "",
+          "lga": "",
+          "townCommunity": "",
+          "facilityType": "Private",
+          "serviceTypes": [],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Mini Bus"
+          ]
+        }
+      ]
+    },
+    {
+      "applicationId": "171",
+      "formSerialNumber": "FSN-2026-0001",
+      "asinNumber": "ASN-2026-4201",
+      "dateOfApplication": "2026-06-14",
+      "parkName": "ABC Transport Main Terminal",
+      "ownerName": "ABC Transport Services Limited",
+      "ownershipType": "Company",
+      "facilityType": "Motor Park",
+      "serviceTypes": [
+        "Passenger Transport",
+        "Cargo Services"
+      ],
+      "headquarterLocation": {
+        "physicalLocation": "Mile 2, Lagos",
+        "townCommunity": "Amuwo Odofin",
+        "lgaCode": "Amuwo Odofin"
+      },
+      "contact": {
+        "phoneNumber": "08012345678",
+        "alternatePhoneNumber": "08087654321",
+        "emailAddress": "info@abctransport.com"
+      },
+      "totalBranchesCount": 2,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "192",
+          "parentParkId": "171",
+          "branchName": "ABC Transport Oshodi Branch",
+          "physicalLocation": "Oshodi Bus Terminal",
+          "lga": "Oshodi-Isolo",
+          "townCommunity": "Oshodi",
+          "facilityType": "Motor Park",
+          "serviceTypes": [
+            "Passenger Transport",
+            "Cargo Services"
+          ],
+          "operationalStatus": "Operational",
+          "vehiclesPerDay": "120",
+          "vehicleTypes": [
+            "Bus",
+            "Mini Bus"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "193",
+          "parentParkId": "171",
+          "branchName": "ABC Transport Yaba Branch",
+          "physicalLocation": "Yaba Terminal",
+          "lga": "Lagos Mainland",
+          "townCommunity": "Yaba",
+          "facilityType": "Terminal",
+          "serviceTypes": [
+            "Passenger Transport"
+          ],
+          "operationalStatus": "Operational",
+          "vehiclesPerDay": "80",
+          "vehicleTypes": [
+            "Bus"
+          ]
+        }
+      ]
+    },
+    {
+      "applicationId": "168",
+      "formSerialNumber": "ASI-MOT-RVF-2026/OKEY",
+      "asinNumber": "2040706685",
+      "dateOfApplication": "2026-06-21",
+      "parkName": "Okeyson Investment Services Ltd",
+      "ownerName": "Okeyson Investment Services",
+      "ownershipType": "Individual",
+      "facilityType": "Private",
+      "serviceTypes": [
+        "Inter-State"
+      ],
+      "headquarterLocation": {
+        "physicalLocation": "Enugu/Onitsha Express way Awka",
+        "townCommunity": "Awka",
+        "lgaCode": "3"
+      },
+      "contact": {
+        "phoneNumber": "07031654516",
+        "alternatePhoneNumber": "",
+        "emailAddress": "nwozorsamuel81@gmail.com"
+      },
+      "totalBranchesCount": 2,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "188",
+          "parentParkId": "168",
+          "branchName": "Okeyson Investment Services Ltd",
+          "physicalLocation": "Enugu/Onitsha Express way Awka",
+          "lga": "Awka South",
+          "townCommunity": "Awka",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Mini Bus"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "189",
+          "parentParkId": "168",
+          "branchName": "Okeyson Investment Services Ltd",
+          "physicalLocation": "Onitsha/Asaba express way Onitsha",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Mini Bus"
+          ]
+        }
+      ]
+    },
+    {
+      "applicationId": "161",
+      "formSerialNumber": "FSN-2026-0001",
+      "asinNumber": "ASN-2026-0041",
+      "dateOfApplication": "2026-06-14",
+      "parkName": "ABC Transport Main Terminal",
+      "ownerName": "ABC Transport Services Limited",
+      "ownershipType": "Company",
+      "facilityType": "Motor Park",
+      "serviceTypes": [
+        "Passenger Transport",
+        "Cargo Services"
+      ],
+      "headquarterLocation": {
+        "physicalLocation": "Mile 2, Lagos",
+        "townCommunity": "Amuwo Odofin",
+        "lgaCode": "Amuwo Odofin"
+      },
+      "contact": {
+        "phoneNumber": "08012345678",
+        "alternatePhoneNumber": "08087654321",
+        "emailAddress": "info@abctransport.com"
+      },
+      "totalBranchesCount": 2,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "180",
+          "parentParkId": "161",
+          "branchName": "ABC Transport Oshodi Branch",
+          "physicalLocation": "Oshodi Bus Terminal",
+          "lga": "Oshodi-Isolo",
+          "townCommunity": "Oshodi",
+          "facilityType": "Motor Park",
+          "serviceTypes": [
+            "Passenger Transport",
+            "Cargo Services"
+          ],
+          "operationalStatus": "Operational",
+          "vehiclesPerDay": "120",
+          "vehicleTypes": [
+            "Bus",
+            "Mini Bus"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "181",
+          "parentParkId": "161",
+          "branchName": "ABC Transport Yaba Branch",
+          "physicalLocation": "Yaba Terminal",
+          "lga": "Lagos Mainland",
+          "townCommunity": "Yaba",
+          "facilityType": "Terminal",
+          "serviceTypes": [
+            "Passenger Transport"
+          ],
+          "operationalStatus": "Operational",
+          "vehiclesPerDay": "80",
+          "vehicleTypes": [
+            "Bus"
+          ]
+        }
+      ]
+    },
+    {
+      "applicationId": "153",
+      "formSerialNumber": "FSN-2026-0001",
+      "asinNumber": "ASN-2026-0001",
+      "dateOfApplication": "2026-06-14",
+      "parkName": "ABC Transport Main Terminal",
+      "ownerName": "ABC Transport Services Limited",
+      "ownershipType": "Company",
+      "facilityType": "Motor Park",
+      "serviceTypes": [
+        "Passenger Transport",
+        "Cargo Services"
+      ],
+      "headquarterLocation": {
+        "physicalLocation": "Mile 2, Lagos",
+        "townCommunity": "Amuwo Odofin",
+        "lgaCode": "Amuwo Odofin"
+      },
+      "contact": {
+        "phoneNumber": "08012345678",
+        "alternatePhoneNumber": "08087654321",
+        "emailAddress": "info@abctransport.com"
+      },
+      "totalBranchesCount": 2,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "171",
+          "parentParkId": "153",
+          "branchName": "ABC Transport Oshodi Branch",
+          "physicalLocation": "Oshodi Bus Terminal",
+          "lga": "Oshodi-Isolo",
+          "townCommunity": "Oshodi",
+          "facilityType": "Motor Park",
+          "serviceTypes": [
+            "Passenger Transport",
+            "Cargo Services"
+          ],
+          "operationalStatus": "Operational",
+          "vehiclesPerDay": "120",
+          "vehicleTypes": [
+            "Bus",
+            "Mini Bus"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "172",
+          "parentParkId": "153",
+          "branchName": "ABC Transport Yaba Branch",
+          "physicalLocation": "Yaba Terminal",
+          "lga": "Lagos Mainland",
+          "townCommunity": "Yaba",
+          "facilityType": "Terminal",
+          "serviceTypes": [
+            "Passenger Transport"
+          ],
+          "operationalStatus": "Operational",
+          "vehiclesPerDay": "80",
+          "vehicleTypes": [
+            "Bus"
+          ]
+        }
+      ]
+    },
+    {
+      "applicationId": "150",
+      "formSerialNumber": "ASI-MOT-RVF-2026/MRS ",
+      "asinNumber": "2040144518",
+      "dateOfApplication": "2026-06-20",
+      "parkName": "Ekwulobia Urban Mass Transit",
+      "ownerName": "Mrs Ginika Okoli",
+      "ownershipType": "Registered Company",
+      "facilityType": "Private",
+      "serviceTypes": [
+        "Inter-State",
+        "Intra-State",
+        "Buses"
+      ],
+      "headquarterLocation": {
+        "physicalLocation": "Ekwulobia",
+        "townCommunity": "Ekwulobia",
+        "lgaCode": "1"
+      },
+      "contact": {
+        "phoneNumber": "08063621234",
+        "alternatePhoneNumber": "",
+        "emailAddress": ""
+      },
+      "totalBranchesCount": 7,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "162",
+          "parentParkId": "150",
+          "branchName": "Ekwulobia Urban Mass Transit",
+          "physicalLocation": "Ekwulobia",
+          "lga": "Aguata",
+          "townCommunity": "Ekwulobia",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State",
+            "Intra-State",
+            "Buses"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "51-100",
+          "vehicleTypes": [
+            "Shuttle Bus",
+            "Mini Bus"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "163",
+          "parentParkId": "150",
+          "branchName": "Ekwulobia Urban Mass",
+          "physicalLocation": "Awka",
+          "lga": "Awka South",
+          "townCommunity": "Awka",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State",
+            "Intra-State",
+            "Buses"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Shuttle Bus",
+            "Mini Bus"
+          ]
+        },
+        {
+          "branchIndex": 3,
+          "branchId": "164",
+          "parentParkId": "150",
+          "branchName": "Ekwulobia Urban Mass Transit",
+          "physicalLocation": "Oko",
+          "lga": "Orumba North",
+          "townCommunity": "Oko",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State",
+            "Intra-State",
+            "Buses"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "",
+          "vehicleTypes": [
+            "Shuttle Bus",
+            "Mini Bus"
+          ]
+        },
+        {
+          "branchIndex": 4,
+          "branchId": "165",
+          "parentParkId": "150",
+          "branchName": "Ekwulobia Urban Mass Transit",
+          "physicalLocation": "Uga",
+          "lga": "Aguata",
+          "townCommunity": "Uga",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State",
+            "Intra-State",
+            "Buses"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "",
+          "vehicleTypes": [
+            "Shuttle Bus",
+            "Mini Bus"
+          ]
+        },
+        {
+          "branchIndex": 5,
+          "branchId": "166",
+          "parentParkId": "150",
+          "branchName": "Ekwulobia Urban Mass Transit",
+          "physicalLocation": "Umunze",
+          "lga": "Orumba South",
+          "townCommunity": "Umunze",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State",
+            "Intra-State",
+            "Buses"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "",
+          "vehicleTypes": [
+            "Shuttle Bus",
+            "Mini Bus"
+          ]
+        },
+        {
+          "branchIndex": 6,
+          "branchId": "167",
+          "parentParkId": "150",
+          "branchName": "Ekwulobia Urban Mass Transit",
+          "physicalLocation": "Onitsha",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State",
+            "Intra-State",
+            "Buses"
+          ],
+          "operationalStatus": "",
+          "vehiclesPerDay": "",
+          "vehicleTypes": [
+            "Shuttle Bus",
+            "Mini Bus"
+          ]
+        },
+        {
+          "branchIndex": 7,
+          "branchId": "168",
+          "parentParkId": "150",
+          "branchName": "Ekwulobia Urban Mass Transit",
+          "physicalLocation": "Nnewi",
+          "lga": "Nnewi North",
+          "townCommunity": "Nnewi Town",
+          "facilityType": "Private",
+          "serviceTypes": [
+            "Inter-State",
+            "Intra-State",
+            "Buses"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "",
+          "vehicleTypes": [
+            "Shuttle Bus",
+            "Mini Bus"
+          ]
+        }
+      ]
+    },
+    {
+      "applicationId": "126",
+      "formSerialNumber": "ASI-MOT-RVF-2026/UC A",
+      "asinNumber": "3464301335",
+      "dateOfApplication": "2026-06-19",
+      "parkName": "UC Amii Ventures",
+      "ownerName": "UC Amii Ventures Transport",
+      "ownershipType": "Registered Company",
+      "facilityType": "Loading Bay",
+      "serviceTypes": [
+        "Keke",
+        "Cargo"
+      ],
+      "headquarterLocation": {
+        "physicalLocation": "1 Ifitedunu street Omagba",
+        "townCommunity": "Onisha",
+        "lgaCode": "21"
+      },
+      "contact": {
+        "phoneNumber": "08037144029",
+        "alternatePhoneNumber": "08125545040",
+        "emailAddress": ""
+      },
+      "totalBranchesCount": 2,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "137",
+          "parentParkId": "126",
+          "branchName": "UC Amii Ventures",
+          "physicalLocation": "1 Ifitedunu street Omagba",
+          "lga": "Onitsha North",
+          "townCommunity": "Onisha",
+          "facilityType": "Loading Bay",
+          "serviceTypes": [
+            "Keke",
+            "Cargo"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "",
+          "vehicleTypes": [
+            "Tricycle",
+            "Mini Bus"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "138",
+          "parentParkId": "126",
+          "branchName": "UC Amii Ventures",
+          "physicalLocation": "3 Oba street Fegge",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha",
+          "facilityType": "Loading Bay",
+          "serviceTypes": [
+            "Cargo"
+          ],
+          "operationalStatus": "Fully Operational",
+          "vehiclesPerDay": "",
+          "vehicleTypes": [
+            "Tricycle",
+            "Mini Bus"
+          ]
+        }
+      ]
+    },
+    {
+      "applicationId": "93",
+      "formSerialNumber": "ASI-MOT-RVF-2026/CLEA",
+      "asinNumber": "167525890393",
+      "dateOfApplication": "2026-06-18",
+      "parkName": "Clean Park",
+      "ownerName": "Clean and Clear Consults",
+      "ownershipType": "Registered Company",
+      "facilityType": "Loading Bay",
+      "serviceTypes": [
+        "Intra-State",
+        "Keke",
+        "Motorcycle"
+      ],
+      "headquarterLocation": {
+        "physicalLocation": "Afor Nanka",
+        "townCommunity": "Nanka",
+        "lgaCode": "16"
+      },
+      "contact": {
+        "phoneNumber": "08066776899",
+        "alternatePhoneNumber": "08063119711",
+        "emailAddress": "ejikenwafor@gmail.com"
+      },
+      "totalBranchesCount": 2,
+      "branches": [
+        {
+          "branchIndex": 1,
+          "branchId": "103",
+          "parentParkId": "93",
+          "branchName": "Clean Park",
+          "physicalLocation": "Afor Nanka",
+          "lga": "Orumba North",
+          "townCommunity": "Nanka",
+          "facilityType": "Loading Bay",
+          "serviceTypes": [
+            "Intra-State",
+            "Keke",
+            "Motorcycle"
+          ],
+          "operationalStatus": "Partially Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Motorcycle",
+            "Tricycle"
+          ]
+        },
+        {
+          "branchIndex": 2,
+          "branchId": "104",
+          "parentParkId": "93",
+          "branchName": "Clean Park 2",
+          "physicalLocation": "Pillar Pole Junction Nanka",
+          "lga": "Orumba North",
+          "townCommunity": "Nanka",
+          "facilityType": "Loading Bay",
+          "serviceTypes": [
+            "Intra-State",
+            "Motorcycle"
+          ],
+          "operationalStatus": "Partially Operational",
+          "vehiclesPerDay": "5-20",
+          "vehicleTypes": [
+            "Motorcycle"
+          ]
+        }
+      ]
+    }
+  ],
+  "strictMassTransitApplications": [
+    {
+      "applicationId": "259",
+      "parkName": "Nkpor Central Park",
+      "ownerName": "De United Drivers Mass Transit",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "Nkpor Umuoji Road",
+      "townCommunity": "Nkpor",
+      "lgaCode": "10",
+      "branches": [
+        {
+          "branchId": "293",
+          "branchName": "Nkpor Central Park",
+          "physicalLocation": "Nkpor Umuoji Road",
+          "lga": "Idemili North",
+          "townCommunity": "Nkpor"
+        }
+      ]
+    },
+    {
+      "applicationId": "258",
+      "parkName": "Goodness & Mercy Mass Transit",
+      "ownerName": "Goodness & Mercy Mass Transit Company",
+      "hasMultipleBranches": true,
+      "branchCount": 2,
+      "physicalLocation": "1A/2B Ezeiweka Road Obosi",
+      "townCommunity": "Obosi",
+      "lgaCode": "10",
+      "branches": [
+        {
+          "branchId": "291",
+          "branchName": "Goodness & Mercy Mass Transit",
+          "physicalLocation": "1A/2B Ezeiweka Road Obosi",
+          "lga": "Idemili North",
+          "townCommunity": "Obosi"
+        },
+        {
+          "branchId": "292",
+          "branchName": "Goodness & Mercy Mass Transit",
+          "physicalLocation": "Nnewi",
+          "lga": "Nnewi North",
+          "townCommunity": "Nnewi Town"
+        }
+      ]
+    },
+    {
+      "applicationId": "254",
+      "parkName": "In God We Trust Mass Transit",
+      "ownerName": "In God We Trust Mass Transit",
+      "hasMultipleBranches": true,
+      "branchCount": 2,
+      "physicalLocation": "17 Nnobi Road Nnewi",
+      "townCommunity": "Nnewi Town",
+      "lgaCode": "14",
+      "branches": [
+        {
+          "branchId": "286",
+          "branchName": "In God We Trust Mass Transit",
+          "physicalLocation": "17 Nnobi Road Nnewi",
+          "lga": "Nnewi North",
+          "townCommunity": "Nnewi Town"
+        },
+        {
+          "branchId": "287",
+          "branchName": "In God We Trust Mass Transit",
+          "physicalLocation": "Quality Park (P.N.Emerah) Oguta Road Onitsha",
+          "lga": "Onitsha North",
+          "townCommunity": "Onisha"
+        }
+      ]
+    },
+    {
+      "applicationId": "251",
+      "parkName": "Ekwulu-mili Mass Transit",
+      "ownerName": "Ekwulu-mili Mass Transit",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "Nnewi",
+      "townCommunity": "Nnewi Town",
+      "lgaCode": "14",
+      "branches": [
+        {
+          "branchId": "283",
+          "branchName": "Ekwulu-mili Mass Transit",
+          "physicalLocation": "Nnewi",
+          "lga": "Nnewi North",
+          "townCommunity": "Nnewi Town"
+        }
+      ]
+    },
+    {
+      "applicationId": "247",
+      "parkName": "Royal Mass Transit",
+      "ownerName": "Royal Mass Transit",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "33 MCC by New Cemetery Raod Onitsha",
+      "townCommunity": "Onisha",
+      "lgaCode": "21",
+      "branches": [
+        {
+          "branchId": "275",
+          "branchName": "Royal Mass Transit",
+          "physicalLocation": "33 MCC by New Cemetery Raod Onitsha",
+          "lga": "Onitsha North",
+          "townCommunity": "Onisha"
+        }
+      ]
+    },
+    {
+      "applicationId": "237",
+      "parkName": "Peace Park Oguta Road",
+      "ownerName": "Peace Mass Transit (Samuel Maduka Onyishi)",
+      "hasMultipleBranches": true,
+      "branchCount": 3,
+      "physicalLocation": "Oguta Road Onitsha",
+      "townCommunity": "Onisha",
+      "lgaCode": "21",
+      "branches": [
+        {
+          "branchId": "263",
+          "branchName": "Peace Park Oguta Road",
+          "physicalLocation": "Oguta Road Onitsha",
+          "lga": "Onitsha North",
+          "townCommunity": "Onisha"
+        },
+        {
+          "branchId": "264",
+          "branchName": "Peace Park Obosi",
+          "physicalLocation": "Obosi",
+          "lga": "Idemili North",
+          "townCommunity": "Obosi"
+        },
+        {
+          "branchId": "265",
+          "branchName": "Peace Park Awka",
+          "physicalLocation": "Unizik Term Site Junction Awka",
+          "lga": "Awka South",
+          "townCommunity": "Awka"
+        }
+      ]
+    },
+    {
+      "applicationId": "217",
+      "parkName": "Umuchu Urban Mass Transit",
+      "ownerName": "Umuchu Urban Mass Transit",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "Izuchukwu motor park Onitsha",
+      "townCommunity": "Onitsha",
+      "lgaCode": "20",
+      "branches": [
+        {
+          "branchId": "242",
+          "branchName": "Izuchukwu motor park Onitsha",
+          "physicalLocation": "Izuchukwu motor park Onitsha",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha"
+        }
+      ]
+    },
+    {
+      "applicationId": "216",
+      "parkName": "South East Mass Transit",
+      "ownerName": "South East Mass Transit Company",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "kl1 Osha Oro road",
+      "townCommunity": "",
+      "lgaCode": "19",
+      "branches": [
+        {
+          "branchId": "241",
+          "branchName": "South East Mass Transit",
+          "physicalLocation": "kl1 Osha Oro road",
+          "lga": "Ogbaru",
+          "townCommunity": ""
+        }
+      ]
+    },
+    {
+      "applicationId": "201",
+      "parkName": "Amesi mass transit",
+      "ownerName": "Chukwudi Onwuachu",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "Afor Amesi market",
+      "townCommunity": "Amesi",
+      "lgaCode": "1",
+      "branches": [
+        {
+          "branchId": "226",
+          "branchName": "Amesi mass transit",
+          "physicalLocation": "Afor Amesi market",
+          "lga": "Aguata",
+          "townCommunity": "Amesi"
+        }
+      ]
+    },
+    {
+      "applicationId": "195",
+      "parkName": "God Leads Mass Transit",
+      "ownerName": "God Leads Mass Transit",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "33 New Cemetery Raod Inland Town Onitsha",
+      "townCommunity": "Onitsha",
+      "lgaCode": "20",
+      "branches": [
+        {
+          "branchId": "219",
+          "branchName": "God Leads Mass Transit",
+          "physicalLocation": "33 New Cemetery Raod Inland Town Onitsha",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha"
+        }
+      ]
+    },
+    {
+      "applicationId": "176",
+      "parkName": "Miracle Park",
+      "ownerName": "Miracle Mass Transit",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "Upper Iweka",
+      "townCommunity": "Onitsha",
+      "lgaCode": "20",
+      "branches": [
+        {
+          "branchId": "199",
+          "branchName": "Miracle Park",
+          "physicalLocation": "Upper Iweka",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha"
+        }
+      ]
+    },
+    {
+      "applicationId": "175",
+      "parkName": "Cojans Mass Transit Enterprises",
+      "ownerName": "Sir Godfrey Chika Charles",
+      "hasMultipleBranches": true,
+      "branchCount": 2,
+      "physicalLocation": "160 Portharcourt Road",
+      "townCommunity": "Onitsha",
+      "lgaCode": "20",
+      "branches": [
+        {
+          "branchId": "197",
+          "branchName": "Cojans Mass Transit Enterprises",
+          "physicalLocation": "160 Portharcourt Road",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha"
+        },
+        {
+          "branchId": "198",
+          "branchName": "Cojans Mass Transit Enterprises",
+          "physicalLocation": "",
+          "lga": "",
+          "townCommunity": ""
+        }
+      ]
+    },
+    {
+      "applicationId": "158",
+      "parkName": "Awgu South Mass Transit",
+      "ownerName": "Callistus Okwudili",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "No 80B iweka road",
+      "townCommunity": "Onitsha",
+      "lgaCode": "20",
+      "branches": [
+        {
+          "branchId": "177",
+          "branchName": "Callistus Okwudili",
+          "physicalLocation": "No 80B iweka road",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha"
+        }
+      ]
+    },
+    {
+      "applicationId": "150",
+      "parkName": "Ekwulobia Urban Mass Transit",
+      "ownerName": "Mrs Ginika Okoli",
+      "hasMultipleBranches": true,
+      "branchCount": 7,
+      "physicalLocation": "Ekwulobia",
+      "townCommunity": "Ekwulobia",
+      "lgaCode": "1",
+      "branches": [
+        {
+          "branchId": "162",
+          "branchName": "Ekwulobia Urban Mass Transit",
+          "physicalLocation": "Ekwulobia",
+          "lga": "Aguata",
+          "townCommunity": "Ekwulobia"
+        },
+        {
+          "branchId": "163",
+          "branchName": "Ekwulobia Urban Mass",
+          "physicalLocation": "Awka",
+          "lga": "Awka South",
+          "townCommunity": "Awka"
+        },
+        {
+          "branchId": "164",
+          "branchName": "Ekwulobia Urban Mass Transit",
+          "physicalLocation": "Oko",
+          "lga": "Orumba North",
+          "townCommunity": "Oko"
+        },
+        {
+          "branchId": "165",
+          "branchName": "Ekwulobia Urban Mass Transit",
+          "physicalLocation": "Uga",
+          "lga": "Aguata",
+          "townCommunity": "Uga"
+        },
+        {
+          "branchId": "166",
+          "branchName": "Ekwulobia Urban Mass Transit",
+          "physicalLocation": "Umunze",
+          "lga": "Orumba South",
+          "townCommunity": "Umunze"
+        },
+        {
+          "branchId": "167",
+          "branchName": "Ekwulobia Urban Mass Transit",
+          "physicalLocation": "Onitsha",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha"
+        },
+        {
+          "branchId": "168",
+          "branchName": "Ekwulobia Urban Mass Transit",
+          "physicalLocation": "Nnewi",
+          "lga": "Nnewi North",
+          "townCommunity": "Nnewi Town"
+        }
+      ]
+    },
+    {
+      "applicationId": "147",
+      "parkName": "Shop A1 Uga Urban Mass Transit Ltd",
+      "ownerName": "Uga Urban Mass Transit Ltd",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "Shop A1 Nkwor Uga Market Uga",
+      "townCommunity": "Uga",
+      "lgaCode": "1",
+      "branches": [
+        {
+          "branchId": "159",
+          "branchName": "Shop A1 Uga Urban Mass Transit Ltd",
+          "physicalLocation": "Shop A1 Nkwor Uga Market Uga",
+          "lga": "Aguata",
+          "townCommunity": "Uga"
+        }
+      ]
+    },
+    {
+      "applicationId": "132",
+      "parkName": "Isuochi Mass Transit Company",
+      "ownerName": "Isuochi Mass Transit",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "16 Upper Iweka Road EKENE Park",
+      "townCommunity": "Onitsha",
+      "lgaCode": "20",
+      "branches": [
+        {
+          "branchId": "144",
+          "branchName": "Isuochi Mass Transit Company",
+          "physicalLocation": "16 Upper Iweka Road EKENE Park",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha"
+        }
+      ]
+    },
+    {
+      "applicationId": "124",
+      "parkName": "Eastern Mass transit ltd",
+      "ownerName": "Eastern Mass",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "8 Nnobi Road Nnewi",
+      "townCommunity": "Nnewi Town",
+      "lgaCode": "14",
+      "branches": [
+        {
+          "branchId": "135",
+          "branchName": "Eastern Mass transit ltd",
+          "physicalLocation": "8 Nnobi Road Nnewi",
+          "lga": "Nnewi North",
+          "townCommunity": "Nnewi Town"
+        }
+      ]
+    },
+    {
+      "applicationId": "120",
+      "parkName": "ONITSHA Owerri Aba Mass Transit",
+      "ownerName": "Onitsha- Owerri Aba Mass Transit",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "14b Onitsha Owerri Road, Ogbura",
+      "townCommunity": "",
+      "lgaCode": "19",
+      "branches": [
+        {
+          "branchId": "131",
+          "branchName": "ONITSHA Owerri Aba Mass Transit",
+          "physicalLocation": "14b Onitsha Owerri Road, Ogbura",
+          "lga": "Ogbaru",
+          "townCommunity": ""
+        }
+      ]
+    },
+    {
+      "applicationId": "111",
+      "parkName": "Romchi Mass Transit Ltd, Onitsha and Nnewi Terminal",
+      "ownerName": "Chief Eze Solomon",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "No 5 Ilodibe Service",
+      "townCommunity": "",
+      "lgaCode": "",
+      "branches": [
+        {
+          "branchId": "122",
+          "branchName": "Romchi Mass Transit Ltd, Onitsha and Nnewi Terminal",
+          "physicalLocation": "No 5 Ilodibe Service",
+          "lga": "",
+          "townCommunity": ""
+        }
+      ]
+    },
+    {
+      "applicationId": "102",
+      "parkName": "JC Mass Transit Ltd",
+      "ownerName": "Alugwe Christian N",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "No 1 Ezeiweka road Awada Obosi",
+      "townCommunity": "Obosi",
+      "lgaCode": "10",
+      "branches": [
+        {
+          "branchId": "113",
+          "branchName": "JC Mass Transit Ltd",
+          "physicalLocation": "No 1 Ezeiweka road Awada Obosi",
+          "lga": "Idemili North",
+          "townCommunity": "Obosi"
+        }
+      ]
+    },
+    {
+      "applicationId": "98",
+      "parkName": "Oji River South Mass Transit Company Park",
+      "ownerName": "Oji River South Mass Transit Company",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "",
+      "townCommunity": "",
+      "lgaCode": "21",
+      "branches": [
+        {
+          "branchId": "109",
+          "branchName": "Oji River South Mass Transit Company Park",
+          "physicalLocation": "",
+          "lga": "Onitsha North",
+          "townCommunity": ""
+        }
+      ]
+    },
+    {
+      "applicationId": "84",
+      "parkName": "Champion Park",
+      "ownerName": "Power In Prayer Mass Transit Nig Ltd",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "No 1, Champion Park Upper Iweka",
+      "townCommunity": "Obosi",
+      "lgaCode": "10",
+      "branches": [
+        {
+          "branchId": "94",
+          "branchName": "Champion Park",
+          "physicalLocation": "No 1, Champion Park Upper Iweka",
+          "lga": "Idemili North",
+          "townCommunity": "Obosi"
+        }
+      ]
+    },
+    {
+      "applicationId": "72",
+      "parkName": "Favour &Grace. Mass Transit",
+      "ownerName": "Favour & Grace Mass Transit",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "2b Ciruice street Onitsha",
+      "townCommunity": "Onitsha",
+      "lgaCode": "20",
+      "branches": [
+        {
+          "branchId": "82",
+          "branchName": "Favour &Grace. Mass Transit",
+          "physicalLocation": "2b Ciruice street Onitsha",
+          "lga": "Onitsha South",
+          "townCommunity": "Onitsha"
+        }
+      ]
+    },
+    {
+      "applicationId": "70",
+      "parkName": "Unique Mass Transit, Regina Celi, Awka",
+      "ownerName": "Unique Mass Transit",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "Regina Ceali, besides Rain Oil, Express Way, Awka",
+      "townCommunity": "Awka",
+      "lgaCode": "3",
+      "branches": [
+        {
+          "branchId": "80",
+          "branchName": "Unique Mass Transit, Regina Celi, Awka",
+          "physicalLocation": "Regina Ceali, besides Rain Oil, Express Way, Awka",
+          "lga": "Awka South",
+          "townCommunity": "Awka"
+        }
+      ]
+    },
+    {
+      "applicationId": "56",
+      "parkName": "God of Mercy Mass Transit",
+      "ownerName": "Okafor Emeka",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "Chukwuebuka Park Main Market Moore street main market",
+      "townCommunity": "Onisha",
+      "lgaCode": "21",
+      "branches": [
+        {
+          "branchId": "66",
+          "branchName": "Chukwebuka park main market",
+          "physicalLocation": "Moore street main market",
+          "lga": "Onitsha North",
+          "townCommunity": "Onisha"
+        }
+      ]
+    },
+    {
+      "applicationId": "53",
+      "parkName": "super luck mass transit",
+      "ownerName": "Okwume Hilary",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "oguta rd onitsha",
+      "townCommunity": "Onisha",
+      "lgaCode": "21",
+      "branches": [
+        {
+          "branchId": "63",
+          "branchName": "super luck mass transit",
+          "physicalLocation": "oguta rd onitsha",
+          "lga": "Onitsha North",
+          "townCommunity": "Onisha"
+        }
+      ]
+    },
+    {
+      "applicationId": "50",
+      "parkName": "TEMPLE MASS TRANSIT NIG LTD",
+      "ownerName": "TEMPLE MASS TRANSIT NIG LTD",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "NO 1 FELIX NDUAGUBA ROAD",
+      "townCommunity": "Ogbunike",
+      "lgaCode": "18",
+      "branches": [
+        {
+          "branchId": "60",
+          "branchName": "TEMPLE MASS TRANSIT NIG LTD",
+          "physicalLocation": "NO 1 FELIX NDUAGUBA ROAD",
+          "lga": "Oyi",
+          "townCommunity": "Ogbunike"
+        }
+      ]
+    },
+    {
+      "applicationId": "49",
+      "parkName": "onitsha south local government mass transit",
+      "ownerName": "Felix N. Ikejiaku",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "onitsha / Awka",
+      "townCommunity": "Awka",
+      "lgaCode": "3",
+      "branches": [
+        {
+          "branchId": "59",
+          "branchName": "onitsha south local government mass transit",
+          "physicalLocation": "onitsha / Awka",
+          "lga": "Awka South",
+          "townCommunity": "Awka"
+        }
+      ]
+    },
+    {
+      "applicationId": "43",
+      "parkName": "Christ the rock mass transit",
+      "ownerName": "Iyida chijioke",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "",
+      "townCommunity": "Onisha",
+      "lgaCode": "21",
+      "branches": [
+        {
+          "branchId": "53",
+          "branchName": "Christ the rock mass transit",
+          "physicalLocation": "",
+          "lga": "Onitsha North",
+          "townCommunity": "Onisha"
+        }
+      ]
+    },
+    {
+      "applicationId": "35",
+      "parkName": "AIASD INTERCITY MASS TRANSIT",
+      "ownerName": "AIASD INTERCITY MASS TRANSIT",
+      "hasMultipleBranches": false,
+      "branchCount": 1,
+      "physicalLocation": "1/2 2nd Ibibeogada Junction",
+      "townCommunity": "Awkuzu",
+      "lgaCode": "18",
+      "branches": [
+        {
+          "branchId": "45",
+          "branchName": "AIASD INTERCITY MASS TRANSIT",
+          "physicalLocation": "1/2 2nd Ibibeogada Junction",
+          "lga": "Oyi",
+          "townCommunity": "Awkuzu"
+        }
+      ]
+    }
+  ]
+}
