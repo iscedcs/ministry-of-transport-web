@@ -1819,3 +1819,174 @@ model TracasDriver {
   @@index([status])
   @@index([idCardStatus])
 }
+
+// ==================== COMMERCIAL VEHICLE REGISTRATION (CVR) MODULE ====================
+// Stage 1: Vehicle + Owner + Driver + Operational onboarding (Enumerator / Admin)
+// Stage 2: VIN assignment — MOT/<LGA>/<Town>/<Serial><CategoryLetter> (designated staff)
+
+enum CvrVehicleCategory {
+  TRICYCLE    // Keke — VIN suffix K
+  SHUTTLE_BUS
+  BUS         // VIN suffix B
+  TRUCK       // VIN suffix T
+  MINIBUS
+  OTHER
+}
+
+enum CvrOperationType {
+  INTERSTATE
+  INTERCITY
+  TOWN_SERVICE
+}
+
+enum CvrRegistrationStatus {
+  DRAFT
+  REGISTERED  // Stage 1 complete
+  IDENTIFIED  // Stage 2 complete — VIN assigned
+}
+
+/// Preloaded Local Government Areas.
+/// Seeded from ANAMBRA_LGAS in lib/consts.ts, expandable to other states.
+model CvrLga {
+  id    String @id @default(cuid())
+  name  String
+  state String @default("Anambra")
+
+  towns    CvrTown[]
+  vehicles CvrVehicle[]
+
+  @@unique([name, state])
+  @@index([state])
+}
+
+/// Preloaded towns — each belongs to one LGA.
+model CvrTown {
+  id    String @id @default(cuid())
+  name  String
+  state String @default("Anambra")
+  lgaId String
+
+  lga        CvrLga     @relation(fields: [lgaId], references: [id])
+  fromRoutes CvrRoute[] @relation("RouteFromTown")
+  toRoutes   CvrRoute[] @relation("RouteToTown")
+  vehicles   CvrVehicle[]
+
+  @@unique([name, lgaId])
+  @@index([lgaId])
+  @@index([state])
+}
+
+/// Preloaded interstate route pairs (from town → to town across state lines).
+model CvrRoute {
+  id         String @id @default(cuid())
+  fromTownId String
+  toTownId   String
+
+  fromTown CvrTown @relation("RouteFromTown", fields: [fromTownId], references: [id])
+  toTown   CvrTown @relation("RouteToTown", fields: [toTownId], references: [id])
+
+  @@unique([fromTownId, toTownId])
+  @@index([fromTownId])
+  @@index([toTownId])
+}
+
+/// Core commercial vehicle record.
+/// Stage 1 fills all vehicle, owner and operational fields.
+/// Stage 2 fills vin and sets status to IDENTIFIED.
+model CvrVehicle {
+  id String @id @default(cuid())
+
+  // ── Vehicle Information ──
+  plateNumber   String             @unique
+  chassisNumber String             @unique
+  category      CvrVehicleCategory
+  make          String?
+  model         String?
+  year          String?            @db.VarChar(4)
+  vehicleType   String?            @db.VarChar(80)
+  asinNumber    String?
+  tCode         String?
+  color         String?
+  vehicleStatus String?            @db.VarChar(50)
+  /// Physical sticker code scanned/typed by enumerator at the time of attachment.
+  stickerNumber String?            @db.VarChar(100)
+
+  // ── Owner Information (all optional per spec) ──
+  ownerName          String?
+  ownerPhone         String?
+  ownerAddress       String? @db.Text
+  ownerGender        String? @db.VarChar(10)
+  ownerMaritalStatus String? @db.VarChar(20)
+  ownerWhatsApp      String?
+
+  // ── Operational Information ──
+  operationType CvrOperationType?
+  townId        String?
+  lgaId         String?
+  /// Populated only when operationType = INTERSTATE
+  fromTownId    String?
+  /// Populated only when operationType = INTERSTATE
+  toTownId      String?
+
+  // ── Stage 2: Vehicle Identification Number ──
+  // Format: MOT/<LGA>/<Town>/<serial padded to 3><CategoryLetter>
+  // Example: MOT/Awka South/Awka/001B
+  vin           String?               @unique
+  vinAssignedAt DateTime?
+  vinAssignedByUserId String?
+
+  // ── Registration Status ──
+  status CvrRegistrationStatus @default(DRAFT)
+
+  // ── Driver link ──
+  assignedDriverId String?
+
+  // ── Audit ──
+  capturedByUserId String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  driver CvrDriver? @relation(fields: [assignedDriverId], references: [id], onDelete: SetNull)
+  town   CvrTown?   @relation(fields: [townId], references: [id])
+  lga    CvrLga?    @relation(fields: [lgaId], references: [id])
+
+  @@index([status])
+  @@index([category])
+  @@index([capturedByUserId])
+  @@index([lgaId])
+  @@index([townId])
+  @@index([assignedDriverId])
+}
+
+/// Commercial vehicle driver record.
+/// Required fields: name, address, phone, gender.
+/// NOK and passport fields are optional.
+model CvrDriver {
+  id String @id @default(cuid())
+
+  // ── Driver Information ──
+  fullName           String
+  residentialAddress String  @db.Text
+  phoneNumber        String
+  gender             String  @db.VarChar(10)
+  state              String?
+  city               String?
+
+  // ── Next of Kin ──
+  nokFullName     String?
+  nokPhoneNumber  String?
+  nokRelationship String?
+
+  // ── Passport photograph (stored in DO Spaces, cvr-passports folder) ──
+  passportPhotoUrl String? @db.VarChar(500)
+
+  // ── Audit ──
+  capturedByUserId String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  vehicles CvrVehicle[]
+
+  @@index([capturedByUserId])
+  @@index([phoneNumber])
+}

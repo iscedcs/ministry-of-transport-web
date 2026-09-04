@@ -18,6 +18,8 @@ const ENUMERATION_ACTIONS = [
   "TRACAS_DRIVER_ONBOARDED",
   "BOAT_ONBOARDED",
   "BOAT_RIDER_ONBOARDED",
+  "CVR_VEHICLE_ONBOARDED",
+  "CVR_DRIVER_ONBOARDED",
 ];
 
 /** Roles permitted to view the enumerator dashboard. */
@@ -31,6 +33,8 @@ const ENUMERATOR_VIEW_ROLES = [
 export interface EnumeratorStats {
   tracasVehicles: number;
   tracasDrivers: number;
+  cvrVehicles: number;
+  cvrDrivers: number;
   boats: number;
   boatRiders: number;
   massTransitVehicles: number;
@@ -60,6 +64,8 @@ export async function getEnumeratorDashboardStats(): Promise<
     const [
       tracasVehicles,
       tracasDrivers,
+      cvrVehicles,
+      cvrDrivers,
       boats,
       boatRiders,
       massTransitVehicles,
@@ -70,6 +76,8 @@ export async function getEnumeratorDashboardStats(): Promise<
     ] = await Promise.all([
       db.tracasVehicle.count(),
       db.tracasDriver.count(),
+      db.cvrVehicle.count(),
+      db.cvrDriver.count(),
       db.boat.count(),
       db.boatRider.count(),
       db.vehicle.count(),
@@ -109,6 +117,8 @@ export async function getEnumeratorDashboardStats(): Promise<
       data: {
         tracasVehicles,
         tracasDrivers,
+        cvrVehicles,
+        cvrDrivers,
         boats,
         boatRiders,
         massTransitVehicles,

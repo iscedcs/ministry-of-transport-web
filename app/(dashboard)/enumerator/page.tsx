@@ -19,6 +19,16 @@ export const metadata = {
 
 const MODULES = [
   {
+    href: "/commercial-vehicles",
+    icon: "🚛",
+    title: "Commercial Vehicles",
+    description: "Onboard commercial vehicles, assign drivers, and manage registration.",
+    statKeys: [
+      { key: "cvrVehicles", label: "Vehicles" },
+      { key: "cvrDrivers", label: "Drivers" },
+    ],
+  },
+  {
     href: "/tracas",
     icon: "🚏",
     title: "TRACAS Fleet",
@@ -60,6 +70,12 @@ const MODULES = [
  * as a draft that belongs to nobody until the Ministry names an owner.
  */
 const SERVICES = [
+  {
+    href: "/commercial-vehicles/register",
+    icon: "🚛",
+    title: "Commercial Vehicle",
+    description: "Register commercial vehicle, driver, and operational route.",
+  },
   {
     href: "/motor-parks/apply",
     icon: "🅿️",
@@ -130,7 +146,9 @@ export default async function EnumeratorDashboardPage() {
               Total register
             </p>
             <h3 className="text-3xl font-bold text-foreground mt-1">
-              {stats.tracasVehicles +
+              {stats.cvrVehicles +
+                stats.cvrDrivers +
+                stats.tracasVehicles +
                 stats.tracasDrivers +
                 stats.boats +
                 stats.boatRiders +

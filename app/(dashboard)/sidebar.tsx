@@ -127,6 +127,17 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
 
+  // ── Commercial Vehicle Registration Module ──
+  // Visibility is dynamic: controlled by cvrAllowedRoles prop from layout.
+  // allowedRoles here is intentionally empty — the filter function special-cases
+  // this href and uses the runtime-resolved cvrAllowedRoles instead.
+  {
+    label: "Comm. Vehicles",
+    href: "/commercial-vehicles",
+    icon: "🚛",
+    allowedRoles: [] as unknown as "ALL",
+  },
+
   // ── Boats & Maritime Module ──
   {
     label: "Boats & Maritime",
@@ -307,10 +318,13 @@ const APPLICANT_SERVICE_ROUTES: Record<string, string[]> = {
 export function DashboardSidebar({
   role,
   registeredService,
+  cvrAllowedRoles,
 }: {
   role: UserRole;
   userId: string;
   registeredService?: string | null;
+  /** Effective CVR-accessible roles (base + admin-configured extra). */
+  cvrAllowedRoles?: UserRole[];
 }) {
   const pathname = usePathname();
   const { isOpen, close } = useMobileMenu();
@@ -320,6 +334,11 @@ export function DashboardSidebar({
     // and the tab bar can never disagree about who gets in.
     if (item.href === TRACAS_HUB_PLACEHOLDER) {
       return hasTracasAccess(role);
+    }
+    // CVR visibility is dynamic — merge base roles with admin-configured extras.
+    if (item.href === "/commercial-vehicles") {
+      const effective = cvrAllowedRoles ?? [];
+      return effective.includes(role);
     }
     if (
       (role === "ICT_OFFICER" || role === "ICT_OFFICER_TRACAS") &&
