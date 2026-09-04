@@ -16,6 +16,10 @@ import { authorize } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import { getCvrWriteRoles, getCvrViewRoles, getCvrVinRoles } from "@/lib/cvr-roles";
+import {
+  checkDuplicatePlateNumber,
+  normalizePlateDisplay,
+} from "@/lib/plate-validation";
 import type {
   CvrVehicleCategory,
   CvrOperationType,
@@ -138,12 +142,20 @@ export async function createCvrRegistration(input: CreateCvrRegistrationInput): 
   const { vehicle: v, driver: d } = input;
 
   try {
-    // Check for duplicate plate or chassis
-    const [existingPlate, existingChassis] = await Promise.all([
-      db.cvrVehicle.findUnique({ where: { plateNumber: v.plateNumber }, select: { id: true } }),
-      db.cvrVehicle.findUnique({ where: { chassisNumber: v.chassisNumber }, select: { id: true } }),
-    ]);
-    if (existingPlate) return { success: false, error: `Plate number ${v.plateNumber} is already registered.` };
+    // Check for duplicate plate across entire platform (CVR, TRACAS, Mass Transit)
+    const plateCheck = await checkDuplicatePlateNumber(v.plateNumber);
+    if (plateCheck.isTaken) {
+      return {
+        success: false,
+        error: plateCheck.message || `Plate number ${v.plateNumber} is already registered.`,
+      };
+    }
+
+    // Check for duplicate chassis in CVR
+    const existingChassis = await db.cvrVehicle.findUnique({
+      where: { chassisNumber: v.chassisNumber },
+      select: { id: true },
+    });
     if (existingChassis) return { success: false, error: `Chassis number ${v.chassisNumber} is already registered.` };
 
     // Create driver first if provided
@@ -220,6 +232,22 @@ export async function createCvrRegistration(input: CreateCvrRegistrationInput): 
     console.error("createCvrRegistration error:", err);
     return { success: false, error: "Failed to register vehicle. Please try again." };
   }
+}
+
+/**
+ * Pre-flight validation action for client forms (register/edit) to test if a plate
+ * number already exists anywhere in the database (CVR, TRACAS, Mass Transit).
+ */
+export async function checkCvrPlateAvailability(
+  plate: string,
+  excludeVehicleId?: string,
+): Promise<{ available: boolean; message?: string }> {
+  if (!plate?.trim()) return { available: true };
+  const check = await checkDuplicatePlateNumber(plate, { cvrVehicleId: excludeVehicleId });
+  if (check.isTaken) {
+    return { available: false, message: check.message };
+  }
+  return { available: true };
 }
 
 /**
@@ -438,10 +466,38 @@ export async function updateCvrVehicle(
       }
     }
 
+    // If plate number is being updated, verify it doesn't clash with any vehicle across all modules
+    if (input.plateNumber !== undefined && input.plateNumber.trim()) {
+      const plateCheck = await checkDuplicatePlateNumber(input.plateNumber, {
+        cvrVehicleId: vehicleId,
+      });
+      if (plateCheck.isTaken) {
+        return {
+          success: false,
+          error: plateCheck.message || `Plate number ${input.plateNumber} is already registered.`,
+        };
+      }
+    }
+
+    // If chassis number is being updated, verify uniqueness in CVR
+    if (input.chassisNumber !== undefined && input.chassisNumber.trim()) {
+      const chassisUpper = input.chassisNumber.trim().toUpperCase();
+      const existingChassis = await db.cvrVehicle.findFirst({
+        where: { chassisNumber: chassisUpper, id: { not: vehicleId } },
+        select: { id: true },
+      });
+      if (existingChassis) {
+        return {
+          success: false,
+          error: `Chassis number ${input.chassisNumber} is already registered.`,
+        };
+      }
+    }
+
     await db.cvrVehicle.update({
       where: { id: vehicleId },
       data: {
-        ...(input.plateNumber !== undefined && { plateNumber: input.plateNumber }),
+        ...(input.plateNumber !== undefined && { plateNumber: normalizePlateDisplay(input.plateNumber) }),
         ...(input.chassisNumber !== undefined && { chassisNumber: input.chassisNumber }),
         ...(input.category !== undefined && { category: input.category }),
         ...(input.make !== undefined && { make: input.make }),

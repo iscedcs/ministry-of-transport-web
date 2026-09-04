@@ -19,6 +19,10 @@ import {
   DRIVER_EDIT_ROLES,
 } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
+import {
+  checkDuplicatePlateNumber,
+  normalizePlateDisplay,
+} from "@/lib/plate-validation";
 
 export interface OnboardTracasVehicleInput {
   registrationNumber: string;
@@ -318,9 +322,12 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
 
     const fleetNo = input.fleetNumber?.trim() || (await generateNextFleetNumber(ownershipType));
 
-    const existingReg = await db.tracasVehicle.findUnique({ where: { registrationNumber: regNo } });
-    if (existingReg) {
-      return { success: false, error: `Vehicle with registration '${regNo}' already exists.` };
+    const plateCheck = await checkDuplicatePlateNumber(regNo);
+    if (plateCheck.isTaken) {
+      return {
+        success: false,
+        error: plateCheck.message || `Vehicle with registration '${regNo}' already exists.`,
+      };
     }
 
     const existingFleet = await db.tracasVehicle.findUnique({ where: { fleetNumber: fleetNo } });
@@ -1263,17 +1270,16 @@ export async function updateTracasVehicle(
     });
     if (!existing) return { success: false, error: "Vehicle not found." };
 
-    // Registration must stay unique across the register.
+    // Registration must stay unique across the register and the entire platform.
     const nextReg = input.registrationNumber?.trim().toUpperCase();
     if (nextReg && nextReg !== existing.registrationNumber.toUpperCase()) {
-      const clash = await db.tracasVehicle.findFirst({
-        where: { registrationNumber: nextReg, id: { not: vehicleId } },
-        select: { fleetNumber: true },
+      const plateCheck = await checkDuplicatePlateNumber(nextReg, {
+        tracasVehicleId: vehicleId,
       });
-      if (clash) {
+      if (plateCheck.isTaken) {
         return {
           success: false,
-          error: `Registration '${nextReg}' already belongs to ${clash.fleetNumber}.`,
+          error: plateCheck.message || `Registration '${nextReg}' already belongs to another vehicle.`,
         };
       }
     }

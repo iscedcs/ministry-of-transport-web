@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { CvrStickerScannerModal } from "@/components/cvr/cvr-sticker-scanner-modal";
-import { createCvrRegistration } from "@/app/actions/cvr";
+import { createCvrRegistration, checkCvrPlateAvailability } from "@/app/actions/cvr";
 import type { CvrVehicleCategory, CvrOperationType, UserRole } from "@prisma/client";
 
 interface LgaWithTowns {
@@ -58,6 +58,10 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
 
   // Scanner modal
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+
+  // Plate availability check
+  const [plateError, setPlateError] = useState<string | null>(null);
+  const [isCheckingPlate, setIsCheckingPlate] = useState(false);
 
   // ── Step 1: Vehicle & Owner State ──
   const [plateNumber, setPlateNumber] = useState("");
@@ -165,8 +169,29 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
     }
   };
 
+  // Plate blur check
+  const handlePlateBlur = async () => {
+    if (!plateNumber.trim()) {
+      setPlateError(null);
+      return;
+    }
+    setIsCheckingPlate(true);
+    try {
+      const res = await checkCvrPlateAvailability(plateNumber.trim().toUpperCase());
+      if (!res.available) {
+        setPlateError(res.message || "This plate number is already registered.");
+      } else {
+        setPlateError(null);
+      }
+    } catch {
+      // ignore network errors during blur check
+    } finally {
+      setIsCheckingPlate(false);
+    }
+  };
+
   // Step 1 Validation
-  const validateStep1 = (): boolean => {
+  const validateStep1 = async (): Promise<boolean> => {
     if (!plateNumber.trim()) {
       toast.error("Plate number is required.");
       return false;
@@ -179,6 +204,24 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
       toast.error("Vehicle category is required.");
       return false;
     }
+
+    // Check plate collision across all system modules
+    setIsCheckingPlate(true);
+    try {
+      const res = await checkCvrPlateAvailability(plateNumber.trim().toUpperCase());
+      if (!res.available) {
+        const msg = res.message || "This plate number is already registered in the system.";
+        setPlateError(msg);
+        toast.error(msg);
+        return false;
+      }
+      setPlateError(null);
+    } catch {
+      // Proceed to allow server action fallback
+    } finally {
+      setIsCheckingPlate(false);
+    }
+
     return true;
   };
 
@@ -203,16 +246,18 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
     return true;
   };
 
-  const handleNextStep = () => {
+  const handleNextStep = async () => {
     if (currentStep === 1) {
-      if (validateStep1()) setCurrentStep(2);
+      const ok = await validateStep1();
+      if (ok) setCurrentStep(2);
     } else if (currentStep === 2) {
       if (validateStep2()) setCurrentStep(3);
     }
   };
 
-  const handleSubmit = () => {
-    if (!validateStep1() || !validateStep2()) return;
+  const handleSubmit = async () => {
+    const step1Ok = await validateStep1();
+    if (!step1Ok || !validateStep2()) return;
 
     startTransition(async () => {
       const payload = {
@@ -343,17 +388,36 @@ export default function RegisterClient({ lgas, userRole }: RegisterClientProps) 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Plate Number */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="plateNumber" className="text-xs font-semibold">
-                    Plate Number <span className="text-destructive">*</span>
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="plateNumber" className="text-xs font-semibold">
+                      Plate Number <span className="text-destructive">*</span>
+                    </Label>
+                    {isCheckingPlate && (
+                      <span className="text-[11px] text-muted-foreground animate-pulse">
+                        Checking uniqueness...
+                      </span>
+                    )}
+                  </div>
                   <Input
                     id="plateNumber"
                     placeholder="e.g. AWK-423-XA"
                     value={plateNumber}
-                    onChange={(e) => setPlateNumber(e.target.value.toUpperCase())}
-                    className="font-mono uppercase font-semibold"
+                    onChange={(e) => {
+                      setPlateNumber(e.target.value.toUpperCase());
+                      if (plateError) setPlateError(null);
+                    }}
+                    onBlur={handlePlateBlur}
+                    className={`font-mono uppercase font-semibold ${
+                      plateError ? "border-destructive focus-visible:ring-destructive" : ""
+                    }`}
                     required
                   />
+                  {plateError && (
+                    <p className="text-xs font-medium text-destructive mt-1 flex items-start gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                      <span>{plateError}</span>
+                    </p>
+                  )}
                 </div>
 
                 {/* Chassis Number */}
