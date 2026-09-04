@@ -349,7 +349,7 @@ export function ParkRevalidationCertificate({
                 color: GREEN,
                 fontFamily: "Georgia, 'Times New Roman', serif",
               }}>
-              Park Revalidation
+              Park Registration
             </h1>
             <h1
               className="text-[31px] font-black uppercase leading-[1.05] tracking-tight"

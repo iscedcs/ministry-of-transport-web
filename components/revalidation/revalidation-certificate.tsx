@@ -394,8 +394,8 @@ export function RevalidationCertificate({
 
           {/* Subject */}
           <h3 className="mt-5 text-sm sm:text-base font-bold underline decoration-2 underline-offset-4 uppercase leading-snug">
-            {isTemporal ? "Temporary Approval of" : "Revalidation of"} your
-            Authority to Operate {headingKind} Motor Park at {location || "…"}
+            {isTemporal ? "Temporary Approval of" : "Revalidation of"} your{" "}
+            {headingKind} Motor Park at {location || "…"}
           </h3>
 
           <div
@@ -408,20 +408,20 @@ export function RevalidationCertificate({
               {isTemporal
                 ? "TEMPORARY APPROVAL of"
                 : "approved the Revalidation of"}{" "}
-              Your Authority to Operate the{" "}
-              <span className="font-semibold">{parkKind}</span> situated at{" "}
+              for your <span className="font-semibold">{parkKind}</span>{" "}
+              situated at{" "}
               <span className="font-semibold">
                 {location || <Blank width="12rem" />}
               </span>{" "}
-              with effect from{" "}
+              local government area with effect from{" "}
               <span className="font-semibold">
                 {effective ? fmtLong(effective) : <Blank width="8rem" />}
               </span>
               .{" "}
               {isTemporal ? (
                 <>
-                  This is a <span className="font-semibold">TEMPORARY</span>{" "}
-                  approval is valid until{" "}
+                  This<span className="font-semibold">TEMPORARY</span> approval
+                  is valid until{" "}
                   <span className="font-semibold">
                     {a.validUntil ? (
                       fmtLong(a.validUntil)
@@ -429,10 +429,9 @@ export function RevalidationCertificate({
                       <Blank width="8rem" />
                     )}
                   </span>
-                  , granted to permit continued operation while the outstanding
-                  requirements below are met. It does not constitute a full
-                  approval, and lapses on that date unless a full approval is
-                  granted.
+                  , subject to your provision of the outstanding requirements in
+                  No. 4 below. It does not constitute a full approval, and
+                  lapses on that date unless a full approval is granted.
                 </>
               ) : (
                 <>
