@@ -73,7 +73,6 @@ const hasId = (model: string) =>
   MODELS.find((m) => m.name === model)?.fields.some((f) => f.name === "id") ??
   false;
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 const on = (c: PrismaClient, model: string) => (c as any)[delegateOf(model)];
 
 interface Fk {

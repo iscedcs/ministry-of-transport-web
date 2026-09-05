@@ -791,6 +791,7 @@ model Vehicle {
   engineNumber         String      @unique
   chassisNumber        String      @unique
   identificationMark   String? // Driver ID / registration mark
+  stickerNumber        String?     @db.VarChar(100) // Physical QR sticker number attached to vehicle
   roadworthinessExpiry DateTime?
 
   // Fleet management

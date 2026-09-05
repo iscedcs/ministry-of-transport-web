@@ -7,7 +7,7 @@ import { Card, CardTitle, CardDescription } from "@/components/ui/card";
 import { StatusPill } from "@/components/ui/badge";
 import { Pagination } from "@/components/ui/pagination";
 import Link from "next/link";
-import { CheckSquare, Building2, Search } from "lucide-react";
+import { CheckSquare, Building2, Search, Bus } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { QueueFilters } from "./queue-filters";
 
@@ -32,6 +32,7 @@ const getCachedLgaCounts = unstable_cache(
 /** Groups the workflow's many statuses into the tabs staff actually think in. */
 const STATUS_TABS: { value: string; label: string; match: string[] }[] = [
   { value: "", label: "All", match: [] },
+  { value: "MASS_TRANSIT", label: "Mass Transit", match: [] },
   { value: "SUBMITTED", label: "Awaiting review", match: ["SUBMITTED", "UNDER_REVIEW"] },
   {
     value: "INSPECTION",
@@ -93,6 +94,7 @@ export default async function RevalidationQueuePage({ searchParams }: PageProps)
     "ADMIN",
     "FIELD_INSPECTOR",
     "VEHICLE_INSPECTION_OFFICER",
+    "ENUMERATOR",
   ];
   if (!allowedRoles.includes(session.role)) {
     redirect("/dashboard");
@@ -100,6 +102,7 @@ export default async function RevalidationQueuePage({ searchParams }: PageProps)
 
   const sp = await searchParams;
   const q = (sp.q ?? "").trim();
+  const isMassTransitTab = sp.status === "MASS_TRANSIT";
   const statusTab = STATUS_TABS.find((t) => t.value && t.value === sp.status);
   const lga = (sp.lga ?? "").trim();
   const page = Math.max(1, Number(sp.page ?? 1) || 1);
@@ -113,9 +116,11 @@ export default async function RevalidationQueuePage({ searchParams }: PageProps)
     ...(isInspector
       ? { inspectionTeam: { some: { userId: session.userId } } }
       : {}),
-    ...(statusTab
-      ? { status: { in: statusTab.match as Prisma.EnumApplicationStatusFilter["in"] } }
-      : {}),
+    ...(isMassTransitTab
+      ? { serviceCategory: "MASS_TRANSIT" }
+      : statusTab && statusTab.match.length > 0
+        ? { status: { in: statusTab.match as Prisma.EnumApplicationStatusFilter["in"] } }
+        : {}),
     ...(lga ? { lga } : {}),
     ...(q
       ? {
@@ -138,15 +143,25 @@ export default async function RevalidationQueuePage({ searchParams }: PageProps)
   const countScope: Prisma.RevalidationApplicationWhereInput = {
     ...where,
     status: undefined,
+    serviceCategory: undefined,
   };
 
-  const [applications, total, statusGroups, lgaGroups, filteredTotal] =
+  const [applications, total, statusGroups, lgaGroups, massTransitTotal, filteredTotal] =
     await Promise.all([
     db.revalidationApplication.findMany({
       where,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * PER_PAGE,
       take: PER_PAGE,
+      include: {
+        massTransitCompany: {
+          select: {
+            id: true,
+            currentFleetSize: true,
+            _count: { select: { vehicles: true } },
+          },
+        },
+      },
     }),
     db.revalidationApplication.count({ where }),
     db.revalidationApplication.groupBy({
@@ -161,6 +176,9 @@ export default async function RevalidationQueuePage({ searchParams }: PageProps)
           where: { inspectionTeam: { some: { userId: session.userId } } },
         })
       : getCachedLgaCounts(),
+    db.revalidationApplication.count({
+      where: { ...countScope, serviceCategory: "MASS_TRANSIT" },
+    }),
     // Only needed to render "showing X of Y". With no filters applied, Y is X.
     filtered
       ? db.revalidationApplication.count({
@@ -181,7 +199,7 @@ export default async function RevalidationQueuePage({ searchParams }: PageProps)
   const statuses = STATUS_TABS.map((t) => ({
     value: t.value,
     label: t.label,
-    count: countFor(t.match),
+    count: t.value === "MASS_TRANSIT" ? massTransitTotal : countFor(t.match),
   }));
 
   const lgas = lgaGroups
@@ -297,8 +315,8 @@ export default async function RevalidationQueuePage({ searchParams }: PageProps)
                           {/* So a search result says which register it belongs
                               to without opening it. */}
                           {app.serviceCategory === "MASS_TRANSIT" ? (
-                            <span className="mt-1 inline-flex items-center rounded-md bg-blue-500/10 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:text-blue-400">
-                              Mass transit
+                            <span className="mt-1 inline-flex items-center gap-1 rounded-md bg-blue-500/10 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:text-blue-400">
+                              <Bus className="w-3 h-3" /> Mass Transit • {app.massTransitCompany?._count?.vehicles ?? app.massTransitCompany?.currentFleetSize ?? 0} vehicles
                             </span>
                           ) : !app.serviceCategory &&
                             app.dataSource === "VENDOR_IMPORT" &&
@@ -338,11 +356,21 @@ export default async function RevalidationQueuePage({ searchParams }: PageProps)
                           />
                         </td>
                         <td className="py-4 pr-6 pl-4 text-right whitespace-nowrap">
-                          <Link
-                            href={`/admin/revalidation-queue/${app.id}`}
-                            className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-medium text-xs transition-all shadow-2xs">
-                            Compare &amp; Review
-                          </Link>
+                          <div className="flex items-center justify-end gap-2">
+                            {app.serviceCategory === "MASS_TRANSIT" && (
+                              <Link
+                                href={`/admin/revalidation-queue/${app.id}#fleet`}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-500/10 text-blue-700 dark:text-blue-400 hover:bg-blue-600 hover:text-white font-medium text-xs transition-all shadow-2xs">
+                                <Bus className="w-3.5 h-3.5" />
+                                Fleet ({app.massTransitCompany?._count?.vehicles ?? app.massTransitCompany?.currentFleetSize ?? 0})
+                              </Link>
+                            )}
+                            <Link
+                              href={`/admin/revalidation-queue/${app.id}`}
+                              className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground font-medium text-xs transition-all shadow-2xs">
+                              Compare &amp; Review
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     );

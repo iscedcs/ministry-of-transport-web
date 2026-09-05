@@ -33,6 +33,8 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { Camera, QrCode } from "lucide-react";
+import { StickerScanModal } from "@/components/mass-transit/attach-sticker-dialog";
 
 type AddVehicleState = ActionResult | undefined;
 
@@ -42,6 +44,8 @@ export default function AddVehiclePage() {
   const companyId = params.id;
 
   const [vehicleType, setVehicleType] = useState("");
+  const [stickerNumber, setStickerNumber] = useState("");
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const [state, action, isPending] = useActionState<AddVehicleState, FormData>(
     addVehicle as (s: AddVehicleState, f: FormData) => Promise<AddVehicleState>,
@@ -220,6 +224,37 @@ export default function AddVehiclePage() {
               />
             </div>
 
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label
+                htmlFor="stickerNumber"
+                className="text-xs font-semibold flex items-center justify-between">
+                <span>Physical QR Sticker Number (Optional)</span>
+                <button
+                  type="button"
+                  onClick={() => setIsScannerOpen(true)}
+                  className="text-primary hover:underline flex items-center gap-1 font-medium cursor-pointer">
+                  <QrCode className="w-3.5 h-3.5" /> Scan Sticker
+                </button>
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="stickerNumber"
+                  name="stickerNumber"
+                  placeholder="e.g. MOT-STK-00482"
+                  value={stickerNumber}
+                  onChange={(e) => setStickerNumber(e.target.value)}
+                  className="font-mono text-sm uppercase"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsScannerOpen(true)}
+                  className="gap-1.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer">
+                  <Camera className="w-4 h-4" /> Scan
+                </Button>
+              </div>
+            </div>
+
             <div className="sm:col-span-2">
               <Separator className="my-2" />
             </div>
@@ -235,6 +270,12 @@ export default function AddVehiclePage() {
           </CardContent>
         </Card>
       </form>
+
+      <StickerScanModal
+        open={isScannerOpen}
+        onOpenChange={setIsScannerOpen}
+        onScanSuccess={(code) => setStickerNumber(code)}
+      />
     </div>
   );
 }

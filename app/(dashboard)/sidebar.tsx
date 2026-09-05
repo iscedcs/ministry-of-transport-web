@@ -193,6 +193,7 @@ const NAV_ITEMS: NavItem[] = [
       "VEHICLE_INSPECTION_OFFICER",
       "SYSTEM_ADMIN",
       "ADMIN",
+      "ENUMERATOR",
     ],
   },
 

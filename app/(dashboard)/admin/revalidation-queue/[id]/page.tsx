@@ -27,8 +27,12 @@ import {
   ExternalLink, 
   FileText,
   ArrowLeft,
-  Star
+  Star,
+  Bus,
+  Plus
 } from "lucide-react";
+import { AddRevalidationVehicleDialog } from "@/components/revalidation/add-revalidation-vehicle-dialog";
+import { AttachStickerDialog } from "@/components/mass-transit/attach-sticker-dialog";
 import { cn } from "@/lib/utils";
 
 function safeParseJson(val: any, fallback: any = {}) {
@@ -82,6 +86,7 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
     "ADMIN",
     "FIELD_INSPECTOR",
     "VEHICLE_INSPECTION_OFFICER",
+    "ENUMERATOR",
   ];
   if (!allowedRoles.includes(session.role)) {
     redirect("/dashboard");
@@ -96,6 +101,14 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
         orderBy: [{ isLead: "desc" }, { createdAt: "asc" }],
         include: {
           user: { select: { firstName: true, lastName: true, role: true } },
+        },
+      },
+      massTransitCompany: {
+        include: {
+          vehicles: {
+            where: { removedAt: null },
+            orderBy: { createdAt: "desc" },
+          },
         },
       },
     },
@@ -198,11 +211,17 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-xl bg-card border shadow-xs">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold font-display tracking-tight">{app.parkName} Revalidation</h1>
             <span className="text-xs font-mono bg-primary/10 text-primary font-semibold px-2.5 py-1 rounded-md border border-primary/20">
               {app.facilityType}
             </span>
+            {app.serviceCategory === "MASS_TRANSIT" && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-400 px-2.5 py-1 rounded-md border border-blue-500/20">
+                <Bus className="w-3.5 h-3.5" />
+                Mass Transit • {app.massTransitCompany?.vehicles.length ?? app.massTransitCompany?.currentFleetSize ?? 0} Vehicles
+              </span>
+            )}
           </div>
           <p className="text-sm text-muted-foreground mt-1.5 flex items-center gap-2">
             <span>Application ID: <strong className="font-mono text-foreground">{app.id}</strong></span>
@@ -236,7 +255,137 @@ export default async function RevalidationDetailsPage({ params }: { params: Prom
 
       <div className="grid md:grid-cols-3 gap-8">
         <div className="md:col-span-2 flex flex-col gap-6">
-          
+
+          {/* Mass Transit Fleet Section: only for applications identified as MASS_TRANSIT */}
+          {app.serviceCategory === "MASS_TRANSIT" && (
+            <Card id="fleet" className="overflow-hidden border-blue-500/30 bg-blue-500/[0.02] shadow-xs">
+              <CardHeader className="bg-blue-500/5 border-b border-blue-500/20 pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-base font-semibold flex items-center gap-2 text-foreground">
+                      <Bus className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      Mass Transit Fleet ({app.massTransitCompany?.vehicles.length ?? app.massTransitCompany?.currentFleetSize ?? 0} Vehicles Onboarded)
+                    </CardTitle>
+                    <CardDescription>
+                      Vehicles onboarded to this mass transit application. Enumerators and officers can add vehicles immediately without waiting for approval.
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {[
+                      "ENUMERATOR",
+                      "ADMIN",
+                      "SYSTEM_ADMIN",
+                      "HOD_TRANSPORT_OPS",
+                      "HOD_PARKS_REVALIDATION",
+                    ].includes(session.role) && (
+                      <AddRevalidationVehicleDialog
+                        applicationId={app.id}
+                        companyName={app.parkName}
+                      />
+                    )}
+                    {app.massTransitCompanyId && (
+                      <Link
+                        href={`/fleet-operators/${app.massTransitCompanyId}`}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium hover:bg-secondary transition-colors">
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Company View
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {(!app.massTransitCompany?.vehicles || app.massTransitCompany.vehicles.length === 0) ? (
+                  <div className="p-8 text-center flex flex-col items-center justify-center">
+                    <Bus className="w-10 h-10 text-muted-foreground/40 mb-2" />
+                    <p className="font-semibold text-sm text-foreground">No fleet vehicles onboarded yet</p>
+                    <p className="text-xs text-muted-foreground max-w-sm mt-1 mb-4">
+                      This application has been verified as Mass Transit by transport operations. You can start adding fleet vehicles immediately.
+                    </p>
+                    {[
+                      "ENUMERATOR",
+                      "ADMIN",
+                      "SYSTEM_ADMIN",
+                      "HOD_TRANSPORT_OPS",
+                      "HOD_PARKS_REVALIDATION",
+                    ].includes(session.role) && (
+                      <AddRevalidationVehicleDialog
+                        applicationId={app.id}
+                        companyName={app.parkName}
+                        buttonVariant="default"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        <tr>
+                          <th className="text-left py-3 px-4">Plate No.</th>
+                          <th className="text-left py-3 px-4">Type &amp; Model</th>
+                          <th className="text-left py-3 px-4 hidden sm:table-cell">Engine / Chassis</th>
+                          <th className="text-left py-3 px-4">Physical Sticker</th>
+                          <th className="text-left py-3 px-4 hidden md:table-cell">Routes</th>
+                          <th className="text-left py-3 px-4 hidden lg:table-cell">Roadworthiness</th>
+                          <th className="text-right py-3 px-4">Date Added</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60 font-sans">
+                        {app.massTransitCompany.vehicles.map((veh) => (
+                          <tr key={veh.id} className="hover:bg-muted/30 transition-colors">
+                            <td className="py-3 px-4 font-mono font-bold text-xs text-foreground">
+                              {veh.registrationNumber}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="font-medium text-xs text-foreground">
+                                {veh.make} {veh.model}
+                              </div>
+                              <span className="inline-block mt-0.5 text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground border">
+                                {veh.vehicleType}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 hidden sm:table-cell font-mono text-[11px] text-muted-foreground">
+                              <div>Eng: {veh.engineNumber}</div>
+                              <div>Chas: {veh.chassisNumber}</div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <AttachStickerDialog
+                                vehicleId={veh.id}
+                                vehicleReg={veh.registrationNumber}
+                                currentSticker={veh.stickerNumber}
+                                canAttach={[
+                                  "ENUMERATOR",
+                                  "ADMIN",
+                                  "SYSTEM_ADMIN",
+                                  "HOD_TRANSPORT_OPS",
+                                  "HOD_PARKS_REVALIDATION",
+                                ].includes(session.role)}
+                              />
+                            </td>
+                            <td className="py-3 px-4 hidden md:table-cell text-xs text-muted-foreground">
+                              {veh.routesServed || "—"}
+                            </td>
+                            <td className="py-3 px-4 hidden lg:table-cell text-xs text-muted-foreground">
+                              {veh.roadworthinessExpiry
+                                ? new Date(veh.roadworthinessExpiry).toLocaleDateString("en-GB")
+                                : "—"}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono text-xs text-muted-foreground">
+                              {new Date(veh.createdAt).toLocaleDateString("en-GB", {
+                                day: "numeric",
+                                month: "short",
+                              })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Card 1: Section A & B — Applicant & ASIN Details */}
           <Card className="overflow-hidden border-border/60 shadow-xs">
             <CardHeader className="bg-muted/40 border-b pb-4">

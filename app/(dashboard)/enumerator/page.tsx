@@ -51,8 +51,15 @@ const MODULES = [
   {
     href: "/fleet-operators",
     icon: "🚌",
-    title: "Mass Transit",
-    description: "Fleet vehicles declared by mass transit operators.",
+    title: "Mass Transit Operators",
+    description: "Onboard fleet vehicles to mass transit companies.",
+    statKeys: [{ key: "massTransitVehicles", label: "Vehicles" }],
+  },
+  {
+    href: "/admin/revalidation-queue?status=MASS_TRANSIT",
+    icon: "📋",
+    title: "Revalidation Mass Transit",
+    description: "Add vehicles to operators verified as mass transit on the revalidation queue.",
     statKeys: [{ key: "massTransitVehicles", label: "Vehicles" }],
   },
   {

@@ -549,8 +549,8 @@ export default function VehicleDetailClient({
       <div
         className={`p-6 rounded-3xl border transition-all ${
           isIdentified
-            ? "bg-gradient-to-r from-cyan-950/40 via-card to-card border-cyan-500/40 shadow-lg shadow-cyan-950/20"
-            : "bg-gradient-to-r from-amber-950/30 via-card to-card border-amber-500/30 shadow-md shadow-amber-950/10"
+            ? "bg-linear-to-r from-cyan-950/40 via-card to-card border-cyan-500/40 shadow-lg shadow-cyan-950/20"
+            : "bg-linear-to-r from-amber-950/30 via-card to-card border-amber-500/30 shadow-md shadow-amber-950/10"
         }`}>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-1.5">
@@ -596,7 +596,7 @@ export default function VehicleDetailClient({
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">
                   <ShieldCheck className="w-4 h-4 text-cyan-400" />
                   <span className="text-xs font-semibold text-muted-foreground uppercase">
-                    VIN:
+                    CVIN:
                   </span>
                   <span className="font-mono font-bold text-sm tracking-wider">
                     {vehicle.vin}
@@ -613,10 +613,10 @@ export default function VehicleDetailClient({
 
           {/* Stage 2 VIN Assignment Trigger */}
           {!isIdentified && canAssignVin && (
-            <div className="flex-shrink-0">
+            <div className="flex shrink-0">
               <Button
                 onClick={() => setIsVinDialogOpen(true)}
-                className="gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-2xl px-6 py-6 shadow-lg shadow-cyan-950/40 cursor-pointer">
+                className="gap-2 bg-linear-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-2xl px-6 py-6 shadow-lg shadow-cyan-950/40 cursor-pointer">
                 <ShieldCheck className="w-5 h-5" />
                 <div className="text-left">
                   <div className="text-xs font-semibold uppercase tracking-wider opacity-80">
@@ -871,10 +871,10 @@ export default function VehicleDetailClient({
                       <img
                         src={vehicle.driver.passportPhotoUrl}
                         alt={vehicle.driver.fullName}
-                        className="w-16 h-20 rounded-2xl object-cover border-2 border-emerald-500/40 shadow-sm flex-shrink-0"
+                        className="w-16 h-20 rounded-2xl object-cover border-2 border-emerald-500/40 shadow-sm flex shrink-0"
                       />
                     ) : (
-                      <div className="w-16 h-20 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-lg flex-shrink-0">
+                      <div className="w-16 h-20 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 items-center justify-center font-bold text-lg flex shrink-0">
                         {vehicle.driver.fullName.slice(0, 2).toUpperCase()}
                       </div>
                     )}
@@ -1085,7 +1085,7 @@ export default function VehicleDetailClient({
               onClick={handleAssignVin}
               disabled={isPending}
               className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl px-5 cursor-pointer">
-              {isPending ? "Generating VIN..." : "Confirm & Assign VIN"}
+              {isPending ? "Generating CVIN..." : "Confirm & Assign CVIN"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1136,10 +1136,10 @@ export default function VehicleDetailClient({
                       <img
                         src={d.passportPhotoUrl}
                         alt=""
-                        className="w-9 h-9 rounded-xl object-cover flex-shrink-0"
+                        className="w-9 h-9 rounded-xl object-cover flex shrink-0"
                       />
                     ) : (
-                      <div className="w-9 h-9 rounded-xl bg-slate-800 text-emerald-400 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                      <div className="w-9 h-9 rounded-xl bg-slate-800 text-emerald-400 items-center justify-center font-bold text-xs flex shrink-0">
                         {d.fullName.slice(0, 2).toUpperCase()}
                       </div>
                     )}
@@ -1434,7 +1434,7 @@ export default function VehicleDetailClient({
                           variant="outline"
                           size="sm"
                           onClick={() => setIsScannerOpen(true)}
-                          className="h-8 px-2 text-xs rounded-xl border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer flex-shrink-0">
+                          className="h-8 px-2 text-xs rounded-xl border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer flex shrink-0">
                           <Camera className="w-3.5 h-3.5" />
                         </Button>
                       </div>

@@ -49,13 +49,40 @@ interface CommercialVehiclesClientProps {
   canWrite: boolean;
 }
 
-const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  TRICYCLE: { bg: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-500/30" },
-  BUS: { bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/30" },
-  SHUTTLE_BUS: { bg: "bg-cyan-500/10", text: "text-cyan-400", border: "border-cyan-500/30" },
-  TRUCK: { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/30" },
-  MINIBUS: { bg: "bg-indigo-500/10", text: "text-indigo-400", border: "border-indigo-500/30" },
-  OTHER: { bg: "bg-slate-500/10", text: "text-slate-300", border: "border-slate-500/30" },
+const CATEGORY_COLORS: Record<
+  string,
+  { bg: string; text: string; border: string }
+> = {
+  TRICYCLE: {
+    bg: "bg-amber-500/10",
+    text: "text-amber-400",
+    border: "border-amber-500/30",
+  },
+  BUS: {
+    bg: "bg-blue-500/10",
+    text: "text-blue-400",
+    border: "border-blue-500/30",
+  },
+  SHUTTLE_BUS: {
+    bg: "bg-cyan-500/10",
+    text: "text-cyan-400",
+    border: "border-cyan-500/30",
+  },
+  TRUCK: {
+    bg: "bg-emerald-500/10",
+    text: "text-emerald-400",
+    border: "border-emerald-500/30",
+  },
+  MINIBUS: {
+    bg: "bg-indigo-500/10",
+    text: "text-indigo-400",
+    border: "border-indigo-500/30",
+  },
+  OTHER: {
+    bg: "bg-slate-500/10",
+    text: "text-slate-300",
+    border: "border-slate-500/30",
+  },
 };
 
 export default function CommercialVehiclesClient({
@@ -72,7 +99,9 @@ export default function CommercialVehiclesClient({
   const router = useRouter();
   const [tab, setTab] = useState<"vehicles" | "drivers">(activeTab);
   const [search, setSearch] = useState(searchQuery);
-  const [selectedStatus, setSelectedStatus] = useState<string>(statusFilter ?? "ALL");
+  const [selectedStatus, setSelectedStatus] = useState<string>(
+    statusFilter ?? "ALL",
+  );
   const [isPending, startTransition] = useTransition();
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -128,12 +157,15 @@ export default function CommercialVehiclesClient({
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Commercial Vehicle Registration
             </h1>
-            <Badge variant="outline" className="text-[11px] font-mono border-primary/40 text-primary">
+            <Badge
+              variant="outline"
+              className="text-[11px] font-mono border-primary/40 text-primary">
               CVR
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Ministry onboarding register for commercial vehicles, designated drivers, and Stage 2 VIN allocation.
+            Ministry onboarding register for commercial vehicles, designated
+            drivers, and Stage 2 VIN allocation.
           </p>
         </div>
 
@@ -173,7 +205,7 @@ export default function CommercialVehiclesClient({
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Pending Stage 2 VIN
+                Pending Stage 2 CVIN
               </p>
               <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
                 <Clock className="w-4 h-4" />
@@ -183,7 +215,7 @@ export default function CommercialVehiclesClient({
               {stats.pendingVin}
             </h3>
             <p className="text-[11px] text-muted-foreground mt-1">
-              Stage 1 complete & awaiting VIN
+              Stage 1 complete & awaiting CVIN
             </p>
           </CardContent>
         </Card>
@@ -202,7 +234,7 @@ export default function CommercialVehiclesClient({
               {stats.identified}
             </h3>
             <p className="text-[11px] text-muted-foreground mt-1">
-              VIN assigned & verified
+              CVIN assigned & verified
             </p>
           </CardContent>
         </Card>
@@ -238,8 +270,7 @@ export default function CommercialVehiclesClient({
                 tab === "vehicles"
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              }`}
-            >
+              }`}>
               <Truck className="w-4 h-4" />
               <span>Vehicles ({stats.total})</span>
             </button>
@@ -249,25 +280,34 @@ export default function CommercialVehiclesClient({
                 tab === "drivers"
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              }`}
-            >
+              }`}>
               <User className="w-4 h-4" />
               <span>Drivers ({stats.driverTotal})</span>
             </button>
           </div>
 
           {/* Search form */}
-          <form onSubmit={handleSearchSubmit} className="flex items-center gap-2 max-w-md w-full sm:w-auto">
+          <form
+            onSubmit={handleSearchSubmit}
+            className="flex items-center gap-2 max-w-md w-full sm:w-auto">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder={tab === "vehicles" ? "Search plate, chassis, VIN, sticker..." : "Search driver name, phone..."}
+                placeholder={
+                  tab === "vehicles"
+                    ? "Search plate, chassis, CVIN, sticker..."
+                    : "Search driver name, phone..."
+                }
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 bg-card border-border/70 rounded-xl text-sm"
               />
             </div>
-            <Button type="submit" variant="secondary" size="sm" className="rounded-xl px-4 cursor-pointer">
+            <Button
+              type="submit"
+              variant="secondary"
+              size="sm"
+              className="rounded-xl px-4 cursor-pointer">
               Search
             </Button>
           </form>
@@ -291,8 +331,7 @@ export default function CommercialVehiclesClient({
                   selectedStatus === f.val
                     ? "bg-primary/20 text-primary border border-primary/40"
                     : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
-                }`}
-              >
+                }`}>
                 {f.label}
               </button>
             ))}
@@ -306,7 +345,9 @@ export default function CommercialVehiclesClient({
           {vehicles.length === 0 ? (
             <Card className="border-border/60 bg-card p-12 text-center">
               <Truck className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
-              <h3 className="text-base font-semibold text-foreground">No commercial vehicles found</h3>
+              <h3 className="text-base font-semibold text-foreground">
+                No commercial vehicles found
+              </h3>
               <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
                 {searchQuery || statusFilter
                   ? "No vehicle records match your active filters. Try clearing search keywords."
@@ -316,7 +357,8 @@ export default function CommercialVehiclesClient({
                 <div className="mt-5">
                   <Link href="/commercial-vehicles/register">
                     <Button className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded-xl cursor-pointer">
-                      <Plus className="w-3.5 h-3.5 mr-1" /> Onboard First Vehicle
+                      <Plus className="w-3.5 h-3.5 mr-1" /> Onboard First
+                      Vehicle
                     </Button>
                   </Link>
                 </div>
@@ -333,21 +375,29 @@ export default function CommercialVehiclesClient({
                       <th className="py-3 px-4">Operation & Route</th>
                       <th className="py-3 px-4">Driver</th>
                       <th className="py-3 px-4">Sticker</th>
-                      <th className="py-3 px-4">VIN (Stage 2)</th>
+                      <th className="py-3 px-4">CVIN (Stage 2)</th>
                       <th className="py-3 px-4">Status</th>
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/40">
                     {vehicles.map((v) => {
-                      const catStyle = CATEGORY_COLORS[v.category] || CATEGORY_COLORS.OTHER;
+                      const catStyle =
+                        CATEGORY_COLORS[v.category] || CATEGORY_COLORS.OTHER;
                       return (
-                        <tr key={v.id} className="hover:bg-muted/20 transition-colors">
+                        <tr
+                          key={v.id}
+                          className="hover:bg-muted/20 transition-colors">
                           {/* Vehicle Details */}
                           <td className="py-3.5 px-4">
-                            <div className="font-bold text-foreground text-sm font-mono">{v.plateNumber}</div>
+                            <div className="font-bold text-foreground text-sm font-mono">
+                              {v.plateNumber}
+                            </div>
                             <div className="text-[11px] text-muted-foreground mt-0.5">
-                              Chassis: <span className="font-mono">{v.chassisNumber}</span>
+                              Chassis:{" "}
+                              <span className="font-mono">
+                                {v.chassisNumber}
+                              </span>
                             </div>
                             {(v.make || v.model) && (
                               <div className="text-[11px] text-muted-foreground">
@@ -360,8 +410,7 @@ export default function CommercialVehiclesClient({
                           {/* Category Badge */}
                           <td className="py-3.5 px-4">
                             <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}
-                            >
+                              className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${catStyle.bg} ${catStyle.text} ${catStyle.border}`}>
                               {v.category.replace(/_/g, " ")}
                             </span>
                           </td>
@@ -369,11 +418,15 @@ export default function CommercialVehiclesClient({
                           {/* Operation & Route */}
                           <td className="py-3.5 px-4">
                             <div className="font-medium text-foreground">
-                              {v.operationType ? v.operationType.replace(/_/g, " ") : "Town Service"}
+                              {v.operationType
+                                ? v.operationType.replace(/_/g, " ")
+                                : "Town Service"}
                             </div>
                             <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
                               <MapPin className="w-3 h-3 text-muted-foreground/70" />
-                              {[v.townName, v.lgaName].filter(Boolean).join(", ") || "Anambra State"}
+                              {[v.townName, v.lgaName]
+                                .filter(Boolean)
+                                .join(", ") || "Anambra State"}
                             </div>
                           </td>
 
@@ -385,7 +438,9 @@ export default function CommercialVehiclesClient({
                                 <span>{v.driverName}</span>
                               </div>
                             ) : (
-                              <span className="text-[11px] text-muted-foreground italic">Unassigned</span>
+                              <span className="text-[11px] text-muted-foreground italic">
+                                Unassigned
+                              </span>
                             )}
                           </td>
 
@@ -396,7 +451,9 @@ export default function CommercialVehiclesClient({
                                 {v.stickerNumber}
                               </span>
                             ) : (
-                              <span className="text-[11px] text-muted-foreground/60 italic">No sticker</span>
+                              <span className="text-[11px] text-muted-foreground/60 italic">
+                                No sticker
+                              </span>
                             )}
                           </td>
 
@@ -433,8 +490,7 @@ export default function CommercialVehiclesClient({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-8 text-xs gap-1 rounded-xl border-border/80 hover:border-primary/50 hover:bg-primary/5 cursor-pointer"
-                              >
+                                className="h-8 text-xs gap-1 rounded-xl border-border/80 hover:border-primary/50 hover:bg-primary/5 cursor-pointer">
                                 View <ArrowRight className="w-3 h-3" />
                               </Button>
                             </Link>
@@ -454,15 +510,20 @@ export default function CommercialVehiclesClient({
           {drivers.length === 0 ? (
             <Card className="border-border/60 bg-card p-12 text-center">
               <User className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
-              <h3 className="text-base font-semibold text-foreground">No drivers found</h3>
+              <h3 className="text-base font-semibold text-foreground">
+                No drivers found
+              </h3>
               <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                No commercial vehicle drivers have been registered yet. Drivers are captured during vehicle onboarding.
+                No commercial vehicle drivers have been registered yet. Drivers
+                are captured during vehicle onboarding.
               </p>
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {drivers.map((d) => (
-                <Card key={d.id} className="border-border/60 bg-card hover:border-primary/40 transition-colors">
+                <Card
+                  key={d.id}
+                  className="border-border/60 bg-card hover:border-primary/40 transition-colors">
                   <CardContent className="p-5">
                     <div className="flex items-start gap-3.5">
                       {d.passportPhotoUrl ? (
@@ -478,7 +539,9 @@ export default function CommercialVehiclesClient({
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-1">
-                          <h4 className="font-bold text-foreground text-sm truncate">{d.fullName}</h4>
+                          <h4 className="font-bold text-foreground text-sm truncate">
+                            {d.fullName}
+                          </h4>
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground uppercase font-mono">
                             {d.gender}
                           </span>
@@ -489,14 +552,20 @@ export default function CommercialVehiclesClient({
                         </div>
                         <div className="flex items-center gap-1 text-[11px] text-muted-foreground/80 mt-0.5">
                           <MapPin className="w-3 h-3" />
-                          <span>{[d.city, d.state].filter(Boolean).join(", ") || "Anambra"}</span>
+                          <span>
+                            {[d.city, d.state].filter(Boolean).join(", ") ||
+                              "Anambra"}
+                          </span>
                         </div>
                       </div>
                     </div>
 
                     <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">
-                        Assigned vehicles: <strong className="text-foreground">{d.vehicleCount}</strong>
+                        Assigned vehicles:{" "}
+                        <strong className="text-foreground">
+                          {d.vehicleCount}
+                        </strong>
                       </span>
                       <span className="text-[11px] text-muted-foreground">
                         {fmtDateShort(d.createdAt)}
@@ -514,7 +583,8 @@ export default function CommercialVehiclesClient({
       {pagination.totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-border/60 pt-4 text-xs text-muted-foreground">
           <div>
-            Showing page {pagination.page} of {pagination.totalPages} ({pagination.total} total records)
+            Showing page {pagination.page} of {pagination.totalPages} (
+            {pagination.total} total records)
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -522,8 +592,7 @@ export default function CommercialVehiclesClient({
               size="sm"
               disabled={pagination.page <= 1}
               onClick={() => handlePageChange(pagination.page - 1)}
-              className="rounded-xl cursor-pointer"
-            >
+              className="rounded-xl cursor-pointer">
               Previous
             </Button>
             <Button
@@ -531,8 +600,7 @@ export default function CommercialVehiclesClient({
               size="sm"
               disabled={pagination.page >= pagination.totalPages}
               onClick={() => handlePageChange(pagination.page + 1)}
-              className="rounded-xl cursor-pointer"
-            >
+              className="rounded-xl cursor-pointer">
               Next
             </Button>
           </div>

@@ -60,6 +60,7 @@ const vehicleDetailSchema = z.object({
   model: z.string().min(1, "Vehicle model required"),
   engineNumber: z.string().min(1, "Engine number required"),
   chassisNumber: z.string().min(1, "Chassis number required"),
+  stickerNumber: z.string().optional(),
   routesServed: z.string().optional(),
   roadworthinessExpiry: z.string().optional(),
 });
@@ -410,6 +411,9 @@ export type FleetApplicationListItem = {
   permitStatus: string | null;
   currentFleetSize: number;
   minFleetSize: number;
+  _count?: {
+    vehicles: number;
+  };
   /** Declared / submitted from the latest submission request. */
   vehicleSubmissionReqs: {
     vehicleCount: number;
@@ -479,6 +483,11 @@ export async function listFleetApplications(filters?: {
         minFleetSize: true,
         appliedAt: true,
         permitExpiresAt: true,
+        _count: {
+          select: {
+            vehicles: { where: { removedAt: null } },
+          },
+        },
         // currentFleetSize and minFleetSize are separately maintained counters
         // that drift. The submission request is what the operator's own screen
         // counts against, so the Ministry reads the same numbers.
@@ -572,6 +581,7 @@ export type FleetApplicationDetail = {
     model: string;
     engineNumber: string;
     chassisNumber: string;
+    stickerNumber: string | null;
     routesServed: string | null;
     roadworthinessExpiry: Date | null;
     status: string;
@@ -674,6 +684,7 @@ export async function getFleetApplication(
           model: true,
           engineNumber: true,
           chassisNumber: true,
+          stickerNumber: true,
           routesServed: true,
           roadworthinessExpiry: true,
           status: true,
@@ -775,10 +786,21 @@ export async function getFleetApplication(
     asin: docs.find((d) => d.id === company.corporateAsinDocumentId),
   };
 
+  const activeFleetCount = company.vehicles.length;
+
+  // Auto-heal currentFleetSize if it has drifted or was over-incremented
+  if (company.currentFleetSize !== activeFleetCount) {
+    await db.massTransitCompany.update({
+      where: { id: companyId },
+      data: { currentFleetSize: activeFleetCount },
+    });
+  }
+
   return {
     success: true,
     data: {
       ...company,
+      currentFleetSize: activeFleetCount,
       documents,
       inspections,
       registrationFeePaid: !!registrationPayment,
@@ -796,7 +818,13 @@ export async function addVehicle(
   prevState: ActionResult<{ vehicleId: string }> | undefined,
   formData: FormData,
 ): Promise<ActionResult<{ vehicleId: string }>> {
-  const session = await requireRole(["EXTERNAL_APPLICANT", "ENUMERATOR"]);
+  const session = await requireRole([
+    "EXTERNAL_APPLICANT",
+    "ENUMERATOR",
+    "ADMIN",
+    "SYSTEM_ADMIN",
+    "HOD_TRANSPORT_OPS",
+  ]);
 
   const companyId = formData.get("companyId") as string;
   if (!companyId) return { success: false, error: "Company ID required" };
@@ -812,7 +840,15 @@ export async function addVehicle(
   });
 
   if (!company) return { success: false, error: "Fleet application not found" };
-  if (company.contactUserId !== session.userId) {
+
+  const isStaffOrEnumerator = [
+    "ENUMERATOR",
+    "ADMIN",
+    "SYSTEM_ADMIN",
+    "HOD_TRANSPORT_OPS",
+  ].includes(session.role);
+
+  if (!isStaffOrEnumerator && company.contactUserId !== session.userId) {
     return { success: false, error: "Access denied" };
   }
 
@@ -823,6 +859,7 @@ export async function addVehicle(
     model: formData.get("model"),
     engineNumber: formData.get("engineNumber"),
     chassisNumber: formData.get("chassisNumber"),
+    stickerNumber: formData.get("stickerNumber") || undefined,
     routesServed: formData.get("routesServed") || undefined,
     roadworthinessExpiry: formData.get("roadworthinessExpiry") || undefined,
   });
@@ -851,6 +888,7 @@ export async function addVehicle(
         model: v.model,
         engineNumber: v.engineNumber,
         chassisNumber: v.chassisNumber,
+        stickerNumber: v.stickerNumber?.trim() || null,
         routesServed: v.routesServed ?? null,
         roadworthinessExpiry: v.roadworthinessExpiry
           ? new Date(v.roadworthinessExpiry)
@@ -860,9 +898,13 @@ export async function addVehicle(
       select: { id: true },
     });
 
+    const actualTotal = await tx.vehicle.count({
+      where: { companyId, removedAt: null },
+    });
+
     await tx.massTransitCompany.update({
       where: { id: companyId },
-      data: { currentFleetSize: { increment: 1 } },
+      data: { currentFleetSize: actualTotal },
     });
 
     await tx.auditLog.create({
@@ -878,8 +920,60 @@ export async function addVehicle(
     return veh;
   });
 
+  revalidatePath("/fleet-operators");
   revalidatePath(`/fleet-operators/${companyId}`);
   return { success: true, data: { vehicleId: vehicle.id } };
+}
+
+/**
+ * Attach or update physical QR sticker on a Mass Transit vehicle.
+ * Accessible by ENUMERATOR, ADMIN, SYSTEM_ADMIN, HOD_TRANSPORT_OPS, HOD_PARKS_REVALIDATION.
+ */
+export async function attachStickerToVehicle(
+  vehicleId: string,
+  stickerNumber: string | null,
+): Promise<ActionResult<{ vehicleId: string; stickerNumber: string | null }>> {
+  const session = await requireRole([
+    "ENUMERATOR",
+    "ADMIN",
+    "SYSTEM_ADMIN",
+    "HOD_TRANSPORT_OPS",
+    "HOD_PARKS_REVALIDATION",
+  ]);
+
+  const vehicle = await db.vehicle.findUnique({
+    where: { id: vehicleId },
+    select: { id: true, registrationNumber: true, companyId: true, stickerNumber: true },
+  });
+
+  if (!vehicle) return { success: false, error: "Vehicle not found." };
+
+  const cleanSticker = stickerNumber?.trim() ? stickerNumber.trim().toUpperCase() : null;
+
+  await db.$transaction(async (tx) => {
+    await tx.vehicle.update({
+      where: { id: vehicleId },
+      data: { stickerNumber: cleanSticker },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        performedByUserId: session.userId,
+        action: cleanSticker ? "VEHICLE_STICKER_ATTACHED" : "VEHICLE_STICKER_REMOVED",
+        entityType: "MASS_TRANSIT",
+        entityId: vehicle.companyId,
+        changeDescription: cleanSticker
+          ? `Sticker ${cleanSticker} attached to vehicle ${vehicle.registrationNumber}`
+          : `Sticker detached from vehicle ${vehicle.registrationNumber}`,
+      },
+    });
+  });
+
+  revalidatePath("/fleet-operators");
+  revalidatePath(`/fleet-operators/${vehicle.companyId}`);
+  revalidatePath("/admin/revalidation-queue");
+
+  return { success: true, data: { vehicleId, stickerNumber: cleanSticker } };
 }
 
 /**
@@ -923,9 +1017,13 @@ export async function removeVehicle(
       data: { removedAt: new Date(), status: "SUSPENDED" },
     });
 
+    const actualTotal = await tx.vehicle.count({
+      where: { companyId, removedAt: null },
+    });
+
     await tx.massTransitCompany.update({
       where: { id: companyId },
-      data: { currentFleetSize: { decrement: 1 } },
+      data: { currentFleetSize: actualTotal },
     });
 
     await tx.auditLog.create({
@@ -941,6 +1039,7 @@ export async function removeVehicle(
     });
   });
 
+  revalidatePath("/fleet-operators");
   revalidatePath(`/fleet-operators/${companyId}`);
   return { success: true };
 }
@@ -2112,9 +2211,13 @@ export async function addVehicleToSubmission(
       },
     });
 
+    const actualTotal = await tx.vehicle.count({
+      where: { companyId: request.companyId, removedAt: null },
+    });
+
     await tx.massTransitCompany.update({
       where: { id: request.companyId },
-      data: { currentFleetSize: { increment: 1 } },
+      data: { currentFleetSize: actualTotal },
     });
 
     // Only closes once every declared vehicle is in.
@@ -2136,6 +2239,7 @@ export async function addVehicleToSubmission(
     });
   });
 
+  revalidatePath("/fleet-operators");
   revalidatePath("/fleet-operators/submit-vehicles");
   revalidatePath(`/fleet-operators/${request.companyId}`);
 
