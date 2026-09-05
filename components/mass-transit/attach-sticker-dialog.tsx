@@ -118,14 +118,25 @@ export function AttachStickerDialog({
     }
   }, [readerId, stopCamera]);
 
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setOpen(nextOpen);
+      if (!nextOpen) {
+        stopCamera();
+        setIsScanning(false);
+      } else {
+        setStickerCode(currentSticker || "");
+        setCameraError(null);
+      }
+    },
+    [currentSticker, stopCamera]
+  );
+
   useEffect(() => {
-    if (!open) {
+    return () => {
       stopCamera();
-      setIsScanning(false);
-    } else {
-      setStickerCode(currentSticker || "");
-    }
-  }, [open, currentSticker, stopCamera]);
+    };
+  }, [stopCamera]);
 
   const handleSave = (codeToSave: string | null) => {
     startTransition(async () => {
@@ -139,7 +150,7 @@ export function AttachStickerDialog({
           ? `Sticker ${codeToSave} attached to ${vehicleReg}!`
           : `Sticker detached from ${vehicleReg}.`
       );
-      setOpen(false);
+      handleOpenChange(false);
       router.refresh();
     });
   };
@@ -160,7 +171,7 @@ export function AttachStickerDialog({
       {currentSticker ? (
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => handleOpenChange(true)}
           className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 font-mono text-xs font-semibold transition-colors cursor-pointer"
           title="Click to view or change attached sticker">
           <Tag className="w-3 h-3 shrink-0" />
@@ -171,14 +182,14 @@ export function AttachStickerDialog({
           type="button"
           size="sm"
           variant="outline"
-          onClick={() => setOpen(true)}
+          onClick={() => handleOpenChange(true)}
           className="h-7 px-2.5 text-xs gap-1 border-dashed border-primary/40 text-primary hover:bg-primary/10">
           <Plus className="w-3 h-3" />
           Attach Sticker
         </Button>
       )}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-semibold">
@@ -273,7 +284,7 @@ export function AttachStickerDialog({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setOpen(false)}
+                  onClick={() => handleOpenChange(false)}
                   disabled={isPending}>
                   Cancel
                 </Button>
@@ -388,26 +399,41 @@ export function StickerScanModal({
     }
   }, [readerId, onScanSuccess, onOpenChange, stopCamera]);
 
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) {
+        stopCamera();
+        setIsScanning(false);
+        setManualCode("");
+        setCameraError(null);
+      }
+      onOpenChange(nextOpen);
+    },
+    [onOpenChange, stopCamera]
+  );
+
   useEffect(() => {
-    if (!open) {
+    if (!open) return;
+
+    const timer = setTimeout(() => {
+      startCamera();
+    }, 150);
+
+    return () => {
+      clearTimeout(timer);
       stopCamera();
-      setIsScanning(false);
-      setManualCode("");
-    } else {
-      setTimeout(() => {
-        startCamera();
-      }, 150);
-    }
+    };
   }, [open, startCamera, stopCamera]);
 
   const handleManualSubmit = () => {
     if (!manualCode.trim()) return;
-    onScanSuccess(manualCode.trim().toUpperCase());
-    onOpenChange(false);
+    const code = manualCode.trim().toUpperCase();
+    handleOpenChange(false);
+    onScanSuccess(code);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base font-semibold">
