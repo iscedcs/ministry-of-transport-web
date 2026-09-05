@@ -596,7 +596,7 @@ export default function VehicleDetailClient({
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">
                   <ShieldCheck className="w-4 h-4 text-cyan-400" />
                   <span className="text-xs font-semibold text-muted-foreground uppercase">
-                    VIN:
+                    CVIN:
                   </span>
                   <span className="font-mono font-bold text-sm tracking-wider">
                     {vehicle.vin}
@@ -1085,7 +1085,7 @@ export default function VehicleDetailClient({
               onClick={handleAssignVin}
               disabled={isPending}
               className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl px-5 cursor-pointer">
-              {isPending ? "Generating VIN..." : "Confirm & Assign VIN"}
+              {isPending ? "Generating CVIN..." : "Confirm & Assign CVIN"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -420,8 +420,8 @@ export function RevalidationCertificate({
               .{" "}
               {isTemporal ? (
                 <>
-                  This<span className="font-semibold">TEMPORARY</span> approval
-                  is valid until{" "}
+                  This <span className="font-semibold"> TEMPORARY</span>{" "}
+                  approval is valid until{" "}
                   <span className="font-semibold">
                     {a.validUntil ? (
                       fmtLong(a.validUntil)

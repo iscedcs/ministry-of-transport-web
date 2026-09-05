@@ -1256,7 +1256,7 @@ export default function RegisterClient({
               <p className="text-[11px] text-muted-foreground">
                 Submitting will save this vehicle as{" "}
                 <strong>REGISTERED (Stage 1 Complete)</strong> and generate an
-                audit log entry. Designees with VIN assignment privileges can
+                audit log entry. Designees with CVIN assignment privileges can
                 then issue a Vehicle Identification Number (Stage 2).
               </p>
             </CardContent>
