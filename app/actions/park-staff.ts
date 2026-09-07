@@ -16,9 +16,12 @@ export async function onboardParkStaff(data: {
     // This action previously had no authorization whatsoever — any signed-in
     // user could add staff to any park.
     const authz = await authorize([
+      "COMMISSIONER",
+      "PERMANENT_SECRETARY",
       "ENUMERATOR",
       "HOD_PARKS",
       "HOD_TRANSPORT_OPS",
+      "HOD_PARKS_REVALIDATION",
       "SYSTEM_ADMIN",
       "ADMIN",
       "EXTERNAL_APPLICANT",
@@ -35,10 +38,19 @@ export async function onboardParkStaff(data: {
         businessName: true,
         townCity: true,
         applicationStatus: true,
+        permitStatus: true,
+        approvedAt: true,
       },
     });
 
-    if (!park || (park.applicationStatus !== "APPROVED" && park.applicationStatus !== "TEMPORAL_APPROVAL")) {
+    const isApproved =
+      park &&
+      (park.applicationStatus === "APPROVED" ||
+        park.applicationStatus === "TEMPORAL_APPROVAL" ||
+        park.permitStatus === "ACTIVE" ||
+        !!park.approvedAt);
+
+    if (!park || !isApproved) {
       return { success: false, error: "Only approved or temporally approved motor parks can onboard staff." };
     }
 
@@ -92,6 +104,19 @@ export async function onboardParkStaff(data: {
 
 export async function deleteParkStaff(staffId: string, parkId: string) {
   try {
+    const authz = await authorize([
+      "COMMISSIONER",
+      "PERMANENT_SECRETARY",
+      "ENUMERATOR",
+      "HOD_PARKS",
+      "HOD_TRANSPORT_OPS",
+      "HOD_PARKS_REVALIDATION",
+      "SYSTEM_ADMIN",
+      "ADMIN",
+      "EXTERNAL_APPLICANT",
+    ]);
+    if (!authz.ok) return { success: false, error: authz.error };
+
     await db.parkStaff.delete({
       where: { id: staffId }
     });

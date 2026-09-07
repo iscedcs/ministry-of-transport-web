@@ -30,6 +30,7 @@ export default async function EditMotorParkPage({
     "HOD_PARKS_REVALIDATION",
     "COMMISSIONER",
     "PERMANENT_SECRETARY",
+    "ENUMERATOR",
   ];
 
   if (!allowedRoles.includes(session.role)) {

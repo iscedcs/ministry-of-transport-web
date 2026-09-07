@@ -271,7 +271,7 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
   const showCompletion =
     !!capture &&
     (capture.applicationStatus === "DRAFT" || !!capture.capturedByUserId) &&
-    ["HOD_TRANSPORT_OPS","HOD_PARKS_REVALIDATION","HOD_PARKS","SYSTEM_ADMIN","ADMIN"].includes(session.role);
+    ["HOD_TRANSPORT_OPS","HOD_PARKS_REVALIDATION","HOD_PARKS","SYSTEM_ADMIN","ADMIN","ENUMERATOR"].includes(session.role);
 
   // Terminals carry their own approval state once the company is live, so
   // they are read directly rather than through the application detail.

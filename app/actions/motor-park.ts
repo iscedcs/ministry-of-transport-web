@@ -507,7 +507,12 @@ export type MotorParkDetail = {
     //   verificationNotes?: string | null;
     // };
   };
-  applicant: { id: string; firstName: string; lastName: string; email: string };
+  applicant: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string | null;
+  } | null;
   inspections: {
     id: string;
     inspectionType: string;
@@ -2237,6 +2242,7 @@ export async function updateMotorParkApplication(
     "HOD_PARKS_REVALIDATION",
     "COMMISSIONER",
     "PERMANENT_SECRETARY",
+    "ENUMERATOR",
   ]);
 
   const park = await db.motorPark.findUnique({

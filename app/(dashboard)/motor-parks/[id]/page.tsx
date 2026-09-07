@@ -43,6 +43,7 @@ import {
   Eye,
   ExternalLink,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import { MotorParkWorkflowActions } from "./motor-park-workflow-actions";
 import { canSchedule as canScheduleInspectionRole } from "@/lib/workflow-roles";
@@ -128,13 +129,24 @@ function ActionBar({
     ["COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
     park.permitStatus === "ACTIVE";
 
+  const isApprovedPark =
+    status === "APPROVED" ||
+    status === "TEMPORAL_APPROVAL" ||
+    park.permitStatus === "ACTIVE" ||
+    !!park.approvedAt;
+
   const canManageStaff =
-    (status === "APPROVED" || status === "TEMPORAL_APPROVAL") &&
+    isApprovedPark &&
     [
       "EXTERNAL_APPLICANT",
       "HOD_PARKS",
+      "HOD_TRANSPORT_OPS",
+      "HOD_PARKS_REVALIDATION",
       "COMMISSIONER",
       "PERMANENT_SECRETARY",
+      "SYSTEM_ADMIN",
+      "ADMIN",
+      "ENUMERATOR",
     ].includes(role);
 
   const pendingInspection = park.inspections.find(
@@ -149,6 +161,7 @@ function ActionBar({
     "HOD_PARKS_REVALIDATION",
     "COMMISSIONER",
     "PERMANENT_SECRETARY",
+    "ENUMERATOR",
   ].includes(role);
 
   if (
@@ -256,6 +269,7 @@ function ActionBar({
             variant="outline"
             className="border-primary text-primary hover:bg-primary/10">
             <Link href={`/motor-parks/${park.id}/staff`}>
+              <Users className="w-4 h-4 mr-2" />
               Manage Park Staff
             </Link>
           </Button>
@@ -560,7 +574,14 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
   const showCompletion =
     !!capture &&
     (capture.applicationStatus === "DRAFT" || !!capture.capturedByUserId) &&
-    ["HOD_TRANSPORT_OPS","HOD_PARKS_REVALIDATION","HOD_PARKS","SYSTEM_ADMIN","ADMIN"].includes(session.role);
+    [
+      "HOD_TRANSPORT_OPS",
+      "HOD_PARKS_REVALIDATION",
+      "HOD_PARKS",
+      "SYSTEM_ADMIN",
+      "ADMIN",
+      "ENUMERATOR",
+    ].includes(session.role);
 
   const canApproveDocs = [
     "HOD_PARKS",
@@ -569,6 +590,28 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
     "HOD_TRANSPORT_OPS",
     "SYSTEM_ADMIN",
   ].includes(session.role);
+
+  const isApprovedPark =
+    park.applicationStatus === "APPROVED" ||
+    park.applicationStatus === "TEMPORAL_APPROVAL" ||
+    park.permitStatus === "ACTIVE" ||
+    !!park.approvedAt;
+
+  const canManageParkStaffRole = [
+    "EXTERNAL_APPLICANT",
+    "HOD_PARKS",
+    "HOD_TRANSPORT_OPS",
+    "HOD_PARKS_REVALIDATION",
+    "COMMISSIONER",
+    "PERMANENT_SECRETARY",
+    "SYSTEM_ADMIN",
+    "ADMIN",
+    "ENUMERATOR",
+  ].includes(session.role);
+
+  const staffCount = isApprovedPark
+    ? await db.parkStaff.count({ where: { motorParkId: id } })
+    : 0;
 
   return (
     <div className="flex flex-col gap-6 max-w-4xl">
@@ -610,6 +653,18 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
           </div>
           <div className="flex flex-col items-end gap-2">
             <div className="flex items-center gap-2">
+              {isApprovedPark && canManageParkStaffRole && (
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="border-border text-xs">
+                  <Link href={`/motor-parks/${park.id}/staff`}>
+                    <Users className="w-3.5 h-3.5 mr-1.5" />
+                    Manage Staff {staffCount > 0 ? `(${staffCount})` : ""}
+                  </Link>
+                </Button>
+              )}
               {[
                 "ADMIN",
                 "SYSTEM_ADMIN",
@@ -618,6 +673,7 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
                 "HOD_PARKS_REVALIDATION",
                 "COMMISSIONER",
                 "PERMANENT_SECRETARY",
+                "ENUMERATOR",
               ].includes(session.role) && (
                 <Button
                   asChild
@@ -820,7 +876,9 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
           <CardHeader>
             <CardTitle className="text-base">Contact Details</CardTitle>
             <CardDescription>
-              Applicant: {park.applicant.firstName} {park.applicant.lastName}
+              {park.applicant
+                ? `Applicant: ${park.applicant.firstName} ${park.applicant.lastName}`
+                : "No applicant account linked"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -831,13 +889,48 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
             <p className="text-xs text-muted-foreground font-medium mb-2">
               Applicant Account
             </p>
-            <Row
-              label="Name"
-              value={`${park.applicant.firstName} ${park.applicant.lastName}`}
-            />
-            <Row label="Email" value={park.applicant.email} />
+            {park.applicant ? (
+              <>
+                <Row
+                  label="Name"
+                  value={`${park.applicant.firstName} ${park.applicant.lastName}`}
+                />
+                <Row label="Email" value={park.applicant.email || "—"} />
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">
+                No applicant account linked (e.g. field capture or government park)
+              </p>
+            )}
           </CardContent>
         </Card>
+
+        {/* Park Staff Directory Card */}
+        {isApprovedPark && (
+          <Card className="lg:col-span-2 border-border/80">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <div className="space-y-1">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Users className="w-4 h-4 text-primary" />
+                  Park Staff Directory
+                </CardTitle>
+                <CardDescription>
+                  {staffCount === 0
+                    ? "No staff members have been onboarded yet."
+                    : `${staffCount} verified staff member${staffCount > 1 ? "s" : ""} on record with security codes and digital ID cards.`}
+                </CardDescription>
+              </div>
+              {canManageParkStaffRole && (
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/motor-parks/${park.id}/staff`}>
+                    <Users className="w-3.5 h-3.5 mr-1.5" />
+                    Manage Park Staff
+                  </Link>
+                </Button>
+              )}
+            </CardHeader>
+          </Card>
+        )}
       </div>
 
       {/* Documents */}
