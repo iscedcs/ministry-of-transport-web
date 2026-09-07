@@ -36,6 +36,7 @@ const COMPLETE_ROLES = [
   "HOD_PARKS",
   "SYSTEM_ADMIN",
   "ADMIN",
+  "ENUMERATOR",
 ] as const;
 
 export interface OwnerDetails {
