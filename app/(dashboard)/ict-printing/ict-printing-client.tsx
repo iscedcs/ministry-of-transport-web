@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState, useTransition } from "react";
 import {
   Printer,
   Search,
@@ -19,36 +19,16 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import Link from "next/link";
-import { PrintingItem } from "@/app/actions/ict-printing";
+import {
+  getIctPrintingQueues,
+  type PrintingQueue,
+  type PrintingQueuesResult,
+} from "@/app/actions/ict-printing";
 
 export function IctPrintingClient({
   initialData,
 }: {
-  initialData: {
-    scope?: "ALL" | "TRACAS";
-    stats: {
-      totalToPrint: number;
-      driverIdCardsCount: number;
-      lettersCount: number;
-      parkStaffCount: number;
-      boatPermitsCount: number;
-      revalidationCount: number;
-      parkCertificateCount: number;
-      temporalCount: number;
-      parkStaffCardCount: number;
-      massTransitCount: number;
-    };
-    items: PrintingItem[];
-    driverItems: PrintingItem[];
-    vehicleItems: PrintingItem[];
-    parkStaffItems: PrintingItem[];
-    boatItems: PrintingItem[];
-    revalidationItems: PrintingItem[];
-    parkCertificateItems: PrintingItem[];
-    temporalItems: PrintingItem[];
-    parkStaffCardItems: PrintingItem[];
-    massTransitItems: PrintingItem[];
-  };
+  initialData: PrintingQueuesResult;
 }) {
   /**
    * A TRACAS-scoped ICT officer only handles driver ID cards and letters of
@@ -57,51 +37,48 @@ export function IctPrintingClient({
    */
   const isTracasScoped = initialData.scope === "TRACAS";
 
-  const [activeTab, setActiveTab] = useState<
-    | "ALL"
-    | "DRIVER_ID_CARD"
-    | "LETTER_OF_AUTHORITY"
-    | "PARK_STAFF_ID_CARD"
-    | "BOAT_PERMIT"
-    | "REVALIDATION_CERTIFICATE"
-    | "PARK_CERTIFICATE"
-    | "TEMPORAL_APPROVAL"
-    | "PARK_STAFF"
-    | "MASS_TRANSIT_LETTER"
-  >("ALL");
+  /**
+   * The queue lives on the server now.
+   *
+   * It used to be fetched once, whole, capped at a hundred rows per queue and
+   * then filtered in the browser. An officer searching for the four-hundredth
+   * approved card was searching a hundred-row array that did not contain it,
+   * and the badge told them the queue held a hundred items when it held far
+   * more. Every change of tab, search or page now asks the database, which is
+   * the only place that knows what is really waiting to be printed.
+   */
+  const [data, setData] = useState<PrintingQueuesResult>(initialData);
+  const [pending, startTransition] = useTransition();
+
+  const [activeTab, setActiveTab] = useState<PrintingQueue>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const getFilteredItems = () => {
-    let source: PrintingItem[] = [];
-    if (activeTab === "ALL") source = initialData.items;
-    else if (activeTab === "DRIVER_ID_CARD") source = initialData.driverItems;
-    else if (activeTab === "LETTER_OF_AUTHORITY")
-      source = initialData.vehicleItems;
-    else if (activeTab === "PARK_STAFF_ID_CARD")
-      source = initialData.parkStaffItems;
-    else if (activeTab === "BOAT_PERMIT") source = initialData.boatItems;
-    else if (activeTab === "REVALIDATION_CERTIFICATE")
-      source = initialData.revalidationItems;
-    else if (activeTab === "PARK_CERTIFICATE")
-      source = initialData.parkCertificateItems;
-    else if (activeTab === "TEMPORAL_APPROVAL")
-      source = initialData.temporalItems;
-    else if (activeTab === "PARK_STAFF")
-      source = initialData.parkStaffCardItems;
-    else if (activeTab === "MASS_TRANSIT_LETTER")
-      source = initialData.massTransitItems;
+  const load = useCallback(
+    (queue: PrintingQueue, search: string, page: number) => {
+      startTransition(async () => {
+        const next = await getIctPrintingQueues({ queue, search, page });
+        if (next.success) setData(next);
+      });
+    },
+    [],
+  );
 
-    if (!searchQuery.trim()) return source;
-    const q = searchQuery.toLowerCase();
-    return source.filter(
-      (item) =>
-        item.title.toLowerCase().includes(q) ||
-        item.subtitle.toLowerCase().includes(q) ||
-        item.refOrCode.toLowerCase().includes(q),
-    );
-  };
+  // Typing waits a moment before it reaches the database. Without this every
+  // keystroke would run ten counts and a page fetch.
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      load(activeTab, searchQuery, 1);
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [activeTab, searchQuery, load]);
 
-  const currentItems = getFilteredItems();
+  const selectTab = (queue: PrintingQueue) => setActiveTab(queue);
+
+  const goToPage = (page: number) => load(activeTab, searchQuery, page);
+
+  const currentItems = data.items;
+  const firstOnPage = (data.page - 1) * data.pageSize + 1;
+  const lastOnPage = Math.min(data.page * data.pageSize, data.total);
 
   const handlePrintWindow = (url: string) => {
     if (typeof window !== "undefined") {
@@ -136,7 +113,7 @@ export function IctPrintingClient({
         <div className="flex items-center gap-3">
           <div className="bg-emerald-500/20 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-emerald-500/30 text-center">
             <span className="text-2xl font-extrabold text-emerald-400">
-              {initialData.stats.totalToPrint}
+              {data.stats.totalToPrint}
             </span>
             <p className="text-[10px] uppercase font-bold text-emerald-200">
               Total Printable Items
@@ -148,7 +125,7 @@ export function IctPrintingClient({
       {/* Summary Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <button
-          onClick={() => setActiveTab("DRIVER_ID_CARD")}
+          onClick={() => selectTab("DRIVER_ID_CARD")}
           className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
             activeTab === "DRIVER_ID_CARD"
               ? "bg-primary/10 border-primary shadow-md"
@@ -157,7 +134,7 @@ export function IctPrintingClient({
           <div className="flex items-center justify-between">
             <IdCard className="w-5 h-5 text-primary" />
             <Badge variant="outline" className="font-bold text-xs">
-              {initialData.stats.driverIdCardsCount}
+              {data.stats.driverIdCardsCount}
             </Badge>
           </div>
           <p className="font-bold text-base mt-2">Driver ID Cards</p>
@@ -167,7 +144,7 @@ export function IctPrintingClient({
         </button>
 
         <button
-          onClick={() => setActiveTab("LETTER_OF_AUTHORITY")}
+          onClick={() => selectTab("LETTER_OF_AUTHORITY")}
           className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
             activeTab === "LETTER_OF_AUTHORITY"
               ? "bg-primary/10 border-primary shadow-md"
@@ -176,7 +153,7 @@ export function IctPrintingClient({
           <div className="flex items-center justify-between">
             <FileText className="w-5 h-5 text-emerald-500" />
             <Badge variant="outline" className="font-bold text-xs">
-              {initialData.stats.lettersCount}
+              {data.stats.lettersCount}
             </Badge>
           </div>
           <p className="font-bold text-base mt-2">Letters of Authority</p>
@@ -187,7 +164,7 @@ export function IctPrintingClient({
 
         {!isTracasScoped && (
         <button
-          onClick={() => setActiveTab("PARK_STAFF_ID_CARD")}
+          onClick={() => selectTab("PARK_STAFF_ID_CARD")}
           className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
             activeTab === "PARK_STAFF_ID_CARD"
               ? "bg-primary/10 border-primary shadow-md"
@@ -196,7 +173,7 @@ export function IctPrintingClient({
           <div className="flex items-center justify-between">
             <UserCheck className="w-5 h-5 text-blue-500" />
             <Badge variant="outline" className="font-bold text-xs">
-              {initialData.stats.parkStaffCount}
+              {data.stats.parkStaffCount}
             </Badge>
           </div>
           <p className="font-bold text-base mt-2">Park Staff Cards</p>
@@ -206,7 +183,7 @@ export function IctPrintingClient({
 
         {!isTracasScoped && (
         <button
-          onClick={() => setActiveTab("BOAT_PERMIT")}
+          onClick={() => selectTab("BOAT_PERMIT")}
           className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
             activeTab === "BOAT_PERMIT"
               ? "bg-primary/10 border-primary shadow-md"
@@ -215,7 +192,7 @@ export function IctPrintingClient({
           <div className="flex items-center justify-between">
             <Ship className="w-5 h-5 text-amber-500" />
             <Badge variant="outline" className="font-bold text-xs">
-              {initialData.stats.boatPermitsCount}
+              {data.stats.boatPermitsCount}
             </Badge>
           </div>
           <p className="font-bold text-base mt-2">Maritime Permits</p>
@@ -227,7 +204,7 @@ export function IctPrintingClient({
 
         {!isTracasScoped && (
         <button
-          onClick={() => setActiveTab("REVALIDATION_CERTIFICATE")}
+          onClick={() => selectTab("REVALIDATION_CERTIFICATE")}
           className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
             activeTab === "REVALIDATION_CERTIFICATE"
               ? "bg-primary/10 border-primary shadow-md"
@@ -236,7 +213,7 @@ export function IctPrintingClient({
           <div className="flex items-center justify-between">
             <FileCheck className="w-5 h-5 text-emerald-500" />
             <Badge variant="outline" className="font-bold text-xs">
-              {initialData.stats.revalidationCount}
+              {data.stats.revalidationCount}
             </Badge>
           </div>
           <p className="font-bold text-base mt-2">Revalidation Letters</p>
@@ -248,7 +225,7 @@ export function IctPrintingClient({
 
         {!isTracasScoped && (
         <button
-          onClick={() => setActiveTab("PARK_CERTIFICATE")}
+          onClick={() => selectTab("PARK_CERTIFICATE")}
           className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
             activeTab === "PARK_CERTIFICATE"
               ? "bg-primary/10 border-primary shadow-md"
@@ -257,7 +234,7 @@ export function IctPrintingClient({
           <div className="flex items-center justify-between">
             <Award className="w-5 h-5 text-amber-500" />
             <Badge variant="outline" className="font-bold text-xs">
-              {initialData.stats.parkCertificateCount}
+              {data.stats.parkCertificateCount}
             </Badge>
           </div>
           <p className="font-bold text-base mt-2">Park Certificates</p>
@@ -269,7 +246,7 @@ export function IctPrintingClient({
 
         {!isTracasScoped && (
         <button
-          onClick={() => setActiveTab("TEMPORAL_APPROVAL")}
+          onClick={() => selectTab("TEMPORAL_APPROVAL")}
           className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
             activeTab === "TEMPORAL_APPROVAL"
               ? "bg-primary/10 border-primary shadow-md"
@@ -278,7 +255,7 @@ export function IctPrintingClient({
           <div className="flex items-center justify-between">
             <Clock className="w-5 h-5 text-orange-500" />
             <Badge variant="outline" className="font-bold text-xs">
-              {initialData.stats.temporalCount}
+              {data.stats.temporalCount}
             </Badge>
           </div>
           <p className="font-bold text-base mt-2">Temporary Approvals</p>
@@ -293,96 +270,96 @@ export function IctPrintingClient({
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-4 rounded-2xl border border-border shadow-xs">
         <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           <button
-            onClick={() => setActiveTab("ALL")}
+            onClick={() => selectTab("ALL")}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
               activeTab === "ALL"
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "bg-muted text-muted-foreground hover:text-foreground"
             }`}>
-            All Queues ({initialData.stats.totalToPrint})
+            All Queues ({data.stats.totalToPrint})
           </button>
           <button
-            onClick={() => setActiveTab("DRIVER_ID_CARD")}
+            onClick={() => selectTab("DRIVER_ID_CARD")}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
               activeTab === "DRIVER_ID_CARD"
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "bg-muted text-muted-foreground hover:text-foreground"
             }`}>
-            Driver Cards ({initialData.stats.driverIdCardsCount})
+            Driver Cards ({data.stats.driverIdCardsCount})
           </button>
           <button
-            onClick={() => setActiveTab("LETTER_OF_AUTHORITY")}
+            onClick={() => selectTab("LETTER_OF_AUTHORITY")}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
               activeTab === "LETTER_OF_AUTHORITY"
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "bg-muted text-muted-foreground hover:text-foreground"
             }`}>
-            Letters ({initialData.stats.lettersCount})
+            Letters ({data.stats.lettersCount})
           </button>
           {!isTracasScoped && (
             <>
               <button
-                onClick={() => setActiveTab("PARK_STAFF_ID_CARD")}
+                onClick={() => selectTab("PARK_STAFF_ID_CARD")}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                   activeTab === "PARK_STAFF_ID_CARD"
                     ? "bg-primary text-primary-foreground shadow-xs"
                     : "bg-muted text-muted-foreground hover:text-foreground"
                 }`}>
-                Park Monitors ({initialData.stats.parkStaffCount})
+                Park Monitors ({data.stats.parkStaffCount})
               </button>
               <button
-                onClick={() => setActiveTab("BOAT_PERMIT")}
+                onClick={() => selectTab("BOAT_PERMIT")}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                   activeTab === "BOAT_PERMIT"
                     ? "bg-primary text-primary-foreground shadow-xs"
                     : "bg-muted text-muted-foreground hover:text-foreground"
                 }`}>
-                Boats ({initialData.stats.boatPermitsCount})
+                Boats ({data.stats.boatPermitsCount})
               </button>
               <button
-                onClick={() => setActiveTab("REVALIDATION_CERTIFICATE")}
+                onClick={() => selectTab("REVALIDATION_CERTIFICATE")}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                   activeTab === "REVALIDATION_CERTIFICATE"
                     ? "bg-primary text-primary-foreground shadow-xs"
                     : "bg-muted text-muted-foreground hover:text-foreground"
                 }`}>
-                Revalidation ({initialData.stats.revalidationCount})
+                Revalidation ({data.stats.revalidationCount})
               </button>
               <button
-                onClick={() => setActiveTab("PARK_CERTIFICATE")}
+                onClick={() => selectTab("PARK_CERTIFICATE")}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                   activeTab === "PARK_CERTIFICATE"
                     ? "bg-primary text-primary-foreground shadow-xs"
                     : "bg-muted text-muted-foreground hover:text-foreground"
                 }`}>
-                Certificates ({initialData.stats.parkCertificateCount})
+                Certificates ({data.stats.parkCertificateCount})
               </button>
               <button
-                onClick={() => setActiveTab("TEMPORAL_APPROVAL")}
+                onClick={() => selectTab("TEMPORAL_APPROVAL")}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                   activeTab === "TEMPORAL_APPROVAL"
                     ? "bg-primary text-primary-foreground shadow-xs"
                     : "bg-muted text-muted-foreground hover:text-foreground"
                 }`}>
-                Temporal ({initialData.stats.temporalCount})
+                Temporal ({data.stats.temporalCount})
               </button>
               <button
-                onClick={() => setActiveTab("PARK_STAFF")}
+                onClick={() => selectTab("PARK_STAFF")}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                   activeTab === "PARK_STAFF"
                     ? "bg-primary text-primary-foreground shadow-xs"
                     : "bg-muted text-muted-foreground hover:text-foreground"
                 }`}>
-                Park Staff Cards ({initialData.stats.parkStaffCardCount})
+                Park Staff Cards ({data.stats.parkStaffCardCount})
               </button>
               <button
-                onClick={() => setActiveTab("MASS_TRANSIT_LETTER")}
+                onClick={() => selectTab("MASS_TRANSIT_LETTER")}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                   activeTab === "MASS_TRANSIT_LETTER"
                     ? "bg-primary text-primary-foreground shadow-xs"
                     : "bg-muted text-muted-foreground hover:text-foreground"
                 }`}>
-                Mass Transit ({initialData.stats.massTransitCount})
+                Mass Transit ({data.stats.massTransitCount})
               </button>
             </>
           )}
@@ -392,12 +369,55 @@ export function IctPrintingClient({
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search by name, ref, code..."
+            placeholder="Search every approved item by name, ref, code..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-1.5 bg-muted/60 border border-border rounded-xl text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
+      </div>
+
+      {/* What is actually in this queue, and where we are in it */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+        <span>
+          {data.total > 0 ? (
+            <>
+              Showing{" "}
+              <span className="font-semibold text-foreground">
+                {firstOnPage}-{lastOnPage}
+              </span>{" "}
+              of{" "}
+              <span className="font-semibold text-foreground">
+                {data.total}
+              </span>{" "}
+              {searchQuery.trim() ? "matching" : "approved"} item
+              {data.total === 1 ? "" : "s"}
+            </>
+          ) : null}
+          {pending && <span className="ml-2 opacity-70">Loading...</span>}
+        </span>
+
+        {data.totalPages > 1 && (
+          <span className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={pending || data.page <= 1}
+              onClick={() => goToPage(data.page - 1)}
+              className="px-3 py-1.5 rounded-xl bg-muted font-semibold text-foreground disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+              Previous
+            </button>
+            <span className="font-semibold text-foreground">
+              Page {data.page} of {data.totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={pending || data.page >= data.totalPages}
+              onClick={() => goToPage(data.page + 1)}
+              className="px-3 py-1.5 rounded-xl bg-muted font-semibold text-foreground disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+              Next
+            </button>
+          </span>
+        )}
       </div>
 
       {/* Printing Items Grid / List */}
@@ -479,6 +499,28 @@ export function IctPrintingClient({
             No document requests match your selected tab or search query (
             {searchQuery}).
           </p>
+        </div>
+      )}
+
+      {data.totalPages > 1 && currentItems.length > 0 && (
+        <div className="flex items-center justify-center gap-2 text-xs">
+          <button
+            type="button"
+            disabled={pending || data.page <= 1}
+            onClick={() => goToPage(data.page - 1)}
+            className="px-4 py-2 rounded-xl bg-muted font-semibold text-foreground disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+            Previous
+          </button>
+          <span className="px-2 font-semibold text-muted-foreground">
+            Page {data.page} of {data.totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={pending || data.page >= data.totalPages}
+            onClick={() => goToPage(data.page + 1)}
+            className="px-4 py-2 rounded-xl bg-muted font-semibold text-foreground disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+            Next
+          </button>
         </div>
       )}
     </div>
