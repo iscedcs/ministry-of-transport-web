@@ -29,6 +29,9 @@ export interface RevalidationSeed {
   townCommunity?: string | null;
   lga?: string | null;
   facilityType?: string | null;
+  /** The approval being renewed, as the applicant gave it. */
+  existingApprovalNum?: string | null;
+  existingApprovalBasis?: string | null;
   serviceTypes?: unknown;
   facilitiesAvailable?: unknown;
 }
@@ -67,6 +70,10 @@ export async function createRevalidationFromApplication(seed: RevalidationSeed) 
       townCommunity: seed.townCommunity ?? null,
       lga: seed.lga ?? null,
       facilityType: seed.facilityType ?? null,
+      // Captured on the form rather than decided by an officer later: the
+      // applicant is the one who knows which approval they hold.
+      existingApprovalNum: seed.existingApprovalNum ?? null,
+      triageBasis: seed.existingApprovalBasis ?? null,
       serviceCategory: seed.serviceCategory,
       // Submitted through the portal by an operator who says they already
       // hold an approval, so the route is settled — unlike an imported

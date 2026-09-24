@@ -28,6 +28,13 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { FACILITY_ITEMS } from "@/lib/facilities";
+import {
+  buildTerminalChecklist,
+  TERMINAL_SECTION_TITLES,
+  type ChecklistItem,
+  type Verified,
+  type TerminalDeclarations,
+} from "@/lib/terminal-checklist";
 import { uploadCacDocument } from "@/app/actions/upload";
 
 /** The site evidence a park is asked for, so a terminal is asked the same. */
@@ -57,6 +64,20 @@ export interface TerminalRow {
    */
   facilitiesAvailable?: unknown;
   inspectionDueAt?: Date | null;
+  /** Sections F and G, for the checklist to compare against. */
+  maintainsManifest?: boolean | null;
+  operatorsRegistered?: boolean | null;
+  paymentsUpToDate?: boolean | null;
+  safetySignages?: boolean | null;
+  pendingSanctions?: boolean | null;
+  sanctionDetails?: string | null;
+  managementStaffCount?: number | null;
+  adminStaffCount?: number | null;
+  securityStaffCount?: number | null;
+  otherStaffCount?: number | null;
+  securityArrangement?: string | null;
+  operationalStatus?: string | null;
+  dailyVehiclesCount?: string | null;
   /** Who is attending, and which of them leads. */
   inspectionTeam?: {
     userId: string;
@@ -176,7 +197,40 @@ export function TerminalApplicationsPanel({
     });
   }
   const [findings, setFindings] = useState("");
-  const [verified, setVerified] = useState<Record<string, string>>({});
+  /**
+   * The checklist the inspector is filling. Keyed by the item's key so an
+   * answer survives re-renders and the report ships the whole shape back.
+   */
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+
+  /** Build the full checklist from what this terminal actually declared. */
+  const openReport = (t: TerminalRow) => {
+    setReporting(t.id);
+    setFindings("");
+    const declared = declaredFacilities(t.facilitiesAvailable);
+    const declarations: TerminalDeclarations = {
+      maintainsManifest: t.maintainsManifest ?? null,
+      operatorsRegistered: t.operatorsRegistered ?? null,
+      paymentsUpToDate: t.paymentsUpToDate ?? null,
+      safetySignages: t.safetySignages ?? null,
+      pendingSanctions: t.pendingSanctions ?? null,
+      sanctionDetails: t.sanctionDetails ?? null,
+      managementStaffCount: t.managementStaffCount ?? null,
+      adminStaffCount: t.adminStaffCount ?? null,
+      securityStaffCount: t.securityStaffCount ?? null,
+      otherStaffCount: t.otherStaffCount ?? null,
+      securityArrangement: t.securityArrangement ?? null,
+      operationalStatus: t.operationalStatus ?? null,
+      dailyVehiclesCount: t.dailyVehiclesCount ?? null,
+    };
+    setChecklist(buildTerminalChecklist(declared, declarations));
+  };
+
+  const setVerdict = (key: string, verified: Verified) => {
+    setChecklist((prev) =>
+      prev.map((i) => (i.key === key ? { ...i, verified } : i)),
+    );
+  };
 
   // Inspectors are only needed once a scheduling form is opened, so the list
   // is fetched then rather than on every render of the page.
@@ -210,13 +264,13 @@ export function TerminalApplicationsPanel({
 
   const submitReport = (terminalId: string) =>
     startTransition(async () => {
-      // The declared facilities are sent back item by item, so the HOD sees
-      // what was claimed against what was found rather than prose alone.
-      const checklist = Object.entries(verified).map(([label, result]) => ({
-        label,
-        declared: true,
-        verified: result,
-      }));
+      // The whole checklist is sent so the HOD reads declared vs found line
+      // by line, exactly as on a revalidation inspection.
+      const unanswered = checklist.filter((i) => i.verified === null).length;
+      if (unanswered > 0) {
+        toast.error(`${unanswered} checklist item(s) unanswered.`);
+        return;
+      }
 
       const res = await completeAddedTerminalInspection(terminalId, {
         findings,
@@ -226,7 +280,7 @@ export function TerminalApplicationsPanel({
         toast.success("Inspection report filed.");
         setReporting(null);
         setFindings("");
-        setVerified({});
+        setChecklist([]);
         router.refresh();
       } else {
         toast.error(res.error || "Could not file the report.");
@@ -608,11 +662,7 @@ export function TerminalApplicationsPanel({
                         <button
                           type="button"
                           disabled={pending}
-                          onClick={() => {
-                            setReporting(t.id);
-                            setFindings("");
-                            setVerified({});
-                          }}
+                          onClick={() => openReport(t)}
                           className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50">
                           <ClipboardCheck className="h-3.5 w-3.5" />
                           File inspection report
@@ -678,15 +728,50 @@ export function TerminalApplicationsPanel({
 
                       <div className="flex flex-col gap-2">
                         <p className="text-xs font-medium text-muted-foreground">
-                          Inspection team ({selected.length} of{" "}
-                          {SELECTABLE_LIMIT} selected)
+                          Inspection team ({1 + selected.length} of {MAX_TEAM}{" "}
+                          selected)
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          You attend automatically and are not listed. Pick up
-                          to {SELECTABLE_LIMIT} officers, then name the lead -
-                          only the lead files the checklist, the rest comment.
+                          You attend automatically as the HOD of Operations,
+                          and you may lead the visit yourself or name one of
+                          the others. Only the lead files the checklist; the
+                          rest leave comments.
                         </p>
+
+                        {/* The HOD (the signed-in officer) sits at the top as
+                            a fixed row, mirroring the revalidation queue: the
+                            slot is theirs and the Lead toggle is right there. */}
                         <div className="grid gap-2 sm:grid-cols-2">
+                          <div
+                            className={cn(
+                              "flex items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-sm",
+                              leadId === currentUserId
+                                ? "border-primary bg-primary/5"
+                                : "border-border bg-secondary/40",
+                            )}>
+                            <div>
+                              <p className="font-medium">You (HOD Operations)</p>
+                              <p className="text-xs text-muted-foreground">
+                                Always attends - cannot be removed
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setLeadId(
+                                  leadId === currentUserId ? "" : currentUserId,
+                                )
+                              }
+                              className={cn(
+                                "shrink-0 rounded-md border px-2 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors",
+                                leadId === currentUserId
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border hover:bg-secondary",
+                              )}>
+                              {leadId === currentUserId ? "★ Lead" : "Set as lead"}
+                            </button>
+                          </div>
+
                           {inspectors.map((i) => {
                             const picked = selected.includes(i.id);
                             const full = !picked && selected.length >= SELECTABLE_LIMIT;
@@ -725,6 +810,9 @@ export function TerminalApplicationsPanel({
                             onChange={(e) => setLeadId(e.target.value)}
                             className="h-[38px] w-full rounded-lg border border-border bg-background px-3 text-sm">
                             <option value="">Select the lead</option>
+                            {/* The HOD is always an option - the button above
+                                is a shortcut, this the standard control. */}
+                            <option value={currentUserId}>You (HOD Operations)</option>
                             {inspectors
                               .filter((i) => selected.includes(i.id))
                               .map((i) => (
@@ -832,44 +920,64 @@ export function TerminalApplicationsPanel({
                         Inspection report
                       </p>
 
-                      {declaredFacilities(t.facilitiesAvailable).length > 0 && (
-                          <div className="flex flex-col gap-2">
-                            <p className="text-xs text-muted-foreground">
-                              The operator declared these. Record what you found
-                              — the HOD weighs the difference, not the prose.
-                            </p>
-                            {declaredFacilities(t.facilitiesAvailable).map(
-                              (facility) => (
-                                <div
-                                  key={facility}
-                                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2">
-                                  <span className="text-sm">{facility}</span>
-                                  <div className="flex gap-1">
-                                    {["YES", "PARTIAL", "NO", "N/A"].map((v) => (
-                                      <button
-                                        key={v}
-                                        type="button"
-                                        onClick={() =>
-                                          setVerified((prev) => ({
-                                            ...prev,
-                                            [facility]: v,
-                                          }))
-                                        }
-                                        className={cn(
-                                          "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
-                                          verified[facility] === v
-                                            ? "border-primary bg-primary/10 text-primary"
-                                            : "border-border hover:bg-secondary",
-                                        )}>
-                                        {v}
-                                      </button>
-                                    ))}
+                      <div className="flex flex-col gap-4">
+                        <p className="text-xs text-muted-foreground">
+                          Every item is answered. &quot;Not stated&quot; on a
+                          declaration is a finding in itself — verify it, do not
+                          skip it. Use N/A when an item does not apply.
+                        </p>
+                        {Object.entries(TERMINAL_SECTION_TITLES).map(
+                          ([section, title]) => {
+                            const items = checklist.filter(
+                              (i) => i.section === section,
+                            );
+                            if (items.length === 0) return null;
+                            return (
+                              <div
+                                key={section}
+                                className="flex flex-col gap-2">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                  {title}
+                                </p>
+                                {items.map((item) => (
+                                  <div
+                                    key={item.key}
+                                    className="flex flex-col gap-1.5 rounded-lg border border-border px-3 py-2">
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <p className="text-sm">{item.label}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          Declared: {item.declared}
+                                        </p>
+                                      </div>
+                                      <div className="flex shrink-0 gap-1">
+                                        {(
+                                          ["YES", "PARTIAL", "NO", "N_A"] as const
+                                        ).map((v) => (
+                                          <button
+                                            key={v}
+                                            type="button"
+                                            onClick={() =>
+                                              setVerdict(item.key, v)
+                                            }
+                                            className={cn(
+                                              "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
+                                              item.verified === v
+                                                ? "border-primary bg-primary/10 text-primary"
+                                                : "border-border hover:bg-secondary",
+                                            )}>
+                                            {v === "N_A" ? "N/A" : v}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
                                   </div>
-                                </div>
-                              ),
-                            )}
-                          </div>
+                                ))}
+                              </div>
+                            );
+                          },
                         )}
+                      </div>
 
                       <label className="flex flex-col gap-1.5">
                         <span className="text-xs font-medium text-muted-foreground">

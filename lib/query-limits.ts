@@ -20,5 +20,13 @@ export const MAX_EXPORT_ROWS = 10000;
 /** Rows per page on the TRACAS hub. */
 export const TRACAS_PAGE_SIZE = 25;
 
+/**
+ * Rows per page in the ICT printing centre.
+ *
+ * Lives here rather than beside the action because a "use server" file may
+ * only export async functions, and the client needs the number too.
+ */
+export const PRINTING_PAGE_SIZE = 50;
+
 /** The three TRACAS hub tabs; only the active one is queried. */
 export type TracasTabKey = "vehicles" | "drivers" | "stickers";

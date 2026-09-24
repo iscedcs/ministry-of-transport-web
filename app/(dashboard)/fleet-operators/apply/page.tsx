@@ -32,11 +32,22 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { Upload, X, FileText, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import {
+  Upload,
+  X,
+  FileText,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FACILITY_ITEMS } from "@/lib/facilities";
-import { APPLICATION_TYPES, type ApplicationType } from "@/lib/application-type";
+import {
+  APPLICATION_TYPES,
+  type ApplicationType,
+} from "@/lib/application-type";
+import { toast } from "sonner";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -97,6 +108,26 @@ interface WizardData {
 
   /** What the terminal has, over FACILITY_ITEMS. Every entry is optional. */
   facilitiesAvailable: Record<string, boolean>;
+
+  /**
+   * Sections F and G of the approved checklist. Every one is optional, but
+   * every one is ASKED - an operator cannot later say a question was never
+   * put to them, and the inspector gets something to compare against instead
+   * of eleven items reading "Not stated".
+   */
+  maintainsManifest: string;
+  operatorsRegistered: string;
+  paymentsUpToDate: string;
+  safetySignages: string;
+  pendingSanctions: string;
+  sanctionDetails: string;
+  managementStaffCount: string;
+  adminStaffCount: string;
+  securityStaffCount: string;
+  otherStaffCount: string;
+  securityArrangement: string;
+  operationalStatus: string;
+  dailyVehiclesCount: string;
 }
 
 interface OwnerDisplayData {
@@ -170,7 +201,37 @@ const EMPTY: WizardData = {
     TANKER: 0,
   },
   facilitiesAvailable: {},
+  maintainsManifest: "",
+  operatorsRegistered: "",
+  paymentsUpToDate: "",
+  safetySignages: "",
+  pendingSanctions: "",
+  sanctionDetails: "",
+  managementStaffCount: "",
+  adminStaffCount: "",
+  securityStaffCount: "",
+  otherStaffCount: "",
+  securityArrangement: "",
+  operationalStatus: "",
+  dailyVehiclesCount: "",
 };
+
+/** Section F, worded exactly as the revalidation form asks it. */
+const COMPLIANCE_QUESTIONS = [
+  { key: "maintainsManifest", label: "Maintains passenger/cargo manifest" },
+  { key: "operatorsRegistered", label: "Operators registered with the Ministry" },
+  { key: "paymentsUpToDate", label: "Payments up to date" },
+  { key: "safetySignages", label: "Safety signage displayed" },
+  { key: "pendingSanctions", label: "Any pending sanctions" },
+] as const;
+
+/** Section G staffing figures. */
+const STAFF_COUNTS = [
+  { key: "managementStaffCount", label: "Management staff" },
+  { key: "adminStaffCount", label: "Administrative staff" },
+  { key: "securityStaffCount", label: "Security staff" },
+  { key: "otherStaffCount", label: "Other staff" },
+] as const;
 
 const STEPS = [
   { id: 1, label: "Your Information" },
@@ -405,8 +466,18 @@ export default function ApplyFleetPage() {
    * cannot get them on site, and the Ministry fills them in afterwards.
    */
   const isFieldCapture = ownerProfile?.role === "ENUMERATOR";
-  const [applicationType, setApplicationType] =
-    useState<ApplicationType>("NEW");
+  /**
+   * Deliberately unset, not defaulted to "NEW".
+   *
+   * A default is an answer nobody gave. An operator renewing an approval would
+   * sail past a pre-ticked "New application" and land on the register a second
+   * time, which is exactly the duplication this choice exists to prevent.
+   */
+  const [applicationType, setApplicationType] = useState<ApplicationType | "">(
+    "",
+  );
+  const [existingApprovalNum, setExistingApprovalNum] = useState("");
+  const [existingApprovalBasis, setExistingApprovalBasis] = useState("");
   /** Which terminal's certificate is uploading, if any. */
   const [uploadingTerminalCert, setUploadingTerminalCert] = useState<
     string | null
@@ -657,11 +728,53 @@ export default function ApplyFleetPage() {
 
   // ────────────────────────────────────────────────────────────────────────────
 
+/**
+ * What each field is called, so the message names the field rather than the
+ * variable. "cacDocumentId is required" tells an applicant nothing.
+ */
+const FIELD_LABELS: Record<string, string> = {
+  companyName: "Company name",
+  cacNumber: "CAC number",
+  asinNumber: "ASIN number",
+  contactPerson: "Contact person",
+  contactPhone: "Contact phone",
+  contactEmail: "Contact email",
+  cacDocumentId: "CAC certificate",
+  landOwnershipDocId: "Land ownership document",
+  corporateAsinDocumentId: "Corporate ASIN certificate",
+  terminals: "Terminal details",
+  vehicleTypeCounts: "Vehicle fleet",
+};
+
+/** "A, B and C" - a list a person reads, not an array they decode. */
+function listFields(keys: string[]): string {
+  const names = keys.map((k) => FIELD_LABELS[k] ?? k);
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
   function validateStep(step: number): boolean {
     const errors: StepErrors = {};
 
-    // Step 1: Your Information (read-only, no validation)
+    // Step 1: your details are read-only, but the application type is not.
     if (step === 1) {
+      if (!applicationType) {
+        toast.error(
+          "Tell us whether this is a new application or a revalidation.",
+        );
+        return false;
+      }
+      if (applicationType === "REVALIDATION") {
+        if (!existingApprovalNum.trim()) {
+          toast.error("Enter the approval number currently held.");
+          return false;
+        }
+        if (!existingApprovalBasis.trim()) {
+          toast.error("Say what is being revalidated and on what basis.");
+          return false;
+        }
+      }
+      setGlobalError("");
       return true;
     }
 
@@ -676,9 +789,9 @@ export default function ApplyFleetPage() {
         if (!data.contactPhone.trim()) errors.contactPhone = "Required";
         if (!data.contactEmail.trim()) errors.contactEmail = "Required";
       }
-      if (!data.cacDocumentId) errors.cacDocumentId = "Required";
-      if (!data.landOwnershipDocId) errors.landOwnershipDocId = "Required";
-      if (!data.corporateAsinDocumentId) errors.corporateAsinDocumentId = "Required";
+      // Documents are optional: an operator who cannot produce one today
+      // should not be stopped from filing at all. They are still asked for,
+      // and the Ministry sees what is missing before it approves anything.
     }
 
     // Step 3: Terminals & Managers
@@ -716,7 +829,7 @@ export default function ApplyFleetPage() {
     if (step === 4) {
       const total = Object.values(data.vehicleTypeCounts).reduce(
         (sum, count) => sum + count,
-        0
+        0,
       );
       if (total < 5) {
         errors.vehicleTypeCounts = "Total vehicles must be at least 5";
@@ -724,7 +837,22 @@ export default function ApplyFleetPage() {
     }
 
     setStepErrors(errors);
-    return Object.keys(errors).length === 0;
+
+    // The inline messages sit beside each field, which is no use to someone
+    // at the bottom of a long form pressing Next: they were told something
+    // was required without being told what. The toast names the fields; the
+    // inline errors still mark them once they scroll up.
+    const missing = Object.keys(errors);
+    if (missing.length > 0) {
+      const detail = errors.terminals ?? errors.vehicleTypeCounts;
+      toast.error(
+        typeof detail === "string" && missing.length === 1
+          ? detail
+          : `Still needed: ${listFields(missing)}.`,
+      );
+    }
+
+    return missing.length === 0;
   }
 
   function handleNextStep() {
@@ -744,7 +872,10 @@ export default function ApplyFleetPage() {
     e.preventDefault();
     setGlobalError(undefined);
 
+    // Both the terminal step and the fleet step, so a missing requirement on
+    // either is named in a toast rather than left as a dead button.
     if (!validateStep(3)) return;
+    if (!validateStep(4)) return;
 
     startTransition(async () => {
       const fd = new FormData();
@@ -763,7 +894,27 @@ export default function ApplyFleetPage() {
       fd.set("waterFacilityPhotoId", data.waterFacilityPhotoId);
       fd.set("cctvPhotoId", data.cctvPhotoId);
       fd.set("facilitiesJson", JSON.stringify(data.facilitiesAvailable));
+      fd.set(
+        "complianceJson",
+        JSON.stringify({
+          maintainsManifest: data.maintainsManifest,
+          operatorsRegistered: data.operatorsRegistered,
+          paymentsUpToDate: data.paymentsUpToDate,
+          safetySignages: data.safetySignages,
+          pendingSanctions: data.pendingSanctions,
+          sanctionDetails: data.sanctionDetails,
+          managementStaffCount: data.managementStaffCount,
+          adminStaffCount: data.adminStaffCount,
+          securityStaffCount: data.securityStaffCount,
+          otherStaffCount: data.otherStaffCount,
+          securityArrangement: data.securityArrangement,
+          operationalStatus: data.operationalStatus,
+          dailyVehiclesCount: data.dailyVehiclesCount,
+        }),
+      );
       fd.set("applicationType", applicationType);
+      fd.set("existingApprovalNum", existingApprovalNum);
+      fd.set("existingApprovalBasis", existingApprovalBasis);
       fd.set(
         "terminalsJson",
         JSON.stringify(
@@ -776,22 +927,25 @@ export default function ApplyFleetPage() {
             managerResidentialAddress: t.managerResidentialAddress,
             businessPremisesCertNo: t.businessPremisesCertNo,
             businessPremisesCertDocId: t.businessPremisesCertDocId,
-          }))
-        )
+          })),
+        ),
       );
       fd.set(
         "vehicleTypesJson",
         JSON.stringify(
-          VEHICLE_TYPES.filter((vt) => data.vehicleTypeCounts[vt.value] > 0)
-            .map((vt) => ({
-              type: vt.value,
-              count: data.vehicleTypeCounts[vt.value],
-            }))
-        )
+          VEHICLE_TYPES.filter(
+            (vt) => data.vehicleTypeCounts[vt.value] > 0,
+          ).map((vt) => ({
+            type: vt.value,
+            count: data.vehicleTypeCounts[vt.value],
+          })),
+        ),
       );
 
-      const result: ActionResult<{ companyId: string; isRevalidation?: boolean }> =
-        await submitFleetApplication(undefined, fd);
+      const result: ActionResult<{
+        companyId: string;
+        isRevalidation?: boolean;
+      }> = await submitFleetApplication(undefined, fd);
       if (result.success) {
         // A revalidation lives in the revalidation queue, not on the fleet
         // operator register, so it has a different home to go to.
@@ -846,9 +1000,8 @@ export default function ApplyFleetPage() {
               <CardHeader>
                 <CardTitle>Application Type</CardTitle>
                 <CardDescription>
-                  Tell us which this is. A revalidation goes to the
-                  revalidation queue rather than onto the register as a new
-                  record.
+                  Tell us which this is. A revalidation goes to the revalidation
+                  queue rather than onto the register as a new record.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -871,7 +1024,6 @@ export default function ApplyFleetPage() {
                 ))}
               </CardContent>
             </Card>
-
 
             <Card>
               <CardHeader>
@@ -922,12 +1074,51 @@ export default function ApplyFleetPage() {
                   </Label>
                   <div className="p-3 rounded-md border border-border bg-muted/50 text-foreground">
                     {ownerProfile?.asinNumber || (
-                      <span className="text-muted-foreground">Not provided</span>
+                      <span className="text-muted-foreground">
+                        Not provided
+                      </span>
                     )}
                   </div>
                 </div>
               </CardContent>
             </Card>
+
+            {applicationType === "REVALIDATION" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Existing Approval</CardTitle>
+                  <CardDescription>
+                    A revalidation renews an approval already held. Tell us
+                    which one, so the Ministry can match this to the record it
+                    already has rather than creating a second one.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field
+                    id="existingApprovalNum"
+                    label="Approval / permit number held"
+                    required>
+                    <Input
+                      id="existingApprovalNum"
+                      value={existingApprovalNum}
+                      onChange={(e) => setExistingApprovalNum(e.target.value)}
+                      placeholder="e.g. ANS-MOT-MTT-2026/00001"
+                    />
+                  </Field>
+                  <Field
+                    id="existingApprovalBasis"
+                    label="What is being revalidated"
+                    required>
+                    <Input
+                      id="existingApprovalBasis"
+                      value={existingApprovalBasis}
+                      onChange={(e) => setExistingApprovalBasis(e.target.value)}
+                      placeholder="e.g. 2025 approval, expiring December"
+                    />
+                  </Field>
+                </CardContent>
+              </Card>
+            )}
 
             {isFieldCapture && (
               <Card>
@@ -935,9 +1126,8 @@ export default function ApplyFleetPage() {
                   <CardTitle>Owner Information</CardTitle>
                   <CardDescription>
                     The operator&apos;s own contact details. All optional —
-                    record whatever you can get on site and leave the rest;
-                    the Ministry completes it before the application is
-                    submitted.
+                    record whatever you can get on site and leave the rest; the
+                    Ministry completes it before the application is submitted.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1086,65 +1276,65 @@ export default function ApplyFleetPage() {
                     the same value is never requested twice. */}
                 {!isFieldCapture && (
                   <>
-                <Separator className="sm:col-span-2" />
+                    <Separator className="sm:col-span-2" />
 
-                <div className="sm:col-span-2">
-                  <Field
-                    id="contactPerson"
-                    label="Contact Person"
-                    error={stepErrors.contactPerson}
-                    required>
-                    <Input
-                      id="contactPerson"
-                      value={data.contactPerson}
-                      onChange={(e) =>
-                        setData((prev) => ({
-                          ...prev,
-                          contactPerson: e.target.value,
-                        }))
-                      }
-                      placeholder="Full name of contact"
-                    />
-                  </Field>
-                </div>
+                    <div className="sm:col-span-2">
+                      <Field
+                        id="contactPerson"
+                        label="Contact Person"
+                        error={stepErrors.contactPerson}
+                        required>
+                        <Input
+                          id="contactPerson"
+                          value={data.contactPerson}
+                          onChange={(e) =>
+                            setData((prev) => ({
+                              ...prev,
+                              contactPerson: e.target.value,
+                            }))
+                          }
+                          placeholder="Full name of contact"
+                        />
+                      </Field>
+                    </div>
 
-                <Field
-                  id="contactPhone"
-                  label="Contact Phone"
-                  error={stepErrors.contactPhone}
-                  required>
-                  <Input
-                    id="contactPhone"
-                    type="tel"
-                    value={data.contactPhone}
-                    onChange={(e) =>
-                      setData((prev) => ({
-                        ...prev,
-                        contactPhone: e.target.value,
-                      }))
-                    }
-                    placeholder="e.g. 08012345678"
-                  />
-                </Field>
+                    <Field
+                      id="contactPhone"
+                      label="Contact Phone"
+                      error={stepErrors.contactPhone}
+                      required>
+                      <Input
+                        id="contactPhone"
+                        type="tel"
+                        value={data.contactPhone}
+                        onChange={(e) =>
+                          setData((prev) => ({
+                            ...prev,
+                            contactPhone: e.target.value,
+                          }))
+                        }
+                        placeholder="e.g. 08012345678"
+                      />
+                    </Field>
 
-                <Field
-                  id="contactEmail"
-                  label="Contact Email"
-                  error={stepErrors.contactEmail}
-                  required>
-                  <Input
-                    id="contactEmail"
-                    type="email"
-                    value={data.contactEmail}
-                    onChange={(e) =>
-                      setData((prev) => ({
-                        ...prev,
-                        contactEmail: e.target.value,
-                      }))
-                    }
-                    placeholder="company@example.com"
-                  />
-                </Field>
+                    <Field
+                      id="contactEmail"
+                      label="Contact Email"
+                      error={stepErrors.contactEmail}
+                      required>
+                      <Input
+                        id="contactEmail"
+                        type="email"
+                        value={data.contactEmail}
+                        onChange={(e) =>
+                          setData((prev) => ({
+                            ...prev,
+                            contactEmail: e.target.value,
+                          }))
+                        }
+                        placeholder="company@example.com"
+                      />
+                    </Field>
                   </>
                 )}
               </CardContent>
@@ -1153,10 +1343,16 @@ export default function ApplyFleetPage() {
             {/* Documents */}
             <Card>
               <CardHeader>
-                <CardTitle>Documents</CardTitle>
+                <CardTitle>
+                  Documents{" "}
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">
+                    (optional)
+                  </span>
+                </CardTitle>
                 <CardDescription>
-                  Upload all required documentation for your fleet operator
-                  application.
+                  Upload what you have. Anything missing can be supplied later,
+                  but the Ministry will need it before your application is
+                  approved.
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-6">
@@ -1203,9 +1399,9 @@ export default function ApplyFleetPage() {
                   Facility Infrastructure Photos
                 </CardTitle>
                 <CardDescription>
-                  Photographs of the terminal / depot facilities. All
-                  optional — upload what you have; they are verified during
-                  the terminal inspection.
+                  Photographs of the terminal / depot facilities. All optional —
+                  upload what you have; they are verified during the terminal
+                  inspection.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -1271,8 +1467,8 @@ export default function ApplyFleetPage() {
                 <CardTitle>Facilities Available</CardTitle>
                 <CardDescription>
                   Tick what the terminal has. Leave out anything it does not —
-                  nothing here is required, and what you tick is verified at
-                  the terminal inspection.
+                  nothing here is required, and what you tick is verified at the
+                  terminal inspection.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1295,6 +1491,139 @@ export default function ApplyFleetPage() {
                     <span>{facility}</span>
                   </label>
                 ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Regulatory Compliance</CardTitle>
+                <CardDescription>
+                  All optional. Answer what you can - anything left blank is
+                  recorded as &quot;Not stated&quot; and confirmed at the
+                  inspection, never assumed to be a no.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {COMPLIANCE_QUESTIONS.map((q) => (
+                  <Field key={q.key} id={q.key} label={q.label} required={false}>
+                    <select
+                      id={q.key}
+                      value={data[q.key] as string}
+                      onChange={(e) =>
+                        setData((prev) => ({ ...prev, [q.key]: e.target.value }))
+                      }
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                      <option value="">Not stated</option>
+                      <option value="YES">Yes</option>
+                      <option value="NO">No</option>
+                    </select>
+                  </Field>
+                ))}
+
+                {data.pendingSanctions === "YES" && (
+                  <div className="sm:col-span-2">
+                    <Field
+                      id="sanctionDetails"
+                      label="Details of the pending sanction"
+                      required={false}>
+                      <Input
+                        id="sanctionDetails"
+                        value={data.sanctionDetails}
+                        onChange={(e) =>
+                          setData((prev) => ({
+                            ...prev,
+                            sanctionDetails: e.target.value,
+                          }))
+                        }
+                        placeholder="What the sanction relates to"
+                      />
+                    </Field>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Staffing &amp; Operations</CardTitle>
+                <CardDescription>
+                  All optional. These figures are what the inspector counts
+                  against on site.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {STAFF_COUNTS.map((q) => (
+                  <Field key={q.key} id={q.key} label={q.label} required={false}>
+                    <Input
+                      id={q.key}
+                      type="number"
+                      min={0}
+                      value={data[q.key] as string}
+                      onChange={(e) =>
+                        setData((prev) => ({ ...prev, [q.key]: e.target.value }))
+                      }
+                      placeholder="Not stated"
+                    />
+                  </Field>
+                ))}
+
+                <Field
+                  id="securityArrangement"
+                  label="Security arrangement"
+                  required={false}>
+                  <Input
+                    id="securityArrangement"
+                    value={data.securityArrangement}
+                    onChange={(e) =>
+                      setData((prev) => ({
+                        ...prev,
+                        securityArrangement: e.target.value,
+                      }))
+                    }
+                    placeholder="e.g. Vigilante, private guards"
+                  />
+                </Field>
+
+                <Field
+                  id="operationalStatus"
+                  label="Operational status"
+                  required={false}>
+                  <select
+                    id="operationalStatus"
+                    value={data.operationalStatus}
+                    onChange={(e) =>
+                      setData((prev) => ({
+                        ...prev,
+                        operationalStatus: e.target.value,
+                      }))
+                    }
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    <option value="">Not stated</option>
+                    <option value="Fully Operational">Fully Operational</option>
+                    <option value="Partially Operational">
+                      Partially Operational
+                    </option>
+                    <option value="Under Construction">Under Construction</option>
+                    <option value="Not Operational">Not Operational</option>
+                  </select>
+                </Field>
+
+                <Field
+                  id="dailyVehiclesCount"
+                  label="Vehicles per day"
+                  required={false}>
+                  <Input
+                    id="dailyVehiclesCount"
+                    value={data.dailyVehiclesCount}
+                    onChange={(e) =>
+                      setData((prev) => ({
+                        ...prev,
+                        dailyVehiclesCount: e.target.value,
+                      }))
+                    }
+                    placeholder="Not stated"
+                  />
+                </Field>
               </CardContent>
             </Card>
           </>
@@ -1341,7 +1670,7 @@ export default function ApplyFleetPage() {
                           setData((prev) => ({
                             ...prev,
                             terminals: prev.terminals.filter(
-                              (t) => t.id !== terminal.id
+                              (t) => t.id !== terminal.id,
                             ),
                           }));
                         }}
@@ -1370,7 +1699,7 @@ export default function ApplyFleetPage() {
                                       ...t,
                                       locationAddress: e.target.value,
                                     }
-                                  : t
+                                  : t,
                               ),
                             }));
                           }}
@@ -1396,7 +1725,7 @@ export default function ApplyFleetPage() {
                                     ...t,
                                     gpsCoordinates: e.target.value,
                                   }
-                                : t
+                                : t,
                             ),
                           }));
                         }}
@@ -1429,7 +1758,7 @@ export default function ApplyFleetPage() {
                                       ...t,
                                       managerName: e.target.value,
                                     }
-                                  : t
+                                  : t,
                               ),
                             }));
                           }}
@@ -1455,7 +1784,7 @@ export default function ApplyFleetPage() {
                                     ...t,
                                     managerPhone: e.target.value,
                                   }
-                                : t
+                                : t,
                             ),
                           }));
                         }}
@@ -1480,7 +1809,7 @@ export default function ApplyFleetPage() {
                                     ...t,
                                     managerEmail: e.target.value,
                                   }
-                                : t
+                                : t,
                             ),
                           }));
                         }}
@@ -1505,7 +1834,7 @@ export default function ApplyFleetPage() {
                                       ...t,
                                       managerResidentialAddress: e.target.value,
                                     }
-                                  : t
+                                  : t,
                               ),
                             }));
                           }}
@@ -1528,8 +1857,11 @@ export default function ApplyFleetPage() {
                             ...prev,
                             terminals: prev.terminals.map((t) =>
                               t.id === terminal.id
-                                ? { ...t, businessPremisesCertNo: e.target.value }
-                                : t
+                                ? {
+                                    ...t,
+                                    businessPremisesCertNo: e.target.value,
+                                  }
+                                : t,
                             ),
                           }));
                         }}
@@ -1563,7 +1895,7 @@ export default function ApplyFleetPage() {
                                       businessPremisesCertDocId: res.documentId,
                                       businessPremisesCertName: file.name,
                                     }
-                                  : t
+                                  : t,
                               ),
                             }));
                           } else {
@@ -1640,7 +1972,10 @@ export default function ApplyFleetPage() {
                           ...prev,
                           vehicleTypeCounts: {
                             ...prev.vehicleTypeCounts,
-                            [vt.value]: Math.max(0, parseInt(e.target.value) || 0),
+                            [vt.value]: Math.max(
+                              0,
+                              parseInt(e.target.value) || 0,
+                            ),
                           },
                         }))
                       }
@@ -1658,14 +1993,14 @@ export default function ApplyFleetPage() {
                   <span className="text-lg">
                     {Object.values(data.vehicleTypeCounts).reduce(
                       (sum, count) => sum + count,
-                      0
+                      0,
                     )}
                   </span>
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {Object.values(data.vehicleTypeCounts).reduce(
                     (sum, count) => sum + count,
-                    0
+                    0,
                   ) >= 5
                     ? "✓ Meets minimum requirement"
                     : "✗ Needs at least 5 vehicles"}
@@ -1691,21 +2026,16 @@ export default function ApplyFleetPage() {
             <Button
               type="button"
               onClick={handleNextStep}
-              disabled={isPending || uploadingCac || uploadingLand || uploadingAsin}>
+              disabled={
+                isPending || uploadingCac || uploadingLand || uploadingAsin
+              }>
               Next
             </Button>
           ) : (
             <Button
               type="submit"
               disabled={
-                isPending ||
-                uploadingCac ||
-                uploadingLand ||
-                uploadingAsin ||
-                Object.values(data.vehicleTypeCounts).reduce(
-                  (sum, count) => sum + count,
-                  0
-                ) < 5
+                isPending || uploadingCac || uploadingLand || uploadingAsin
               }>
               {isPending ? "Submitting…" : "Submit Application"}
             </Button>

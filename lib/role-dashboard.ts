@@ -157,9 +157,10 @@ export async function getRoleDashboard(
     // then recommend once the report and branding are in.
     const [mtIntake, mtRecommend] = await Promise.all([
       fleetOperators(["SUBMITTED", "UNDER_REVIEW"]),
-      // submitTerminalInspectionReport sets PENDING_HOD_APPROVAL; querying
-      // PENDING_APPROVAL meant a filed report never reached this dashboard.
-      fleetOperators(["PENDING_HOD_APPROVAL", "INSPECTION_COMPLETED"]),
+      // The filed report waits with HOD Operations for a recommendation;
+      // PENDING_HOD_APPROVAL now belongs to the HOD of Parks Revalidation, so
+      // counting it here would show each HOD the other's work.
+      fleetOperators(["INSPECTION_COMPLETED"]),
     ]);
 
     if (mtIntake)
@@ -177,9 +178,9 @@ export async function getRoleDashboard(
         item(
           "mt-recommend",
           "Mass transit awaiting your recommendation",
-          "Inspection and branding are in — forward to the PS",
+          "The inspection is in — record your recommendation",
           mtRecommend,
-          "/fleet-operators?status=PENDING_HOD_APPROVAL",
+          "/fleet-operators?status=INSPECTION_COMPLETED",
         ),
       );
 
@@ -224,10 +225,24 @@ export async function getRoleDashboard(
 
   // ── HOD Parks Revalidation: the second review ────────────────────────────
   if (isHodReval || isAdmin) {
-    const [review, revalTotal] = await Promise.all([
+    const [review, revalTotal, mtReview] = await Promise.all([
       revalidations(["PENDING_HOD_APPROVAL"]),
       db.revalidationApplication.count(),
+      // Mass transit now runs the same two-HOD chain as revalidation, so this
+      // stage reaches this desk rather than stopping at HOD Operations.
+      fleetOperators(["PENDING_HOD_APPROVAL"]),
     ]);
+
+    if (mtReview)
+      actions.push(
+        item(
+          "hodreval-mt",
+          "Mass transit awaiting your review",
+          "Recommended by HOD Operations - approve, or return with a reason",
+          mtReview,
+          "/fleet-operators?status=PENDING_HOD_APPROVAL",
+        ),
+      );
 
     if (review)
       actions.push(

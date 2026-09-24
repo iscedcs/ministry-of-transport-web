@@ -340,9 +340,8 @@ export async function submitCapturedCompany(companyId: string) {
   if (!company.contactEmail?.trim()) missing.push("contact email");
   if (!company.cacNumber?.trim()) missing.push("CAC number");
   if (!company.asinNumber?.trim()) missing.push("ASIN number");
-  if (!company.cacDocumentId) missing.push("CAC certificate");
-  if (!company.landOwnershipDocId) missing.push("land ownership document");
-  if (!company.corporateAsinDocumentId) missing.push("corporate ASIN certificate");
+  // Documents are optional on the application itself, so they are not a bar
+  // to submitting one. They are chased before approval, not before filing.
   // Facility photographs are deliberately NOT required: a terminal without a
   // borehole cannot photograph one. What the terminal actually has is
   // declared in facilitiesAvailable and settled at the inspection.
