@@ -16,13 +16,14 @@ import { FACILITY_OPTIONS, type Verified } from "@/lib/revalidation-checklist";
 export type { Verified };
 
 /**
- * Terminal items carry their own section letters (A-D). The revalidation type
- * is pinned to its own sections (E/F/G), and widening it there would weaken a
- * guarantee that module relies on.
+ * Terminal items carry their own section letters. A-D are the terminal's own
+ * concerns; F and G are the Ministry's approved compliance and staffing
+ * sections, carried over from the revalidation checklist unchanged so an
+ * inspector answers the same questions whichever module they are working in.
  */
 export interface ChecklistItem {
   key: string;
-  section: "A" | "B" | "C" | "D";
+  section: "A" | "B" | "C" | "D" | "F" | "G";
   label: string;
   /** What the operator claimed, rendered for comparison. */
   declared: string;
@@ -35,7 +36,39 @@ export const TERMINAL_SECTION_TITLES: Record<string, string> = {
   B: "Facilities on site",
   C: "Safety & Security",
   D: "Fleet & Operations",
+  F: "Section F - Regulatory Compliance",
+  G: "Section G - Staffing & Operations",
 };
+
+/**
+ * What the operator declared in Sections F and G, if anything.
+ *
+ * Every field is optional on the application, so most of these arrive null.
+ * That is precisely why the items still appear: an inspector confirming a
+ * manifest exists is useful whether or not the operator claimed one, and
+ * "Not stated" must never be shown as "No".
+ */
+export interface TerminalDeclarations {
+  maintainsManifest?: boolean | null;
+  operatorsRegistered?: boolean | null;
+  paymentsUpToDate?: boolean | null;
+  safetySignages?: boolean | null;
+  pendingSanctions?: boolean | null;
+  sanctionDetails?: string | null;
+  managementStaffCount?: number | null;
+  adminStaffCount?: number | null;
+  securityStaffCount?: number | null;
+  otherStaffCount?: number | null;
+  securityArrangement?: string | null;
+  operationalStatus?: string | null;
+  dailyVehiclesCount?: string | null;
+}
+
+const yesNo = (v: boolean | null | undefined) =>
+  v === null || v === undefined ? "Not stated" : v ? "Yes" : "No";
+
+const counted = (v: number | null | undefined) =>
+  v === null || v === undefined ? "Not stated" : `${v} declared`;
 
 /** Premises — is the site actually usable as a terminal? */
 const PREMISES = [
@@ -71,6 +104,7 @@ const OPERATIONS = [
  */
 export function buildTerminalChecklist(
   declaredFacilities: string[] = [],
+  declarations: TerminalDeclarations = {},
 ): ChecklistItem[] {
   const declared = new Set(declaredFacilities);
 
@@ -106,7 +140,113 @@ export function buildTerminalChecklist(
     verified: null,
   }));
 
-  return [...premises, ...facilities, ...safety, ...operations];
+  // Sections F and G, item for item as the revalidation checklist asks them.
+  // These were missing entirely: eleven of the twenty-three approved items had
+  // no counterpart on a terminal inspection.
+  const compliance: ChecklistItem[] = [
+    {
+      key: "compliance:manifest",
+      section: "F",
+      label: "Maintains passenger/cargo manifest",
+      declared: yesNo(declarations.maintainsManifest),
+      verified: null,
+    },
+    {
+      key: "compliance:operators",
+      section: "F",
+      label: "Operators registered with the Ministry",
+      declared: yesNo(declarations.operatorsRegistered),
+      verified: null,
+    },
+    {
+      key: "compliance:payments",
+      section: "F",
+      label: "Payments up to date",
+      declared: yesNo(declarations.paymentsUpToDate),
+      verified: null,
+    },
+    {
+      key: "compliance:signage",
+      section: "F",
+      label: "Safety signage displayed",
+      declared: yesNo(declarations.safetySignages),
+      verified: null,
+    },
+    {
+      key: "compliance:sanctions",
+      section: "F",
+      label: "Free of pending sanctions",
+      declared:
+        declarations.pendingSanctions === null ||
+        declarations.pendingSanctions === undefined
+          ? "Not stated"
+          : declarations.pendingSanctions
+            ? `Sanctions declared${declarations.sanctionDetails ? `: ${declarations.sanctionDetails}` : ""}`
+            : "None declared",
+      verified: null,
+    },
+  ];
+
+  const staffing: ChecklistItem[] = [
+    {
+      key: "staff:management",
+      section: "G",
+      label: "Management staff on site",
+      declared: counted(declarations.managementStaffCount),
+      verified: null,
+    },
+    {
+      key: "staff:admin",
+      section: "G",
+      label: "Administrative staff on site",
+      declared: counted(declarations.adminStaffCount),
+      verified: null,
+    },
+    {
+      key: "staff:security",
+      section: "G",
+      label: "Security staff on site",
+      declared: counted(declarations.securityStaffCount),
+      verified: null,
+    },
+    {
+      key: "staff:other",
+      section: "G",
+      label: "Other staff on site",
+      declared: counted(declarations.otherStaffCount),
+      verified: null,
+    },
+    {
+      key: "staff:security-arrangement",
+      section: "G",
+      label: "Security arrangement as described",
+      declared: declarations.securityArrangement || "Not stated",
+      verified: null,
+    },
+    {
+      key: "ops:status",
+      section: "G",
+      label: "Operational status as declared",
+      declared: declarations.operationalStatus || "Not stated",
+      verified: null,
+    },
+    {
+      key: "ops:daily-vehicles",
+      section: "G",
+      label: "Daily vehicle throughput as declared",
+      declared: declarations.dailyVehiclesCount || "Not stated",
+      verified: null,
+    },
+  ];
+
+  return [
+    ...premises,
+    ...facilities,
+    ...safety,
+    ...operations,
+    ...compliance,
+    ...staffing,
+  ];
 }
 
 /** Reads a stored checklist back, tolerant of the shapes in the wild. */

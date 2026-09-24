@@ -87,11 +87,15 @@ export const motorParkApplicationSchema = z.object({
   landOwnershipDocId: z.string().min(1, "Land ownership/lease agreement is required"),
   cacDocumentId: z.string().min(1, "CAC Registration Certificate is required"),
   corporateAsinDocumentId: z.string().optional().or(z.literal("")),
-  toiletPhotoId: z.string().min(1, "Toilet/convenience photo is required"),
-  waitingAreaPhotoId: z.string().min(1, "Waiting lounge photo is required"),
-  signagePhotoId: z.string().min(1, "Signage photo is required"),
-  waterFacilityPhotoId: z.string().min(1, "Water facility/borehole photo is required"),
-  cctvPhotoId: z.string().min(1, "Camera installation photo is required"),
+  // Facility photographs are optional, matching mass transit. A park without
+  // a borehole cannot photograph one, and requiring it only produced invented
+  // uploads. What is actually on site is settled at the inspection, where the
+  // checklist records it item by item.
+  toiletPhotoId: z.string().optional().or(z.literal("")),
+  waitingAreaPhotoId: z.string().optional().or(z.literal("")),
+  signagePhotoId: z.string().optional().or(z.literal("")),
+  waterFacilityPhotoId: z.string().optional().or(z.literal("")),
+  cctvPhotoId: z.string().optional().or(z.literal("")),
 });
 
 /**

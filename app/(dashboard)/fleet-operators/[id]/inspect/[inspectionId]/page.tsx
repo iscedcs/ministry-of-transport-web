@@ -40,7 +40,28 @@ export default async function TerminalInspectionPage({
         id: true,
         companyName: true,
         terminals: {
-          select: { locationAddress: true },
+          // The declared facilities and the Section F/G answers are what the
+          // checklist compares against. Fetching only the address meant the
+          // inspector saw "Not declared" beside every facility the operator
+          // had actually claimed.
+          select: {
+            locationAddress: true,
+            facilitiesAvailable: true,
+            maintainsManifest: true,
+            operatorsRegistered: true,
+            paymentsUpToDate: true,
+            safetySignages: true,
+            pendingSanctions: true,
+            sanctionDetails: true,
+            managementStaffCount: true,
+            adminStaffCount: true,
+            securityStaffCount: true,
+            otherStaffCount: true,
+            securityArrangement: true,
+            operationalStatus: true,
+            dailyVehiclesCount: true,
+          },
+          orderBy: { terminalNumber: "asc" },
           take: 1,
         },
       },
@@ -53,9 +74,25 @@ export default async function TerminalInspectionPage({
 
   if (!company || !inspection) notFound();
 
-  // Resume a part-completed checklist, otherwise derive a fresh one.
+  // Resume a part-completed checklist, otherwise derive a fresh one from what
+  // the operator declared.
+  const site = company.terminals[0];
+  const declaredFacilities = (() => {
+    const raw = site?.facilitiesAvailable;
+    if (Array.isArray(raw)) return raw.filter((x): x is string => typeof x === "string");
+    if (raw && typeof raw === "object") {
+      return Object.entries(raw as Record<string, unknown>)
+        .filter(([, v]) => v === true)
+        .map(([k]) => k);
+    }
+    return [];
+  })();
+
   const saved = parseTerminalChecklist(inspection.inspectionChecklist);
-  const checklist = saved.length > 0 ? saved : buildTerminalChecklist();
+  const checklist =
+    saved.length > 0
+      ? saved
+      : buildTerminalChecklist(declaredFacilities, site ?? {});
 
   return (
     <TerminalInspectionClient

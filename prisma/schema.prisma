@@ -457,6 +457,19 @@ model Inspection {
   completedByUserId String // Inspector who completed
   approvedAt        DateTime?
   approvedByUserId  String? // HOD approval
+
+  /// The inspection team.
+  ///
+  /// Revalidation inspections are a TEAM exercise (2-4 officers, one lead),
+  /// and the mass transit terminal inspection follows the same pattern so an
+  /// officer moving between modules learns one process. `assignedToUserId`
+  /// stays in step with `leadUserId` so "my inspections" queries keep working
+  /// - the lead is the sole entry point on the checklist, the rest comment.
+  ///
+  /// Optional on the model so existing inspections that predate the team are
+  /// not invalidated; the schedule action requires both going forward.
+  leadUserId      String?
+  teamMemberIds   String[]
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -617,6 +630,13 @@ model MassTransitCompany {
   // Fees & PS Recommendation
   assessedFeeAmount     Int? // in kobo
   monthlyLevyAmount     Int? // in kobo
+  // ── Certificate terms (printed on the approval letter) ──
+  // Match the revalidation flow so an officer moving between the two modules
+  // learns one process. The Commissioner does not print the letter until
+  // these are set, so `monthlyLevyAmount` alone is no longer the whole story.
+  previousMonthlyFeeAmount Int?      // kobo; set only when the fee was reviewed
+  effectiveFrom            DateTime?
+  requiredFacilities       String?   @db.Text
   psRecommendationNotes String? @db.Text
 
   // Revalidation
@@ -625,6 +645,15 @@ model MassTransitCompany {
 
   // Audit
   appliedAt              DateTime  @default(now())
+  /// HOD of Operations — schedules the inspection and recommends first.
+  /// Named to match the revalidation chain, where hodOpsApprovedAt is the
+  /// first HOD and hodApprovedAt is the second: an officer moving between the
+  /// two modules should not have to learn two meanings for one field.
+  hodOpsRecommendation   String?   @db.Text
+  hodOpsApprovedAt       DateTime?
+  hodOpsApprovedByUserId String?
+
+  /// HOD of Parks Revalidation — the second review, before the PS.
   hodApprovedAt          DateTime?
   psApprovedAt           DateTime?
   commissionerApprovedAt DateTime?
@@ -691,6 +720,33 @@ model Terminal {
   signagePhotoId       String? // Document.id
   waterFacilityPhotoId String? // Document.id
   cctvPhotoId          String? // Document.id
+
+  // ── Sections F and G, as the revalidation form asks them ──
+  // The approved inspection checklist compares what was DECLARED against what
+  // was found. Mass transit asked none of this, so eleven of the twenty-three
+  // approved checklist items had nothing to compare against and were simply
+  // absent from the terminal inspection.
+  //
+  // Every field is optional: an operator who cannot answer on the spot leaves
+  // it and the Ministry fills it in later. The checklist still shows the item
+  // — "Not stated" is a finding in itself, and must never read as "No".
+  //
+  // Held per terminal because the inspection is per terminal and each one
+  // becomes its own park.
+  maintainsManifest   Boolean?
+  operatorsRegistered Boolean?
+  paymentsUpToDate    Boolean?
+  safetySignages      Boolean?
+  pendingSanctions    Boolean?
+  sanctionDetails     String?  @db.Text
+
+  managementStaffCount Int?
+  adminStaffCount      Int?
+  securityStaffCount   Int?
+  otherStaffCount      Int?
+  securityArrangement  String?  @db.VarChar(50)
+  operationalStatus    String?  @db.VarChar(50)
+  dailyVehiclesCount   String?  @db.VarChar(50)
 
   // Status
   inspectionStatus InspectionStatus @default(SCHEDULED)

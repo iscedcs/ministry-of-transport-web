@@ -96,11 +96,13 @@ const fleetCompanySchema = z.object({
   asinNumber: z.string().min(5, "ASIN number required"),
   businessPremisesCert: z.string().optional(),
   ansaaRegistration: z.string().optional(),
-  cacDocumentId: z.string().min(1, "CAC Document is required"),
-  landOwnershipDocId: z.string().min(1, "Land ownership document is required"),
-  corporateAsinDocumentId: z
-    .string()
-    .min(1, "Corporate ASIN certificate is required"),
+  // Optional, like the facility photographs. An operator who does not have a
+  // document to hand submits without it and supplies it later; the Ministry
+  // still has to see it before approval, which is where the requirement now
+  // sits rather than at the front door.
+  cacDocumentId: z.string().optional().or(z.literal("")),
+  landOwnershipDocId: z.string().optional().or(z.literal("")),
+  corporateAsinDocumentId: z.string().optional().or(z.literal("")),
 
   // Facility photographs for the terminal. Optional on the schema so an
   // application already in flight is not invalidated; the form requires them.
@@ -257,6 +259,52 @@ export async function submitFleetApplication(
     }
   }
 
+  /**
+   * Sections F and G, as declared.
+   *
+   * "" means the question was put and not answered, which is NOT the same as
+   * "No" and must stay null all the way to the checklist, where it reads
+   * "Not stated".
+   */
+  const tri = (v: unknown) =>
+    v === "YES" ? true : v === "NO" ? false : null;
+  const num = (v: unknown) => {
+    const n = Number(String(v ?? "").trim());
+    return String(v ?? "").trim() === "" || !Number.isFinite(n) || n < 0
+      ? null
+      : Math.round(n);
+  };
+  const text = (v: unknown) => {
+    const t = String(v ?? "").trim();
+    return t === "" ? null : t;
+  };
+
+  let declaredSections: Record<string, unknown> = {};
+  const complianceRaw = formData.get("complianceJson");
+  if (typeof complianceRaw === "string" && complianceRaw.trim() !== "") {
+    try {
+      const c = JSON.parse(complianceRaw) as Record<string, unknown>;
+      declaredSections = {
+        maintainsManifest: tri(c.maintainsManifest),
+        operatorsRegistered: tri(c.operatorsRegistered),
+        paymentsUpToDate: tri(c.paymentsUpToDate),
+        safetySignages: tri(c.safetySignages),
+        pendingSanctions: tri(c.pendingSanctions),
+        sanctionDetails: text(c.sanctionDetails),
+        managementStaffCount: num(c.managementStaffCount),
+        adminStaffCount: num(c.adminStaffCount),
+        securityStaffCount: num(c.securityStaffCount),
+        otherStaffCount: num(c.otherStaffCount),
+        securityArrangement: text(c.securityArrangement),
+        operationalStatus: text(c.operationalStatus),
+        dailyVehiclesCount: text(c.dailyVehiclesCount),
+      };
+    } catch {
+      // A malformed payload is not worth failing an application over; the
+      // inspection records what is actually there.
+    }
+  }
+
   // Check for duplicate CAC or ASIN
   const [existingCac, existingAsin] = await Promise.all([
     db.massTransitCompany.findUnique({
@@ -299,6 +347,10 @@ export async function submitFleetApplication(
       physicalLocation:
         (terminals[0] as { locationAddress?: string } | undefined)
           ?.locationAddress ?? null,
+      existingApprovalNum:
+        (formData.get("existingApprovalNum") as string)?.trim() || null,
+      existingApprovalBasis:
+        (formData.get("existingApprovalBasis") as string)?.trim() || null,
       facilitiesAvailable: facilitiesDeclared,
     });
     if (!seeded.success) return { success: false, error: seeded.error };
@@ -365,6 +417,12 @@ export async function submitFleetApplication(
           managerResidentialAddress: td.managerResidentialAddress,
           businessPremisesCertNo: td.businessPremisesCertNo,
           businessPremisesCertDocId: td.businessPremisesCertDocId,
+          // The inspection checklist reads the TERMINAL, so what was declared
+          // on the application is copied onto each one. Without this the
+          // inspector saw "Not declared" beside every facility the operator
+          // had just ticked.
+          facilitiesAvailable: facilitiesDeclared ?? undefined,
+          ...declaredSections,
         },
       });
     }
@@ -555,6 +613,9 @@ export type FleetApplicationDetail = {
   }[];
   currentFleetSize: number;
   monthlyLevyAmount: number | null;
+  previousMonthlyFeeAmount: number | null;
+  effectiveFrom: Date | null;
+  requiredFacilities: string | null;
   assessedFeeAmount: number | null;
   psRecommendationNotes: string | null;
   applicationStatus: string;
@@ -644,6 +705,9 @@ export async function getFleetApplication(
       corporateAsinDocumentId: true,
       currentFleetSize: true,
       monthlyLevyAmount: true,
+      previousMonthlyFeeAmount: true,
+      effectiveFrom: true,
+      requiredFacilities: true,
       assessedFeeAmount: true,
       psRecommendationNotes: true,
       applicationStatus: true,
@@ -1044,18 +1108,104 @@ export async function removeVehicle(
   return { success: true };
 }
 
+// ==================== CERTIFICATE TERMS ==================================
+
+/**
+ * Values the Ministry sets before the Commissioner signs the approval letter.
+ *
+ * These mirror the revalidation letter fields, so an officer moving between
+ * the two modules deals with one form rather than two. Amounts are entered in
+ * NAIRA and stored in kobo, matching the rest of the platform.
+ */
+export async function setFleetCertificateTerms(
+  companyId: string,
+  input: {
+    monthlyFeeNaira?: string | number | null;
+    previousMonthlyFeeNaira?: string | number | null;
+    effectiveFrom?: string | null;
+    requiredFacilities?: string | null;
+  },
+): Promise<ActionResult<{ companyId: string }>> {
+  const session = await requireRole([
+    // The HOD of Operations proposes, since they ran the inspection; every
+    // subsequent reviewer may still adjust before the Commissioner signs.
+    "HOD_TRANSPORT_OPS",
+    "HOD_PARKS_REVALIDATION",
+    "HOD_PARKS",
+    "PERMANENT_SECRETARY",
+    "COMMISSIONER",
+    "SYSTEM_ADMIN",
+  ]);
+
+  const toKobo = (v: string | number | null | undefined) => {
+    if (v === null || v === undefined || v === "") return null;
+    const n = typeof v === "number" ? v : Number(String(v).replace(/,/g, ""));
+    if (!Number.isFinite(n) || n < 0) return undefined; // signals invalid
+    return Math.round(n * 100);
+  };
+
+  const fee = toKobo(input.monthlyFeeNaira);
+  const prevFee = toKobo(input.previousMonthlyFeeNaira);
+  if (fee === undefined || prevFee === undefined) {
+    return { success: false, error: "Enter a valid fee amount." };
+  }
+
+  const effectiveFrom = input.effectiveFrom ? new Date(input.effectiveFrom) : null;
+  if (input.effectiveFrom && (!effectiveFrom || Number.isNaN(effectiveFrom.getTime()))) {
+    return { success: false, error: "Enter a valid effective date." };
+  }
+
+  const company = await db.massTransitCompany.findUnique({
+    where: { id: companyId },
+    select: { id: true, companyName: true },
+  });
+  if (!company) return { success: false, error: "Fleet operator not found." };
+
+  await db.massTransitCompany.update({
+    where: { id: companyId },
+    data: {
+      monthlyLevyAmount: fee,
+      previousMonthlyFeeAmount: prevFee,
+      effectiveFrom,
+      requiredFacilities: input.requiredFacilities?.trim() || null,
+    },
+  });
+
+  await db.auditLog.create({
+    data: {
+      performedByUserId: session.userId,
+      action: "FLEET_CERTIFICATE_TERMS_SET",
+      entityType: "MASS_TRANSIT",
+      entityId: companyId,
+      changeDescription:
+        `Certificate terms set for ${company.companyName}` +
+        (fee !== null ? ` — monthly fee ₦${(fee / 100).toLocaleString()}` : ""),
+    },
+  });
+
+  revalidatePath(`/fleet-operators/${companyId}`);
+  return { success: true, data: { companyId } };
+}
+
 // ==================== INSPECTION SCHEDULING (FR-023, STORY-045) ====================
 
 /**
- * FR-023: HOD Parks/Revalidation schedules terminal/depot inspection.
- * Sets 5-working-day SLA deadline.
+ * Schedule a mass transit terminal inspection - as a TEAM.
+ *
+ * Matches the revalidation flow (see scheduleRevalidationInspection):
+ *
+ *   - the HOD of Operations always attends and cannot be removed;
+ *   - the team is 2 to 4 officers;
+ *   - exactly one is the lead, and the lead must be on the team;
+ *   - candidates come from the same seven inspector roles.
+ *
+ * Rescheduling replaces the previous team - the visit starts afresh, so any
+ * findings, checklist and evidence from an earlier attempt are cleared.
  */
 export async function scheduleTerminalInspection(
   prevState: ActionResult<{ inspectionId: string }> | undefined,
   formData: FormData,
 ): Promise<ActionResult<{ inspectionId: string }>> {
-  // Only the HOD of Operations schedules inspections. This previously
-  // accepted any authenticated caller.
   const session = await requireRole([...SCHEDULE_ROLES]);
 
   if (!canScheduleInspections(session.role)) {
@@ -1065,22 +1215,80 @@ export async function scheduleTerminalInspection(
     };
   }
 
-  const raw = {
-    linkedEntityType: "MASS_TRANSIT",
-    linkedEntityId: formData.get("companyId"),
-    inspectionType: formData.get("inspectionType") ?? "INITIAL",
-    scheduledDate: formData.get("scheduledDate"),
-    assignedToUserId: formData.get("assignedToUserId"),
-    inspectorStationLocation:
-      formData.get("inspectorStationLocation") || undefined,
-  };
+  const companyId = formData.get("companyId") as string;
+  const scheduledDateStr = formData.get("scheduledDate") as string;
+  const leadId = (formData.get("leadId") as string) || "";
+  const station = (formData.get("inspectorStationLocation") as string) || "";
+  const inspectionType =
+    (formData.get("inspectionType") as string) ?? "INITIAL";
 
-  const parsed = inspectionScheduleSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0].message };
+  let memberIds: string[] = [];
+  const membersRaw = formData.get("memberIds");
+  if (typeof membersRaw === "string" && membersRaw.trim() !== "") {
+    try {
+      const parsed = JSON.parse(membersRaw);
+      if (Array.isArray(parsed)) {
+        memberIds = parsed.filter((x): x is string => typeof x === "string");
+      }
+    } catch {
+      return { success: false, error: "Invalid team member payload." };
+    }
   }
 
-  const data = parsed.data;
+  if (!companyId) return { success: false, error: "Company ID required." };
+  if (!scheduledDateStr) return { success: false, error: "Choose an inspection date." };
+
+  const scheduledDate = new Date(scheduledDateStr);
+  if (Number.isNaN(scheduledDate.getTime())) {
+    return { success: false, error: "Enter a valid inspection date." };
+  }
+  if (scheduledDate <= new Date()) {
+    return { success: false, error: "Inspection date must be in the future." };
+  }
+
+  // The HOD always attends, whether or not their own name was ticked.
+  const team = Array.from(new Set([...memberIds, session.userId])).filter(Boolean);
+  const MIN_TEAM = 2;
+  const MAX_TEAM = 4;
+
+  if (team.length < MIN_TEAM) {
+    return {
+      success: false,
+      error: `An inspection needs at least ${MIN_TEAM} officers - select at least one besides yourself.`,
+    };
+  }
+  if (team.length > MAX_TEAM) {
+    return {
+      success: false,
+      error: `An inspection team may hold at most ${MAX_TEAM} officers (you are counted automatically).`,
+    };
+  }
+  if (!leadId) {
+    return { success: false, error: "Name a lead inspector." };
+  }
+  if (!team.includes(leadId)) {
+    return {
+      success: false,
+      error: "The lead inspector must be one of the selected officers.",
+    };
+  }
+
+  const foundCount = await db.user.count({
+    where: { id: { in: team }, isActive: true },
+  });
+  if (foundCount !== team.length) {
+    return { success: false, error: "One or more selected officers are invalid." };
+  }
+
+  const data = {
+    linkedEntityType: "MASS_TRANSIT" as const,
+    linkedEntityId: companyId,
+    inspectionType,
+    scheduledDate,
+    // Kept in step with the lead so existing "my inspections" queries work.
+    assignedToUserId: leadId,
+    inspectorStationLocation: station || undefined,
+  };
 
   const company = await db.massTransitCompany.findUnique({
     where: { id: data.linkedEntityId },
@@ -1111,6 +1319,18 @@ export async function scheduleTerminalInspection(
   }
 
   const inspection = await db.$transaction(async (tx) => {
+    // Replace any previous team on this company - rescheduling starts the
+    // visit afresh, so a stale roster from an earlier attempt cannot mislead.
+    // Rejected is the closest available terminal state.
+    await tx.inspection.updateMany({
+      where: {
+        linkedEntityType: "MASS_TRANSIT",
+        linkedEntityId: companyId,
+        status: { notIn: ["COMPLETED"] },
+      },
+      data: { status: "REJECTED" },
+    });
+
     const insp = await tx.inspection.create({
       data: {
         linkedEntityType: "MASS_TRANSIT",
@@ -1120,8 +1340,12 @@ export async function scheduleTerminalInspection(
         scheduledByUserId: session.userId,
         assignedToUserId: data.assignedToUserId,
         inspectorStationLocation: data.inspectorStationLocation,
-        completedByUserId: session.userId, // placeholder — updated on completion
-        status: "PENDING_PS_APPROVAL",
+        completedByUserId: session.userId, // placeholder - overwritten on completion
+        // No PS pre-clearance of the schedule, matching revalidation. The
+        // visit goes straight to the team.
+        status: "SCHEDULED",
+        leadUserId: leadId,
+        teamMemberIds: team,
       },
       select: { id: true },
     });
@@ -1360,17 +1584,74 @@ export async function approveBrandingScheme(
 // ==================== WORKFLOW APPROVALS (HOD -> PS -> COMMISSIONER) ====================
 
 /**
- * HOD Transport Operations reviews inspection report and approves to Permanent Secretary.
+ * Stage 3 — the HOD of Operations records a recommendation.
+ *
+ * This used to be the only HOD stage, and it accepted three different HOD
+ * roles and two different statuses, so an application could reach the PS
+ * having been seen by one HOD or by none of the intended two. The chain now
+ * matches revalidation exactly: HOD Operations recommends, then the HOD of
+ * Parks Revalidation reviews, and only then does it reach the PS.
+ */
+export async function hodOpsApproveFleetOperator(
+  companyId: string,
+  recommendation: string,
+): Promise<ActionResult> {
+  await requireRole(["HOD_TRANSPORT_OPS", "SYSTEM_ADMIN"]);
+  const session = await requireAuth();
+
+  if (!recommendation?.trim()) {
+    return { success: false, error: "A recommendation is required." };
+  }
+
+  const company = await db.massTransitCompany.findUnique({
+    where: { id: companyId },
+    select: { id: true, applicationStatus: true, companyName: true },
+  });
+
+  if (!company) return { success: false, error: "Fleet application not found" };
+
+  if (company.applicationStatus !== "INSPECTION_COMPLETED") {
+    return {
+      success: false,
+      error: `The inspection report is not ready for your recommendation (currently ${company.applicationStatus}).`,
+    };
+  }
+
+  const now = new Date();
+  await db.$transaction(async (tx) => {
+    await tx.massTransitCompany.update({
+      where: { id: companyId },
+      data: {
+        applicationStatus: "PENDING_HOD_APPROVAL",
+        hodOpsRecommendation: recommendation.trim(),
+        hodOpsApprovedAt: now,
+        hodOpsApprovedByUserId: session.userId,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        performedByUserId: session.userId,
+        action: "HOD_OPS_APPROVED_FLEET_OPERATOR",
+        entityType: "MASS_TRANSIT",
+        entityId: companyId,
+        changeDescription: `HOD Operations recommended ${company.companyName}; forwarded to HOD Parks Revalidation`,
+      },
+    });
+  });
+
+  revalidatePath(`/fleet-operators/${companyId}`);
+  revalidatePath("/fleet-operators");
+  return { success: true };
+}
+
+/**
+ * Stage 4 — the HOD of Parks Revalidation reviews, then sends it to the PS.
  */
 export async function hodApproveFleetOperator(
   companyId: string,
 ): Promise<ActionResult> {
-  await requireRole([
-    "HOD_TRANSPORT_OPS",
-    "HOD_PARKS",
-    "HOD_PARKS_REVALIDATION",
-    "SYSTEM_ADMIN",
-  ]);
+  await requireRole(["HOD_PARKS_REVALIDATION", "SYSTEM_ADMIN"]);
   const session = await requireAuth();
 
   const company = await db.massTransitCompany.findUnique({
@@ -1380,11 +1661,10 @@ export async function hodApproveFleetOperator(
 
   if (!company) return { success: false, error: "Fleet application not found" };
 
-  const validStatuses = ["PENDING_HOD_APPROVAL", "INSPECTION_COMPLETED"];
-  if (!validStatuses.includes(company.applicationStatus)) {
+  if (company.applicationStatus !== "PENDING_HOD_APPROVAL") {
     return {
       success: false,
-      error: `Cannot approve — current status is ${company.applicationStatus}.`,
+      error: `This application is not awaiting your review (currently ${company.applicationStatus}).`,
     };
   }
 
@@ -1432,11 +1712,12 @@ export async function psApproveFleetOperator(
 
   if (!company) return { success: false, error: "Fleet application not found" };
 
-  const validStatuses = ["PENDING_PS_APPROVAL", "INSPECTION_COMPLETED"];
-  if (!validStatuses.includes(company.applicationStatus)) {
+  // INSPECTION_COMPLETED was accepted here too, which let an application
+  // reach the PS without either HOD having seen it.
+  if (company.applicationStatus !== "PENDING_PS_APPROVAL") {
     return {
       success: false,
-      error: `Cannot approve — current status is ${company.applicationStatus}.`,
+      error: `This application is not awaiting your approval (currently ${company.applicationStatus}).`,
     };
   }
 

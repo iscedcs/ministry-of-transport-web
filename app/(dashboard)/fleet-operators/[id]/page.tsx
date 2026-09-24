@@ -20,6 +20,7 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { OwnerCompletionPanel } from "@/components/field-capture/owner-completion-panel";
 import { TerminalApplicationsPanel } from "@/components/mass-transit/terminal-applications-panel";
+import { FleetCertificateTermsPanel } from "@/components/mass-transit/certificate-terms-panel";
 import {
   getFleetApplication,
   type FleetApplicationDetail,
@@ -41,7 +42,6 @@ import { RowGrid as Row } from "@/components/ui/row";
 import { fmtDateShort as fmt } from "@/lib/utils/format";
 import { FileText, Download, ShieldCheck, Plus, Bus } from "lucide-react";
 import { FleetWorkflowActions } from "./fleet-workflow-actions";
-import { canSchedule as canScheduleInspectionRole } from "@/lib/workflow-roles";
 import { AttachStickerDialog } from "@/components/mass-transit/attach-sticker-dialog";
 
 // ── Action Bar ─────────────────────────────────────────────────────────────────
@@ -57,10 +57,6 @@ function ActionBar({
   const pendingInspection = company.inspections.find(
     (i) => i.status === "SCHEDULED",
   );
-
-  const canScheduleInspection =
-    canScheduleInspectionRole(role) &&
-    ["SUBMITTED", "UNDER_REVIEW", "INSPECTION_COMPLETED"].includes(status);
 
   const canInspect =
     role === "FIELD_INSPECTOR" &&
@@ -133,7 +129,6 @@ function ActionBar({
 
   if (
     !canEdit &&
-    !canScheduleInspection &&
     !canInspect &&
     !canApproveBranding &&
     !canIssuePermit &&
@@ -163,13 +158,9 @@ function ActionBar({
             </Link>
           </Button>
         )}
-        {canScheduleInspection && (
-          <Button asChild size="sm">
-            <Link href={`/fleet-operators/${company.id}/schedule-inspection`}>
-              📅 Schedule Inspection
-            </Link>
-          </Button>
-        )}
+        {/* Scheduling now lives on each terminal in the Terminals panel,
+            where the team picker matches revalidation. A second button here
+            pointed to the older single-inspector form and confused testers. */}
         {canInspect && (
           <Button asChild size="sm">
             <Link
@@ -291,6 +282,21 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
       addedAt: true,
       facilitiesAvailable: true,
       inspectionDueAt: true,
+      // Section F & G declarations, so the inspection checklist can compare
+      // declared vs found rather than showing "Not declared" everywhere.
+      maintainsManifest: true,
+      operatorsRegistered: true,
+      paymentsUpToDate: true,
+      safetySignages: true,
+      pendingSanctions: true,
+      sanctionDetails: true,
+      managementStaffCount: true,
+      adminStaffCount: true,
+      securityStaffCount: true,
+      otherStaffCount: true,
+      securityArrangement: true,
+      operationalStatus: true,
+      dailyVehiclesCount: true,
       inspectionTeam: {
         select: {
           userId: true,
@@ -428,6 +434,20 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
       <ActionBar company={co} role={session.role} />
 
       {/* Sequential Executive Workflow Actions */}
+      {["HOD_TRANSPORT_OPS", "HOD_PARKS_REVALIDATION", "HOD_PARKS", "PERMANENT_SECRETARY", "COMMISSIONER", "SYSTEM_ADMIN"].includes(
+        session.role,
+      ) && (
+        <FleetCertificateTermsPanel
+          companyId={co.id}
+          initial={{
+            monthlyFeeAmount: co.monthlyLevyAmount,
+            previousMonthlyFeeAmount: co.previousMonthlyFeeAmount,
+            effectiveFrom: co.effectiveFrom,
+            requiredFacilities: co.requiredFacilities,
+          }}
+        />
+      )}
+
       <FleetWorkflowActions
         companyId={co.id}
         status={co.applicationStatus}

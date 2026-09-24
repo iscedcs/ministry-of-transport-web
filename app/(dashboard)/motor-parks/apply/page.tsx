@@ -412,11 +412,9 @@ export default function ApplyMotorParkPage() {
     if (step === 5 && !isFieldCapture) {
       if (!data.cacDocumentId) e.cacDocumentId = "CAC Registration Certificate is required";
       if (!data.landOwnershipDocId) e.landOwnershipDocId = "Land Ownership/Lease Agreement is required";
-      if (!data.toiletPhotoId) e.toiletPhotoId = "Toilet/convenience photo is required";
-      if (!data.waitingAreaPhotoId) e.waitingAreaPhotoId = "Waiting lounge photo is required";
-      if (!data.signagePhotoId) e.signagePhotoId = "Signage photo is required";
-      if (!data.waterFacilityPhotoId) e.waterFacilityPhotoId = "Water facility/borehole photo is required";
-      if (!data.cctvPhotoId) e.cctvPhotoId = "Camera installation photo is required";
+      // Facility photographs are optional here, as on mass transit: a park
+      // without a facility cannot photograph one. The inspection records what
+      // is actually there.
     }
     return e;
   }
@@ -1267,9 +1265,16 @@ export default function ApplyMotorParkPage() {
 
             <div className="pt-6 border-t border-border space-y-4">
               <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-foreground">Facility Infrastructure Photos</h3>
+                <h3 className="text-sm font-semibold text-foreground">
+                  Facility Infrastructure Photos{" "}
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">
+                    (optional)
+                  </span>
+                </h3>
                 <p className="text-xs text-muted-foreground">
-                  Provide evidence of compliance with Anambra State Ministry of Transport Site Standards for Approval.
+                  Evidence of compliance with Anambra State Ministry of
+                  Transport site standards. Upload what you have and leave out
+                  the rest — what is on site is verified at the inspection.
                 </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
