@@ -27,17 +27,28 @@ export default async function MassTransitLetterPage({
   // Ministry staff, or the applicant this document belongs to.
   await authorizeDocument({ kind: "massTransit", id });
 
+  // A company approved through the revalidation queue never had its fee or
+  // required facilities entered on the company itself; they were set on the
+  // revalidation the Commissioner signed, so the letter reads them from there.
+  const revalidation = await db.revalidationApplication.findFirst({
+    where: { massTransitCompanyId: id, status: "APPROVED" },
+    orderBy: { approvedAt: "desc" },
+    select: { monthlyFeeAmount: true, requiredFacilities: true },
+  });
+
   const company = await db.massTransitCompany.findUnique({
     where: { id },
     select: {
       id: true,
       companyName: true,
+      address: true,
       contactPerson: true,
       permitNumber: true,
       permitIssuedAt: true,
       permitExpiresAt: true,
       monthlyLevyAmount: true,
       approvedColour: true,
+      requiredFacilities: true,
       currentFleetSize: true,
       minFleetSize: true,
       applicationStatus: true,
@@ -75,12 +86,20 @@ export default async function MassTransitLetterPage({
           id: company.id,
           companyName: company.companyName,
           contactPerson: company.contactPerson ?? "",
-          contactAddress: company.terminals[0]?.locationAddress?.trim() || null,
+          contactAddress:
+            company.address?.trim() ||
+            company.terminals[0]?.locationAddress?.trim() ||
+            null,
           permitNumber: company.permitNumber,
           permitIssuedAt: company.permitIssuedAt,
           permitExpiresAt: company.permitExpiresAt,
-          monthlyLevyAmount: company.monthlyLevyAmount,
+          monthlyLevyAmount:
+            company.monthlyLevyAmount ?? revalidation?.monthlyFeeAmount ?? null,
           approvedColour: company.approvedColour,
+          requiredFacilities:
+            company.requiredFacilities?.trim() ||
+            revalidation?.requiredFacilities ||
+            null,
           fleetSize: company.currentFleetSize || company.minFleetSize || 0,
           terminals: company.terminals.map((t) => ({
             designation: terminalDesignation(company.companyName, t.terminalNumber),

@@ -33,6 +33,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { updateMassTransitCompany } from "@/app/actions/mass-transit";
+import { uploadCacDocument } from "@/app/actions/upload";
 import { FACILITY_ITEMS } from "@/lib/facilities";
 
 interface TerminalData {
@@ -49,6 +50,7 @@ interface TerminalData {
 interface FleetCompanyInitialData {
   id: string;
   companyName: string;
+  address: string | null;
   cacNumber: string | null;
   asinNumber: string | null;
   contactPerson: string | null;
@@ -66,6 +68,9 @@ interface FleetCompanyInitialData {
   assessedFeeAmount: number | null;
   psRecommendationNotes: string | null;
   facilitiesAvailable: unknown;
+  cacDocumentId: string | null;
+  landOwnershipDocId: string | null;
+  corporateAsinDocumentId: string | null;
   terminals: TerminalData[];
 }
 
@@ -99,6 +104,43 @@ export function EditFleetOperatorClient({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
+  /**
+   * Documents can be attached here by the Ministry when the operator did not
+   * upload them on the application. Kept in local state so the id we send to
+   * the server is only the freshly-uploaded one; a blank slot means "leave
+   * the current document alone", never "clear it".
+   */
+  const [cacDoc, setCacDoc] = useState({
+    id: "",
+    name: "",
+    existing: company.cacDocumentId,
+  });
+  const [landDoc, setLandDoc] = useState({
+    id: "",
+    name: "",
+    existing: company.landOwnershipDocId,
+  });
+  const [corpDoc, setCorpDoc] = useState({
+    id: "",
+    name: "",
+    existing: company.corporateAsinDocumentId,
+  });
+  const [uploading, setUploading] = useState<string | null>(null);
+
+  async function uploadDoc(
+    file: File,
+    key: string,
+    onDone: (documentId: string) => void,
+  ) {
+    setUploading(key);
+    const fd = new globalThis.FormData();
+    fd.append("file", file);
+    const res = await uploadCacDocument(fd);
+    if (res.success) onDone(res.documentId);
+    else toast.error(res.error || "Upload failed.");
+    setUploading(null);
+  }
+
   const primaryTerm = company.terminals?.[0];
 
   const initialFacilities: Record<string, boolean> = (() => {
@@ -117,6 +159,7 @@ export function EditFleetOperatorClient({
   const [form, setForm] = useState({
     // Company Particulars
     companyName: company.companyName || "",
+    address: company.address || "",
     cacNumber: company.cacNumber || "",
     asinNumber: company.asinNumber || "",
     businessPremisesCert: company.businessPremisesCert || "",
@@ -187,6 +230,10 @@ export function EditFleetOperatorClient({
     formData.set("facilitiesAvailable", JSON.stringify(facilities));
 
     startTransition(async () => {
+      if (cacDoc.id) formData.set("cacDocumentId", cacDoc.id);
+      if (landDoc.id) formData.set("landOwnershipDocId", landDoc.id);
+      if (corpDoc.id) formData.set("corporateAsinDocumentId", corpDoc.id);
+
       const res = await updateMassTransitCompany(company.id, formData);
       if (res.success) {
         toast.success("Mass transit operator application updated successfully.");
@@ -247,6 +294,17 @@ export function EditFleetOperatorClient({
                 onChange={handleChange}
                 placeholder="e.g. ISCE Digital Concept Ltd"
                 required
+              />
+            </div>
+
+            <div className="md:col-span-2 space-y-1.5">
+              <Label htmlFor="address">Company Address</Label>
+              <Input
+                id="address"
+                name="address"
+                value={form.address}
+                onChange={handleChange}
+                placeholder="Head office address. The company inspection is tied to it."
               />
             </div>
 
@@ -629,6 +687,58 @@ export function EditFleetOperatorClient({
                 placeholder="Internal notes or PS recommendation remarks for this operator..."
               />
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Documents</CardTitle>
+            <CardDescription>
+              Upload documents the operator did not attach on the application.
+              A slot left blank keeps the current file - it never clears one.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-3">
+            {[
+              { key: "cac", label: "CAC Certificate", state: cacDoc, set: setCacDoc },
+              { key: "land", label: "Land Ownership", state: landDoc, set: setLandDoc },
+              { key: "corp", label: "Corporate ASIN Certificate", state: corpDoc, set: setCorpDoc },
+            ].map((doc) => (
+              <div key={doc.key} className="flex flex-col gap-1.5">
+                <Label>{doc.label}</Label>
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  disabled={uploading === doc.key}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    uploadDoc(file, doc.key, (id) =>
+                      doc.set({ id, name: file.name, existing: doc.state.existing }),
+                    );
+                  }}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-secondary file:px-2 file:py-1 file:text-xs"
+                />
+                {uploading === doc.key && (
+                  <p className="text-xs text-muted-foreground">Uploading…</p>
+                )}
+                {doc.state.id && (
+                  <p className="text-xs text-green-600 dark:text-green-400">
+                    New: {doc.state.name}
+                  </p>
+                )}
+                {!doc.state.id && doc.state.existing && (
+                  <p className="text-xs text-muted-foreground">
+                    Current file kept
+                  </p>
+                )}
+                {!doc.state.id && !doc.state.existing && (
+                  <p className="text-xs text-muted-foreground">
+                    None attached yet
+                  </p>
+                )}
+              </div>
+            ))}
           </CardContent>
         </Card>
 

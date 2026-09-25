@@ -65,6 +65,17 @@ export async function listInspections(
     return { success: false, error: "Insufficient permissions" };
   }
 
+  // Terminals a field inspector sits on the team for, as lead or member.
+  const teamTerminalIds =
+    session.role === "FIELD_INSPECTOR"
+      ? (
+          await db.terminalInspector.findMany({
+            where: { userId: session.userId },
+            select: { terminalId: true },
+          })
+        ).map((t) => t.terminalId)
+      : [];
+
   const where: any = {
     ...(status
       ? {
@@ -81,7 +92,13 @@ export async function listInspections(
     // Field inspectors only see their assigned & confirmed inspections (not unapproved pending PS approval)
     ...(session.role === "FIELD_INSPECTOR"
       ? {
-          assignedToUserId: session.userId,
+          OR: [
+            { assignedToUserId: session.userId },
+            {
+              linkedEntityType: "TERMINAL",
+              linkedEntityId: { in: teamTerminalIds },
+            },
+          ],
           status: { in: ["SCHEDULED", "IN_PROGRESS", "COMPLETED", "APPROVED"] },
         }
       : {}),
@@ -115,6 +132,32 @@ export async function listInspections(
     for (const c of companies) transitMap.set(c.id, c.companyName);
   }
 
+  // Terminal inspections resolve to their company, with the terminal named.
+  const terminalIds = items
+    .filter((i) => i.linkedEntityType === "TERMINAL")
+    .map((i) => i.linkedEntityId);
+  const terminalMap = new Map<
+    string,
+    { companyId: string; name: string }
+  >();
+  if (terminalIds.length > 0) {
+    const terms = await db.terminal.findMany({
+      where: { id: { in: terminalIds } },
+      select: {
+        id: true,
+        terminalNumber: true,
+        companyId: true,
+        company: { select: { companyName: true } },
+      },
+    });
+    for (const t of terms) {
+      terminalMap.set(t.id, {
+        companyId: t.companyId,
+        name: `${t.company.companyName} - Terminal ${t.terminalNumber}`,
+      });
+    }
+  }
+
   const inspections: InspectionListItem[] = items.map((i) => {
     let entityName = "Unknown";
     let entityHref = "#";
@@ -125,6 +168,10 @@ export async function listInspections(
     } else if (i.linkedEntityType === "MASS_TRANSIT") {
       entityName = transitMap.get(i.linkedEntityId) ?? "Unknown";
       entityHref = `/fleet-operators/${i.linkedEntityId}`;
+    } else if (i.linkedEntityType === "TERMINAL") {
+      const t = terminalMap.get(i.linkedEntityId);
+      entityName = t?.name ?? "Unknown terminal";
+      entityHref = t ? `/fleet-operators/${t.companyId}` : "#";
     }
 
     return {

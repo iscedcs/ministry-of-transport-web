@@ -709,7 +709,12 @@ export async function commissionerApproveRevalidation(
       });
       await db.terminal.update({
         where: { id: terminal.id },
-        data: { motorParkId: madePark.id },
+        data: {
+          motorParkId: madePark.id,
+          applicationStatus: parkStatus,
+          approvedAt: new Date(),
+          commissionerApprovedAt: new Date(),
+        },
       });
       // The certificate follows motorPark, so it must point at the park the
       // terminal became.

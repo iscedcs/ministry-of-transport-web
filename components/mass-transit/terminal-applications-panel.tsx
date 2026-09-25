@@ -12,15 +12,18 @@ import {
   AlertTriangle,
   CalendarClock,
   ClipboardCheck,
+  Camera,
 } from "lucide-react";
 import {
   addTerminalToCompany,
-  hodApproveTerminal,
+  hodOpsRecommendTerminal,
+  hodRevalApproveTerminal,
   psApproveTerminal,
   commissionerApproveTerminal,
   rejectTerminal,
   resubmitTerminal,
   scheduleAddedTerminalInspection,
+  scheduleCompanyInspection,
   completeAddedTerminalInspection,
   commentOnTerminalInspection,
   getTerminalTeamCandidates,
@@ -90,8 +93,21 @@ export interface TerminalRow {
 /** Which control the signed-in officer gets, given where the terminal is. */
 function stageFor(status: string, role: string) {
   if (status === "INSPECTION_COMPLETED")
-    return ["HOD_TRANSPORT_OPS", "HOD_PARKS", "SYSTEM_ADMIN"].includes(role)
-      ? { label: "Recommend to PS", run: hodApproveTerminal }
+    return ["HOD_TRANSPORT_OPS", "SYSTEM_ADMIN"].includes(role)
+      ? {
+          label: "Recommend to HOD Revalidation",
+          // Never invoked directly - clicking this status opens the
+          // recommendation form below instead, since a recommendation is
+          // required. Kept here only so every stage has the same shape.
+          run: (id: string) => hodOpsRecommendTerminal(id, ""),
+        }
+      : null;
+  if (status === "PENDING_HOD_APPROVAL")
+    return ["HOD_PARKS_REVALIDATION", "SYSTEM_ADMIN"].includes(role)
+      ? {
+          label: "Approve and send to PS",
+          run: hodRevalApproveTerminal,
+        }
       : null;
   if (status === "PENDING_PS_APPROVAL")
     return ["PERMANENT_SECRETARY", "SYSTEM_ADMIN"].includes(role)
@@ -99,7 +115,7 @@ function stageFor(status: string, role: string) {
       : null;
   if (status === "PENDING_COMMISSIONER_APPROVAL")
     return ["COMMISSIONER", "SYSTEM_ADMIN"].includes(role)
-      ? { label: "Approve terminal", run: commissionerApproveTerminal }
+      ? { label: "Approve terminal", run: (id: string) => commissionerApproveTerminal(id, "PERMANENT") }
       : null;
   return null;
 }
@@ -143,6 +159,9 @@ const TONE: Record<string, string> = {
 export function TerminalApplicationsPanel({
   companyId,
   companyApproved,
+  companyAddress,
+  companyStatus,
+  revalidated,
   terminals,
   currentUserRole,
   currentUserId,
@@ -150,6 +169,9 @@ export function TerminalApplicationsPanel({
 }: {
   companyId: string;
   companyApproved: boolean;
+  companyAddress: string | null;
+  companyStatus: string;
+  revalidated: boolean;
   terminals: TerminalRow[];
   currentUserRole: string;
   currentUserId: string;
@@ -185,6 +207,9 @@ export function TerminalApplicationsPanel({
   const [leadId, setLeadId] = useState("");
   const [comment, setComment] = useState("");
   const [commenting, setCommenting] = useState<string | null>(null);
+  /** Terminal whose HOD Ops recommendation form is open, if any. */
+  const [recommending, setRecommending] = useState<string | null>(null);
+  const [recommendation, setRecommendation] = useState("");
 
   function toggleMember(userId: string) {
     setSelected((prev) => {
@@ -197,6 +222,35 @@ export function TerminalApplicationsPanel({
     });
   }
   const [findings, setFindings] = useState("");
+  const [evidence, setEvidence] = useState<{ url: string; caption?: string }[]>([]);
+  const [evidenceUploading, setEvidenceUploading] = useState(false);
+
+  const uploadEvidence = async (files: File[]) => {
+    setEvidenceUploading(true);
+    try {
+      for (const file of files) {
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error(`${file.name} is larger than 5MB.`);
+          continue;
+        }
+        const fd = new globalThis.FormData();
+        fd.append("file", file);
+        fd.append("folder", "terminal-evidence");
+        fd.append("linkedToType", "TERMINAL");
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        const json = await res.json();
+        if (json?.url) {
+          setEvidence((p) => [...p, { url: json.url, caption: file.name }]);
+        } else {
+          toast.error(json?.error ?? `Failed to upload ${file.name}`);
+        }
+      }
+    } catch {
+      toast.error("Upload failed. Check your connection and try again.");
+    } finally {
+      setEvidenceUploading(false);
+    }
+  };
   /**
    * The checklist the inspector is filling. Keyed by the item's key so an
    * answer survives re-renders and the report ships the whole shape back.
@@ -207,6 +261,7 @@ export function TerminalApplicationsPanel({
   const openReport = (t: TerminalRow) => {
     setReporting(t.id);
     setFindings("");
+    setEvidence([]);
     const declared = declaredFacilities(t.facilitiesAvailable);
     const declarations: TerminalDeclarations = {
       maintainsManifest: t.maintainsManifest ?? null,
@@ -248,17 +303,24 @@ export function TerminalApplicationsPanel({
 
   const submitSchedule = (terminalId: string) =>
     startTransition(async () => {
-      const res = await scheduleAddedTerminalInspection(terminalId, {
-        ...visit,
-        memberIds: selected,
-        leadId,
-      });
+      const res =
+        terminalId === "COMPANY"
+          ? await scheduleCompanyInspection(companyId, {
+              scheduledDate: visit.scheduledDate,
+              memberIds: selected,
+              leadId,
+            })
+          : await scheduleAddedTerminalInspection(terminalId, {
+              ...visit,
+              memberIds: selected,
+              leadId,
+            });
       if (res.success) {
         toast.success("Inspection scheduled.");
         setScheduling(null);
         router.refresh();
       } else {
-        toast.error(res.error || "Could not schedule the inspection.");
+        toast.error(("error" in res && res.error) || "Could not schedule the inspection.");
       }
     });
 
@@ -271,15 +333,21 @@ export function TerminalApplicationsPanel({
         toast.error(`${unanswered} checklist item(s) unanswered.`);
         return;
       }
+      if (evidence.length === 0) {
+        toast.error("Upload at least one piece of site evidence.");
+        return;
+      }
 
       const res = await completeAddedTerminalInspection(terminalId, {
         findings,
         checklist: checklist.length > 0 ? checklist : undefined,
+        evidenceUrls: evidence,
       });
       if (res.success) {
         toast.success("Inspection report filed.");
         setReporting(null);
         setFindings("");
+        setEvidence([]);
         setChecklist([]);
         router.refresh();
       } else {
@@ -353,6 +421,182 @@ export function TerminalApplicationsPanel({
       }
     });
 
+  const renderScheduleForm = (target: string, title: string) => (
+                    <div className="mt-1 flex flex-col gap-3 rounded-xl border border-border p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        {title}
+                      </p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Date of visit
+                          </span>
+                          <input
+                            type="date"
+                            value={visit.scheduledDate}
+                            onChange={(e) =>
+                              setVisit((v) => ({
+                                ...v,
+                                scheduledDate: e.target.value,
+                              }))
+                            }
+                            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1.5">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Station (optional)
+                          </span>
+                          <input
+                            value={visit.station}
+                            onChange={(e) =>
+                              setVisit((v) => ({ ...v, station: e.target.value }))
+                            }
+                            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="flex flex-col gap-2">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Inspection team ({1 + selected.length} of {MAX_TEAM}{" "}
+                          selected)
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          You attend automatically as the HOD of Operations,
+                          and you may lead the visit yourself or name one of
+                          the others. Only the lead files the checklist; the
+                          rest leave comments.
+                        </p>
+
+                        {/* The HOD (the signed-in officer) sits at the top as
+                            a fixed row, mirroring the revalidation queue: the
+                            slot is theirs and the Lead toggle is right there. */}
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div
+                            className={cn(
+                              "flex items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-sm",
+                              leadId === currentUserId
+                                ? "border-primary bg-primary/5"
+                                : "border-border bg-secondary/40",
+                            )}>
+                            <div>
+                              <p className="font-medium">You (HOD Operations)</p>
+                              <p className="text-xs text-muted-foreground">
+                                Always attends - cannot be removed
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setLeadId(
+                                  leadId === currentUserId ? "" : currentUserId,
+                                )
+                              }
+                              className={cn(
+                                "shrink-0 rounded-md border px-2 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors",
+                                leadId === currentUserId
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border hover:bg-secondary",
+                              )}>
+                              {leadId === currentUserId ? "★ Lead" : "Set as lead"}
+                            </button>
+                          </div>
+
+                          {inspectors.map((i) => {
+                            const picked = selected.includes(i.id);
+                            const full = !picked && selected.length >= SELECTABLE_LIMIT;
+                            return (
+                              <label
+                                key={i.id}
+                                className={cn(
+                                  "flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors",
+                                  picked
+                                    ? "border-primary bg-primary/5"
+                                    : "border-border",
+                                  full
+                                    ? "cursor-not-allowed opacity-40"
+                                    : "cursor-pointer hover:bg-secondary/50",
+                                )}>
+                                <input
+                                  type="checkbox"
+                                  checked={picked}
+                                  disabled={full}
+                                  onChange={() => toggleMember(i.id)}
+                                />
+                                <span>
+                                  {i.firstName} {i.lastName}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+
+                        <label className="mt-1 flex flex-col gap-1.5">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Lead inspector
+                          </span>
+                          <select
+                            value={leadId}
+                            onChange={(e) => setLeadId(e.target.value)}
+                            className="h-[38px] w-full rounded-lg border border-border bg-background px-3 text-sm">
+                            <option value="">Select the lead</option>
+                            {/* The HOD is always an option - the button above
+                                is a shortcut, this the standard control. */}
+                            <option value={currentUserId}>You (HOD Operations)</option>
+                            {inspectors
+                              .filter((i) => selected.includes(i.id))
+                              .map((i) => (
+                                <option key={i.id} value={i.id}>
+                                  {i.firstName} {i.lastName}
+                                </option>
+                              ))}
+                          </select>
+                        </label>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground">
+                        The report is due five working days after the visit.
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => submitSchedule(target)}
+                          className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+                          {pending ? "Scheduling..." : "Schedule"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => setScheduling(null)}
+                          className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium disabled:opacity-50">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+  );
+
+  // A pack terminal is rejected by whoever holds the company's current stage.
+  const packStageRole: Record<string, string> = {
+    INSPECTION_COMPLETED: "HOD_TRANSPORT_OPS",
+    PENDING_HOD_APPROVAL: "HOD_PARKS_REVALIDATION",
+    PENDING_PS_APPROVAL: "PERMANENT_SECRETARY",
+    PENDING_COMMISSIONER_APPROVAL: "COMMISSIONER",
+  };
+  const packRejectable = (t: TerminalRow) =>
+    !t.addedAt &&
+    !t.motorParkId &&
+    t.applicationStatus !== "REJECTED" &&
+    (currentUserRole === "SYSTEM_ADMIN" ||
+      packStageRole[companyStatus] === currentUserRole) &&
+    (t.applicationStatus === "INSPECTION_COMPLETED" ||
+      t.applicationStatus === "INSPECTION_SCHEDULED");
+
+  const packSchedulable = terminals.filter(
+    (t) => !t.addedAt && !t.motorParkId && SCHEDULABLE.includes(t.applicationStatus),
+  );
+
   return (
     <Card>
       <CardContent className="flex flex-col gap-4 p-5">
@@ -376,6 +620,44 @@ export function TerminalApplicationsPanel({
             </button>
           )}
         </div>
+
+        {/* ── Company-level inspection for the whole pack ──────────────── */}
+        {packSchedulable.length > 0 &&
+          SCHEDULE_ROLES.includes(currentUserRole) && (
+            <div className="flex flex-col gap-3 rounded-xl border border-border p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold">
+                    Inspect the company ({packSchedulable.length} terminal
+                    {packSchedulable.length === 1 ? "" : "s"})
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {companyAddress
+                      ? `One visit at ${companyAddress}, covering every terminal declared on this application.`
+                      : "This application has no company address. Add it under Edit Application to schedule for the company, or schedule each terminal below."}
+                  </p>
+                </div>
+                {companyAddress ? (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => openSchedule("COMPANY")}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50">
+                    <CalendarClock className="h-3.5 w-3.5" />
+                    Schedule for company
+                  </button>
+                ) : (
+                  <Link
+                    href={`/fleet-operators/${companyId}/edit`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-secondary">
+                    Add company address
+                  </Link>
+                )}
+              </div>
+              {scheduling === "COMPANY" &&
+                renderScheduleForm("COMPANY", "Schedule inspection for the company")}
+            </div>
+          )}
 
         {/* ── New terminal ─────────────────────────────────────────────── */}
         {adding && (
@@ -561,7 +843,11 @@ export function TerminalApplicationsPanel({
         ) : (
           <div className="divide-y rounded-xl border">
             {terminals.map((t) => {
-              const stage = stageFor(t.applicationStatus, currentUserRole);
+              // Pack terminals (declared on the first application) are approved with
+              // the company, so they carry no per-terminal sign-off controls.
+              const stage = t.addedAt
+                ? stageFor(t.applicationStatus, currentUserRole)
+                : null;
               const isLive = !!t.motorParkId;
 
               return (
@@ -617,19 +903,90 @@ export function TerminalApplicationsPanel({
                         Letter of authority
                       </Link>
                     )}
+                    {isLive && (
+                      <Link
+                        href={`/motor-parks/${t.motorParkId}/park-certificate`}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary">
+                        <FileText className="h-3.5 w-3.5" />
+                        {revalidated
+                          ? "Park revalidation certificate"
+                          : "Registration certificate"}
+                      </Link>
+                    )}
 
-                    {stage && (
+                    {/* Once an inspection has been filed, the reviewer needs
+                        the checklist and findings before they can recommend
+                        or return. Without this link the two buttons appeared
+                        with no way to see what was found. */}
+                    {[
+                      "INSPECTION_COMPLETED",
+                      "PENDING_HOD_APPROVAL",
+                      "PENDING_PS_APPROVAL",
+                      "PENDING_COMMISSIONER_APPROVAL",
+                    ].includes(t.applicationStatus) && (
+                      <Link
+                        href={`/fleet-operators/${companyId}/terminals/${t.id}`}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-secondary">
+                        <FileText className="h-3.5 w-3.5" />
+                        View report
+                      </Link>
+                    )}
+
+                    {stage && t.applicationStatus === "PENDING_COMMISSIONER_APPROVAL" && (
+                      <>
+                        {(
+                          [
+                            ["PERMANENT", "Full approval", "bg-green-600 hover:bg-green-700"],
+                            ["TEMPORAL", "Temporary approval", "bg-amber-600 hover:bg-amber-700"],
+                          ] as const
+                        ).map(([type, label, tone]) => (
+                          <button
+                            key={type}
+                            type="button"
+                            disabled={pending}
+                            onClick={() =>
+                              startTransition(async () => {
+                                const res = await commissionerApproveTerminal(t.id, type);
+                                if (res.success) {
+                                  toast.success(`${label} granted.`);
+                                  router.refresh();
+                                } else {
+                                  toast.error(res.error || "Action failed.");
+                                }
+                              })
+                            }
+                            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition-colors disabled:opacity-50 ${tone}`}>
+                            {label}
+                          </button>
+                        ))}
+                      </>
+                    )}
+
+                    {stage && t.applicationStatus !== "PENDING_COMMISSIONER_APPROVAL" && (
                       <button
                         type="button"
                         disabled={pending}
-                        onClick={() => act(stage.run, t.id)}
+                        onClick={() => {
+                          // The HOD Ops stage requires a written
+                          // recommendation, so the button opens a form
+                          // instead of firing directly. Every other stage
+                          // is a straight sign-off.
+                          if (t.applicationStatus === "INSPECTION_COMPLETED") {
+                            setRecommending(
+                              recommending === t.id ? null : t.id,
+                            );
+                            setRecommendation("");
+                          } else {
+                            act(stage.run, t.id);
+                          }
+                        }}
                         className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50">
                         {stage.label}
                         <ArrowRight className="h-3.5 w-3.5" />
                       </button>
                     )}
 
-                    {stage && (
+                    {(stage || packRejectable(t)) && (
                       <button
                         type="button"
                         disabled={pending}
@@ -689,156 +1046,57 @@ export function TerminalApplicationsPanel({
                       )}
                   </div>
 
-                  {/* ── Schedule the visit ──────────────────────────────── */}
-                  {scheduling === t.id && (
+                  {scheduling === t.id && renderScheduleForm(t.id, "Schedule inspection")}
+
+                  {/* ── HOD Ops writes their recommendation ─────────────── */}
+                  {recommending === t.id && (
                     <div className="mt-1 flex flex-col gap-3 rounded-xl border border-border p-4">
                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        Schedule inspection
+                        Your recommendation
                       </p>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <label className="flex flex-col gap-1.5">
-                          <span className="text-xs font-medium text-muted-foreground">
-                            Date of visit
-                          </span>
-                          <input
-                            type="date"
-                            value={visit.scheduledDate}
-                            onChange={(e) =>
-                              setVisit((v) => ({
-                                ...v,
-                                scheduledDate: e.target.value,
-                              }))
-                            }
-                            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                          />
-                        </label>
-                        <label className="flex flex-col gap-1.5">
-                          <span className="text-xs font-medium text-muted-foreground">
-                            Station (optional)
-                          </span>
-                          <input
-                            value={visit.station}
-                            onChange={(e) =>
-                              setVisit((v) => ({ ...v, station: e.target.value }))
-                            }
-                            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                          />
-                        </label>
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <p className="text-xs font-medium text-muted-foreground">
-                          Inspection team ({1 + selected.length} of {MAX_TEAM}{" "}
-                          selected)
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          You attend automatically as the HOD of Operations,
-                          and you may lead the visit yourself or name one of
-                          the others. Only the lead files the checklist; the
-                          rest leave comments.
-                        </p>
-
-                        {/* The HOD (the signed-in officer) sits at the top as
-                            a fixed row, mirroring the revalidation queue: the
-                            slot is theirs and the Lead toggle is right there. */}
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <div
-                            className={cn(
-                              "flex items-center justify-between gap-2.5 rounded-lg border px-3 py-2 text-sm",
-                              leadId === currentUserId
-                                ? "border-primary bg-primary/5"
-                                : "border-border bg-secondary/40",
-                            )}>
-                            <div>
-                              <p className="font-medium">You (HOD Operations)</p>
-                              <p className="text-xs text-muted-foreground">
-                                Always attends - cannot be removed
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setLeadId(
-                                  leadId === currentUserId ? "" : currentUserId,
-                                )
-                              }
-                              className={cn(
-                                "shrink-0 rounded-md border px-2 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors",
-                                leadId === currentUserId
-                                  ? "border-primary bg-primary text-primary-foreground"
-                                  : "border-border hover:bg-secondary",
-                              )}>
-                              {leadId === currentUserId ? "★ Lead" : "Set as lead"}
-                            </button>
-                          </div>
-
-                          {inspectors.map((i) => {
-                            const picked = selected.includes(i.id);
-                            const full = !picked && selected.length >= SELECTABLE_LIMIT;
-                            return (
-                              <label
-                                key={i.id}
-                                className={cn(
-                                  "flex items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors",
-                                  picked
-                                    ? "border-primary bg-primary/5"
-                                    : "border-border",
-                                  full
-                                    ? "cursor-not-allowed opacity-40"
-                                    : "cursor-pointer hover:bg-secondary/50",
-                                )}>
-                                <input
-                                  type="checkbox"
-                                  checked={picked}
-                                  disabled={full}
-                                  onChange={() => toggleMember(i.id)}
-                                />
-                                <span>
-                                  {i.firstName} {i.lastName}
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </div>
-
-                        <label className="mt-1 flex flex-col gap-1.5">
-                          <span className="text-xs font-medium text-muted-foreground">
-                            Lead inspector
-                          </span>
-                          <select
-                            value={leadId}
-                            onChange={(e) => setLeadId(e.target.value)}
-                            className="h-[38px] w-full rounded-lg border border-border bg-background px-3 text-sm">
-                            <option value="">Select the lead</option>
-                            {/* The HOD is always an option - the button above
-                                is a shortcut, this the standard control. */}
-                            <option value={currentUserId}>You (HOD Operations)</option>
-                            {inspectors
-                              .filter((i) => selected.includes(i.id))
-                              .map((i) => (
-                                <option key={i.id} value={i.id}>
-                                  {i.firstName} {i.lastName}
-                                </option>
-                              ))}
-                          </select>
-                        </label>
-                      </div>
-
                       <p className="text-xs text-muted-foreground">
-                        The report is due five working days after the visit.
+                        HOD Parks Revalidation reads this before deciding. Say
+                        what you found and what you are recommending.
                       </p>
+                      <textarea
+                        rows={4}
+                        value={recommendation}
+                        onChange={(e) => setRecommendation(e.target.value)}
+                        placeholder="e.g. Site meets the requirements. I recommend approval subject to installing two additional fire extinguishers within 30 days."
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                      />
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          disabled={pending}
-                          onClick={() => submitSchedule(t.id)}
+                          disabled={pending || !recommendation.trim()}
+                          onClick={() =>
+                            startTransition(async () => {
+                              const res = await hodOpsRecommendTerminal(
+                                t.id,
+                                recommendation,
+                              );
+                              if (res.success) {
+                                toast.success(
+                                  "Recommendation filed and forwarded to HOD Revalidation.",
+                                );
+                                setRecommending(null);
+                                setRecommendation("");
+                                router.refresh();
+                              } else {
+                                toast.error(res.error || "Could not forward.");
+                              }
+                            })
+                          }
                           className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
-                          {pending ? "Scheduling..." : "Schedule"}
+                          {pending ? "Filing..." : "Forward to HOD Revalidation"}
                         </button>
                         <button
                           type="button"
                           disabled={pending}
-                          onClick={() => setScheduling(null)}
+                          onClick={() => {
+                            setRecommending(null);
+                            setRecommendation("");
+                          }}
                           className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium disabled:opacity-50">
                           Cancel
                         </button>
@@ -992,10 +1250,55 @@ export function TerminalApplicationsPanel({
                         />
                       </label>
 
+                      <div className="flex flex-col gap-2">
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                          <Camera className="h-3.5 w-3.5" />
+                          Site evidence (required)
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          multiple
+                          disabled={evidenceUploading || pending}
+                          onChange={(e) => {
+                            const files = Array.from(e.target.files ?? []);
+                            e.target.value = "";
+                            if (files.length > 0) uploadEvidence(files);
+                          }}
+                          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-secondary file:px-2 file:py-1 file:text-xs"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Photographs or documents captured on site. Images or
+                          PDF, under 5MB each.
+                        </p>
+                        {evidenceUploading && (
+                          <p className="text-xs text-primary">Uploading...</p>
+                        )}
+                        {evidence.length > 0 && (
+                          <ul className="flex flex-col gap-1">
+                            {evidence.map((ev, i) => (
+                              <li
+                                key={ev.url}
+                                className="flex items-center justify-between rounded-lg border border-border px-3 py-1.5 text-xs">
+                                <span className="truncate">{ev.caption ?? "Evidence"}</span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEvidence((p) => p.filter((_, j) => j !== i))
+                                  }
+                                  className="ml-2 text-destructive">
+                                  Remove
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+
                       <div className="flex gap-2">
                         <button
                           type="button"
-                          disabled={pending}
+                          disabled={pending || evidenceUploading}
                           onClick={() => submitReport(t.id)}
                           className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
                           {pending ? "Filing..." : "File report"}

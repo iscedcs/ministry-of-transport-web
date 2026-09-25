@@ -70,7 +70,7 @@ function ActionBar({
 
   const canIssuePermit =
     ["COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
-    ["INSPECTION_COMPLETED", "PENDING_APPROVAL"].includes(status);
+    status === "PENDING_COMMISSIONER_APPROVAL";
 
   const canGenerateQR =
     ["COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
@@ -251,6 +251,8 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
       contactEmail: true,
       cacNumber: true,
       applicationStatus: true,
+      address: true,
+      rejectionReason: true,
     },
   });
   const capturer = capture?.capturedByUserId
@@ -307,6 +309,14 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
         orderBy: { isLead: "desc" },
       },
     },
+  });
+
+  // A company approved through the revalidation queue has its letter and
+  // certificate there, with the fee and facilities the Commissioner signed.
+  const revalidation = await db.revalidationApplication.findFirst({
+    where: { massTransitCompanyId: id, status: "APPROVED" },
+    orderBy: { approvedAt: "desc" },
+    select: { id: true },
   });
 
   const result = await getFleetApplication(id);
@@ -381,6 +391,19 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
               </Link>
             </Button>
           )}
+          {["APPROVED", "TEMPORAL_APPROVAL"].includes(co.applicationStatus) &&
+            co.permitNumber && (
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                className="border-border text-xs">
+                <Link href={`/fleet-operators/${co.id}/approval-letter`}>
+                  <FileText className="w-3.5 h-3.5 mr-1.5" />
+                  Approval letter
+                </Link>
+              </Button>
+            )}
           <StatusPill status={co.applicationStatus} />
           {co.permitStatus && <StatusPill status={co.permitStatus} />}
         </div>
@@ -404,8 +427,18 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
         />
       )}
 
+      {capture?.applicationStatus === "REJECTED" && capture.rejectionReason && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm">
+          <p className="font-semibold text-destructive">Application rejected</p>
+          <p className="mt-1 whitespace-pre-wrap">{capture.rejectionReason}</p>
+        </div>
+      )}
+
       <TerminalApplicationsPanel
         companyId={co.id}
+        companyAddress={capture?.address?.trim() || null}
+        companyStatus={co.applicationStatus}
+        revalidated={!!revalidation}
         companyApproved={["APPROVED", "TEMPORAL_APPROVAL"].includes(
           co.applicationStatus,
         )}

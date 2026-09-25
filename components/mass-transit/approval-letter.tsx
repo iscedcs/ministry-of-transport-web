@@ -7,6 +7,7 @@ import {
   LetterheadFooter,
   letterheadPrintCss,
 } from "@/components/ui/ministry-letterhead";
+import { inWords } from "@/lib/amount-words";
 
 /**
  * Mass transit APPROVAL LETTER.
@@ -31,6 +32,8 @@ export interface MassTransitLetterData {
   /** Kobo. */
   monthlyLevyAmount: number | null;
   approvedColour: string | null;
+  /** Facilities the operator must provide, as set by the Ministry. */
+  requiredFacilities: string | null;
   fleetSize: number;
   terminals: { designation: string; location: string; parkId: string | null }[];
   approvalType: "TEMPORAL" | "PERMANENT";
@@ -74,6 +77,10 @@ export function MassTransitApprovalLetter({
   const issued = !!data.permitNumber;
   const isTemporal = data.approvalType === "TEMPORAL";
   const levy = naira(data.monthlyLevyAmount);
+  const feeWords =
+    data.monthlyLevyAmount != null
+      ? `${inWords(data.monthlyLevyAmount / 100)} Naira only`
+      : null;
 
   return (
     <>
@@ -172,23 +179,16 @@ export function MassTransitApprovalLetter({
               for registration before it is put into service.
             </p>
 
-            {levy && (
-              <p>
-                4. You are to pay a monthly operational levy of{" "}
-                <span className="font-semibold">{levy}</span> in respect of this
-                approval.
-              </p>
-            )}
-
+            {/* Terminals are paragraph 4; the fee and conditions follow. */}
             {/* Terminals — each is a registered park in its own right. */}
             {data.terminals.length > 0 && (
               <div>
                 <p>
-                  {levy ? "5." : "4."} The following terminal
+                  4. The following terminal
                   {data.terminals.length === 1 ? " is" : "s are"} registered
                   under this approval, and{" "}
                   {data.terminals.length === 1 ? "holds its" : "each holds its"}{" "}
-                  own Park Revalidation Certificate:
+                  own Park Registration Certificate:
                 </p>
                 <table className="mt-2 w-full border-collapse text-[12px]">
                   <thead>
@@ -218,6 +218,43 @@ export function MassTransitApprovalLetter({
                 </table>
               </div>
             )}
+
+            <p>
+              5. You are to pay monthly motor park (operational) fee of{" "}
+              <span className="font-semibold">{levy ?? <Blank width="7rem" />}</span>{" "}
+              {feeWords ? (
+                <span className="font-semibold">({feeWords})</span>
+              ) : (
+                <>
+                  (<Blank width="9rem" /> naira only)
+                </>
+              )}{" "}
+              in Anambra paydirect, using your company Asin.
+            </p>
+
+            <p>
+              6. Please ensure that all loading/offloading activities of
+              vehicles and/or cargo/logistics services are done within the
+              park&apos;s premises and not on the adjoining road(s).
+            </p>
+
+            <p>
+              7. In addition, kindly ensure that the facilities seen during
+              Ministry&apos;s inspection are kept clean, well maintained,
+              functional at all times and available for the use of commuters and
+              drivers. You are to ensure the provision of the following
+              facilities{" "}
+              <span className="font-semibold">
+                {data.requiredFacilities?.trim() || <Blank width="12rem" />}
+              </span>{" "}
+              within six (6) months period to avoid revocation of your{" "}
+              {isTemporal ? "temporary" : "full"} approval.
+            </p>
+
+            <p className="font-semibold italic">
+              8. Failure to comply with the above will lead to withdrawal of
+              this approval letter without prior notice.
+            </p>
 
             <p>
               This approval is subject to compliance with extant Transport Laws

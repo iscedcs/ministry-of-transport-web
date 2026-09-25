@@ -40,6 +40,7 @@ export default async function ParkCertificatePage({
       lga: true,
       facilityType: true,
       serviceTypes: true,
+      triageRoute: true,
       approvalType: true,
       approvedAt: true,
       commissionerApprovedAt: true,
@@ -123,6 +124,13 @@ export default async function ParkCertificatePage({
           issuedAt: app.commissionerApprovedAt ?? app.approvedAt,
           validUntil: app.validUntil,
           validityMonths,
+          // A record routed here as a fresh application (triaged, or picked
+          // as "New" on the portal form) is a registration, not a
+          // revalidation, even though it lives in this queue.
+          certificateKind:
+            app.triageRoute === "NEW_APPLICATION"
+              ? "REGISTRATION"
+              : "REVALIDATION",
           commissionerName: commissioner
             ? `${commissioner.firstName} ${commissioner.lastName}`
             : null,

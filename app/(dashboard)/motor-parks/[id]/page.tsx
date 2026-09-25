@@ -244,9 +244,44 @@ function ActionBar({
             <Link
               href={`/revalidation/${revalidationId}/certificate`}
               target="_blank">
-              <Download className="w-4 h-4 mr-2" /> Revalidation Certificate
+              <Download className="w-4 h-4 mr-2" /> Approval letter
             </Link>
           </Button>
+        )}
+        {revalidationId && (
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="border-primary text-primary hover:bg-primary/10">
+            <Link
+              href={`/revalidation/${revalidationId}/park-certificate`}
+              target="_blank">
+              <Download className="w-4 h-4 mr-2" /> Park Revalidation Certificate
+            </Link>
+          </Button>
+        )}
+        {!revalidationId && (status === "APPROVED" || status === "TEMPORAL_APPROVAL") && (
+          <>
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="border-primary text-primary hover:bg-primary/10">
+              <Link href={`/motor-parks/${park.id}/approval-letter`} target="_blank">
+                <Download className="w-4 h-4 mr-2" /> Approval letter
+              </Link>
+            </Button>
+            <Button
+              asChild
+              size="sm"
+              variant="outline"
+              className="border-primary text-primary hover:bg-primary/10">
+              <Link href={`/motor-parks/${park.id}/park-certificate`} target="_blank">
+                <Download className="w-4 h-4 mr-2" /> Park Registration Certificate
+              </Link>
+            </Button>
+          </>
         )}
         {canIssueFinal && !revalidationId && (
           <Button asChild size="sm">
