@@ -40,6 +40,13 @@ export interface ParkCertificateData {
   validUntil: Date | string | null;
   validityMonths: number;
   commissionerName?: string | null;
+  /**
+   * A genuine revalidation reads "PARK REVALIDATION CERTIFICATE"; a fresh
+   * application reads "PARK REGISTRATION CERTIFICATE". Defaults to
+   * REGISTRATION so a caller that has not been updated yet keeps today's
+   * wording instead of silently mislabeling a revalidation.
+   */
+  certificateKind?: "REVALIDATION" | "REGISTRATION";
 }
 
 const GREEN = "#0d3b2a";
@@ -349,7 +356,9 @@ export function ParkRevalidationCertificate({
                 color: GREEN,
                 fontFamily: "Georgia, 'Times New Roman', serif",
               }}>
-              Park Registration
+              {data.certificateKind === "REVALIDATION"
+                ? "Park Revalidation"
+                : "Park Registration"}
             </h1>
             <h1
               className="text-[31px] font-black uppercase leading-[1.05] tracking-tight"

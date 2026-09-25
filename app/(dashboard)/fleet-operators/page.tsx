@@ -25,7 +25,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 // ── Page ────────────────────────────────────────────────────────────────────────
 
 interface PageProps {
-  searchParams: Promise<{ status?: string; search?: string; page?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    terminalStatus?: string;
+    search?: string;
+    page?: string;
+  }>;
 }
 
 export default async function FleetOperatorsPage({ searchParams }: PageProps) {
@@ -40,6 +45,7 @@ export default async function FleetOperatorsPage({ searchParams }: PageProps) {
 
   const result = await listFleetApplications({
     status,
+    terminalStatus: params.terminalStatus || undefined,
     search,
     page,
     limit: 20,

@@ -13,6 +13,7 @@ import {
   hodOpsApproveFleetOperator,
   hodApproveFleetOperator,
   psApproveFleetOperator,
+  rejectFleetOperator,
 } from "@/app/actions/mass-transit";
 
 export function FleetWorkflowActions({
@@ -41,6 +42,25 @@ export function FleetWorkflowActions({
   const isComm = ["COMMISSIONER", "SYSTEM_ADMIN"].includes(role);
 
   const [hodOpsRecommendation, setHodOpsRecommendation] = useState("");
+  const [rejectReason, setRejectReason] = useState("");
+
+  const canReject =
+    (status === "INSPECTION_COMPLETED" && isHodOps) ||
+    (status === "PENDING_HOD_APPROVAL" && isHodReval) ||
+    (status === "PENDING_PS_APPROVAL" && isPs) ||
+    (status === "PENDING_COMMISSIONER_APPROVAL" && isComm);
+
+  const handleReject = () => {
+    startTransition(async () => {
+      const res = await rejectFleetOperator(companyId, rejectReason);
+      if (res.success) {
+        toast.success("Application rejected, with all its terminals.");
+        setRejectReason("");
+      } else {
+        toast.error(res.error || "Could not reject the application.");
+      }
+    });
+  };
 
   const handleHodOpsApprove = () => {
     startTransition(async () => {
@@ -202,6 +222,34 @@ export function FleetWorkflowActions({
               <Link href={`/fleet-operators/${companyId}/issue-permit`}>
                 <CheckCircle2 className="w-4 h-4 mr-2" /> Approve & Issue Permit to Operate
               </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {canReject && (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Reject this application</CardTitle>
+            <CardDescription>
+              Rejects the company and every terminal that is not yet a park. A
+              reason is required.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <textarea
+              rows={3}
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Why is this application being rejected?"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            />
+            <Button
+              variant="destructive"
+              onClick={handleReject}
+              disabled={isPending || !rejectReason.trim()}
+              className="w-fit">
+              Reject application
             </Button>
           </CardContent>
         </Card>

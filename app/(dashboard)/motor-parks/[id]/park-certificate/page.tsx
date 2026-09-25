@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
 import { authorizeDocument } from "@/lib/document-access";
 import { authorize } from "@/lib/auth";
+import { getRevalidationForPark } from "@/lib/park-approval-origin";
 import { getNumberSetting } from "@/lib/system-config";
 import { SIGNATURES } from "@/lib/signatures";
 import { ParkRevalidationCertificate } from "@/components/revalidation/park-revalidation-certificate";
@@ -31,6 +32,15 @@ export default async function ParkCertificatePage({
 
   // Ministry staff, or the applicant this document belongs to.
   await authorizeDocument({ kind: "motorPark", id });
+
+  // A park approved through revalidation carries the revalidation's own
+  // certificate wording ("PARK REVALIDATION CERTIFICATE"), not this route's.
+  // Redirecting rather than branching in place means a saved link cannot
+  // produce the wrong document once a park's approval origin changes.
+  const revalidation = await getRevalidationForPark(id);
+  if (revalidation) {
+    redirect(`/revalidation/${revalidation.id}/park-certificate`);
+  }
 
   const park = await db.motorPark.findUnique({
     where: { id },
@@ -114,6 +124,9 @@ export default async function ParkCertificatePage({
           issuedAt: park.permitIssuedAt ?? park.approvedAt,
           validUntil: park.permitExpiresAt,
           validityMonths,
+          // A revalidated park redirected above; anything reaching this
+          // point was created fresh, never revalidated.
+          certificateKind: "REGISTRATION",
         }}
         verifyUrl={`${base}/verify?q=${encodeURIComponent(park.parkId ?? park.id)}`}
         signature={SIGNATURES.commissioner}

@@ -575,6 +575,8 @@ model MassTransitCompany {
 
   // Company details
   companyName      String
+  /// Head office address. The company-level inspection is tied to it.
+  address          String? @db.Text
   // Nullable throughout: a company reclassified out of the imported
   // revalidation queue has no account, and often no email — the vendor never
   // captured one. The same reason MotorPark.contactUserId is nullable.
@@ -650,6 +652,7 @@ model MassTransitCompany {
   /// first HOD and hodApprovedAt is the second: an officer moving between the
   /// two modules should not have to learn two meanings for one field.
   hodOpsRecommendation   String?   @db.Text
+  rejectionReason        String?   @db.Text
   hodOpsApprovedAt       DateTime?
   hodOpsApprovedByUserId String?
 
@@ -763,6 +766,14 @@ model Terminal {
   addedByUserId String?
   addedAt       DateTime?
 
+  /// HOD of Operations records their recommendation here. The chain is
+  /// HOD Ops -> HOD Revalidation -> PS -> Commissioner, matching revalidation
+  /// so an officer moving between the two modules learns one process.
+  hodOpsRecommendation   String?   @db.Text
+  hodOpsApprovedAt       DateTime?
+  hodOpsApprovedByUserId String?
+
+  /// HOD of Parks Revalidation - the second HOD review, before the PS.
   hodApprovedAt          DateTime?
   hodApprovedByUserId    String?
   psApprovedAt           DateTime?

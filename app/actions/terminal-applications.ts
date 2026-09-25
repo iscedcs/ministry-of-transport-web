@@ -23,6 +23,7 @@ import { recordAudit } from "@/lib/audit";
 import { nextParkId, terminalDesignation } from "@/lib/park-id";
 import { getNumberSetting } from "@/lib/system-config";
 import { revalidatePath } from "next/cache";
+import { syncCompanyStatusFromTerminals } from "@/lib/sync-company-status";
 
 /** The company must already hold an approval for a terminal to be added. */
 const APPROVED_COMPANY = ["APPROVED", "TEMPORAL_APPROVAL"];
@@ -152,6 +153,7 @@ export async function addTerminalToCompany(
     newValues: { terminalId: terminal.id, applicationStatus: "SUBMITTED" },
   });
 
+  await syncCompanyStatusFromTerminals(companyId);
   revalidatePath(`/fleet-operators/${companyId}`);
   return { success: true, data: { terminalId: terminal.id } };
 }
@@ -302,6 +304,9 @@ export async function scheduleAddedTerminalInspection(
       inspectionType: "INITIAL",
       linkedEntityType: "TERMINAL",
       linkedEntityId: terminalId,
+      // The model default is PENDING_PS_APPROVAL, which hides the visit from
+      // the inspectors it was scheduled for.
+      status: "SCHEDULED",
       scheduledDate,
       scheduledByUserId: authz.session.userId,
       assignedToUserId: input.leadId,
@@ -341,8 +346,71 @@ export async function scheduleAddedTerminalInspection(
     newValues: { inspectionId: inspection.id, team: team.length, leadId: input.leadId },
   });
 
+  await syncCompanyStatusFromTerminals(terminal.companyId);
   revalidatePath(`/fleet-operators/${terminal.companyId}`);
   return { success: true, data: { inspectionId: inspection.id } };
+}
+
+/**
+ * Schedule ONE visit for the whole company: the same date, team and lead are
+ * applied to every terminal declared on the original application, and the
+ * visit is tied to the company's own address. Each terminal still gets its own
+ * checklist filed by the lead.
+ */
+export async function scheduleCompanyInspection(
+  companyId: string,
+  input: {
+    scheduledDate: string;
+    memberIds: string[];
+    leadId: string;
+  },
+) {
+  const authz = await authorize(["HOD_TRANSPORT_OPS", "SYSTEM_ADMIN"]);
+  if (!authz.ok) {
+    return {
+      success: false,
+      error: "Only the HOD of Operations can schedule an inspection.",
+    };
+  }
+
+  const company = await db.massTransitCompany.findUnique({
+    where: { id: companyId },
+    select: {
+      address: true,
+      terminals: {
+        where: { addedAt: null, motorParkId: null },
+        select: { id: true, applicationStatus: true },
+      },
+    },
+  });
+  if (!company) return { success: false, error: "Fleet operator not found." };
+
+  if (!company.address?.trim()) {
+    return {
+      success: false,
+      error:
+        "This application has no company address. Add it under Edit Application first, or schedule each terminal on its own.",
+    };
+  }
+
+  const due = company.terminals.filter((t) =>
+    ["SUBMITTED", "REJECTED", "UNDER_REVIEW"].includes(t.applicationStatus),
+  );
+  if (due.length === 0) {
+    return {
+      success: false,
+      error: "No terminal on this application is waiting to be scheduled.",
+    };
+  }
+
+  for (const t of due) {
+    const res = await scheduleAddedTerminalInspection(t.id, {
+      ...input,
+      station: company.address.trim(),
+    });
+    if (!res.success) return res;
+  }
+  return { success: true, data: { scheduled: due.length } };
 }
 
 /**
@@ -404,6 +472,13 @@ export async function completeAddedTerminalInspection(
 
   if (!input.findings?.trim()) {
     return { success: false, error: "Record what was found at the site." };
+  }
+
+  if (!Array.isArray(input.evidenceUrls) || input.evidenceUrls.length === 0) {
+    return {
+      success: false,
+      error: "Upload at least one piece of site evidence before filing.",
+    };
   }
 
   const terminal = await db.terminal.findUnique({
@@ -476,6 +551,7 @@ export async function completeAddedTerminalInspection(
     newValues: { applicationStatus: "INSPECTION_COMPLETED" },
   });
 
+  await syncCompanyStatusFromTerminals(terminal.companyId);
   revalidatePath(`/fleet-operators/${terminal.companyId}`);
   return { success: true };
 }
@@ -483,15 +559,25 @@ export async function completeAddedTerminalInspection(
 // ── The approval chain ──────────────────────────────────────────────────────
 
 const STAGE = {
-  HOD: {
-    roles: ["HOD_TRANSPORT_OPS", "HOD_PARKS", "SYSTEM_ADMIN"] as const,
-    // The inspection has to be filed before the HOD can recommend — that is
-    // the whole point of inspecting a new site before it becomes a park.
+  HOD_OPS: {
+    roles: ["HOD_TRANSPORT_OPS", "SYSTEM_ADMIN"] as const,
+    // The inspection has to be filed before HOD Operations can recommend -
+    // that is the whole point of inspecting a new site before it becomes a
+    // park. The chain now matches revalidation: HOD Ops recommends, HOD
+    // Revalidation reviews, then the PS.
     from: ["INSPECTION_COMPLETED"],
+    to: "PENDING_HOD_APPROVAL" as const,
+    field: "hodOpsApprovedAt",
+    by: "hodOpsApprovedByUserId",
+    label: "HOD Operations",
+  },
+  HOD_REVAL: {
+    roles: ["HOD_PARKS_REVALIDATION", "SYSTEM_ADMIN"] as const,
+    from: ["PENDING_HOD_APPROVAL"],
     to: "PENDING_PS_APPROVAL" as const,
     field: "hodApprovedAt",
     by: "hodApprovedByUserId",
-    label: "HOD",
+    label: "HOD Parks Revalidation",
   },
   PS: {
     roles: ["PERMANENT_SECRETARY", "SYSTEM_ADMIN"] as const,
@@ -516,10 +602,18 @@ async function advance(
       applicationStatus: true,
       terminalNumber: true,
       companyId: true,
+      addedAt: true,
       company: { select: { companyName: true } },
     },
   });
   if (!terminal) return { success: false, error: "Terminal not found." };
+  if (!terminal.addedAt) {
+    return {
+      success: false,
+      error:
+        "This terminal was declared on the original application. It is approved together with the company, not on its own.",
+    };
+  }
 
   if (!stage.from.includes(terminal.applicationStatus)) {
     return {
@@ -546,12 +640,82 @@ async function advance(
     newValues: { applicationStatus: stage.to },
   });
 
+  await syncCompanyStatusFromTerminals(terminal.companyId);
   revalidatePath(`/fleet-operators/${terminal.companyId}`);
   return { success: true };
 }
 
-export async function hodApproveTerminal(terminalId: string) {
-  return advance(terminalId, STAGE.HOD);
+/**
+ * HOD Operations records their recommendation and forwards to HOD
+ * Revalidation. The recommendation is REQUIRED - HOD Revalidation reads it
+ * before deciding, and a bare "approved" button gives them nothing to weigh.
+ */
+export async function hodOpsRecommendTerminal(
+  terminalId: string,
+  recommendation: string,
+) {
+  if (!recommendation?.trim()) {
+    return {
+      success: false,
+      error: "Write your recommendation before forwarding.",
+    };
+  }
+
+  const authz = await authorize([...STAGE.HOD_OPS.roles]);
+  if (!authz.ok) return { success: false, error: authz.error };
+
+  const terminal = await db.terminal.findUnique({
+    where: { id: terminalId },
+    select: {
+      applicationStatus: true,
+      terminalNumber: true,
+      companyId: true,
+      addedAt: true,
+      company: { select: { companyName: true } },
+    },
+  });
+  if (!terminal) return { success: false, error: "Terminal not found." };
+  if (!terminal.addedAt) {
+    return {
+      success: false,
+      error:
+        "This terminal was declared on the original application. It is approved together with the company, not on its own.",
+    };
+  }
+
+  if (!STAGE.HOD_OPS.from.includes(terminal.applicationStatus)) {
+    return {
+      success: false,
+      error: `This terminal is not awaiting your recommendation (currently ${terminal.applicationStatus}).`,
+    };
+  }
+
+  await db.terminal.update({
+    where: { id: terminalId },
+    data: {
+      applicationStatus: STAGE.HOD_OPS.to,
+      hodOpsApprovedAt: new Date(),
+      hodOpsApprovedByUserId: authz.session.userId,
+      hodOpsRecommendation: recommendation.trim(),
+    },
+  });
+
+  await recordAudit({
+    action: "TERMINAL_HOD_OPS_RECOMMENDED",
+    entityType: "MASS_TRANSIT",
+    entityId: terminal.companyId,
+    changeDescription: `HOD Operations recommended terminal ${terminal.terminalNumber} of ${terminal.company.companyName}; forwarded to HOD Parks Revalidation`,
+    oldValues: { applicationStatus: terminal.applicationStatus },
+    newValues: { applicationStatus: STAGE.HOD_OPS.to },
+  });
+
+  await syncCompanyStatusFromTerminals(terminal.companyId);
+  revalidatePath(`/fleet-operators/${terminal.companyId}`);
+  return { success: true };
+}
+
+export async function hodRevalApproveTerminal(terminalId: string) {
+  return advance(terminalId, STAGE.HOD_REVAL);
 }
 
 export async function psApproveTerminal(terminalId: string) {
@@ -564,7 +728,13 @@ export async function psApproveTerminal(terminalId: string) {
  * permit numbering under the parent company — so it inherits park staff,
  * inspections, revalidation and its own letter of authority.
  */
-export async function commissionerApproveTerminal(terminalId: string) {
+export async function commissionerApproveTerminal(
+  terminalId: string,
+  approvalType: "TEMPORAL" | "PERMANENT",
+) {
+  if (approvalType !== "TEMPORAL" && approvalType !== "PERMANENT") {
+    return { success: false, error: "Choose temporary or full approval." };
+  }
   const authz = await authorize(["COMMISSIONER", "SYSTEM_ADMIN"]);
   if (!authz.ok) return { success: false, error: authz.error };
 
@@ -573,6 +743,13 @@ export async function commissionerApproveTerminal(terminalId: string) {
     include: { company: true },
   });
   if (!terminal) return { success: false, error: "Terminal not found." };
+  if (!terminal.addedAt) {
+    return {
+      success: false,
+      error:
+        "This terminal was declared on the original application. It is approved together with the company, not on its own.",
+    };
+  }
 
   if (terminal.applicationStatus !== "PENDING_COMMISSIONER_APPROVAL") {
     return {
@@ -585,10 +762,11 @@ export async function commissionerApproveTerminal(terminalId: string) {
   }
 
   const company = terminal.company;
-  const isTemporal = company.applicationStatus === "TEMPORAL_APPROVAL";
+  // The Commissioner chooses per terminal, exactly as on a revalidation.
+  const isTemporal = approvalType === "TEMPORAL";
 
-  // A terminal is only ever as approved as its company, and runs to the same
-  // expiry — a site cannot outlive the permit it sits under.
+  // Validity follows the choice made here; the company letter is issued
+  // separately once every terminal has been through its own chain.
   const validityMonths =
     (await getNumberSetting(
       isTemporal
@@ -597,10 +775,17 @@ export async function commissionerApproveTerminal(terminalId: string) {
     )) || (isTemporal ? 6 : 12);
 
   const now = new Date();
-  const expiresAt = company.permitExpiresAt ?? new Date();
-  if (!company.permitExpiresAt) {
-    expiresAt.setMonth(expiresAt.getMonth() + validityMonths);
-  }
+  const expiresAt = new Date();
+  expiresAt.setMonth(expiresAt.getMonth() + validityMonths);
+
+  // Terminal certificate number: ANS-MOT-TMP (temporal) / ANS-MOT-MTC (full),
+  // sequenced per year, suffixed with the terminal number.
+  const year = now.getFullYear();
+  const certPrefix = isTemporal ? "ANS-MOT-TMP" : "ANS-MOT-MTC";
+  const certCount = await db.motorPark.count({
+    where: { permitNumber: { startsWith: `${certPrefix}-${year}/` } },
+  });
+  const certificateNumber = `${certPrefix}-${year}/${String(certCount + 1).padStart(5, "0")}/T${terminal.terminalNumber}`;
 
   const parkId = await nextParkId();
 
@@ -639,7 +824,7 @@ export async function commissionerApproveTerminal(terminalId: string) {
 
         applicationStatus: isTemporal ? "TEMPORAL_APPROVAL" : "APPROVED",
         permitStatus: "ACTIVE",
-        permitNumber: `${company.permitNumber ?? company.id}/T${terminal.terminalNumber}`,
+        permitNumber: certificateNumber,
         permitIssuedAt: now,
         permitExpiresAt: expiresAt,
         nextRevalidationDue: expiresAt,
@@ -671,10 +856,11 @@ export async function commissionerApproveTerminal(terminalId: string) {
     action: "TERMINAL_APPROVED",
     entityType: "MASS_TRANSIT",
     entityId: company.id,
-    changeDescription: `Commissioner approved terminal ${terminal.terminalNumber} of ${company.companyName}; park ${parkId} created`,
+    changeDescription: `Commissioner approved terminal ${terminal.terminalNumber} of ${company.companyName}; park ${parkId} created (${isTemporal ? "temporary" : "full"} approval)`,
     newValues: { terminalId: terminal.id, parkId },
   });
 
+  await syncCompanyStatusFromTerminals(company.id);
   revalidatePath(`/fleet-operators/${company.id}`);
   revalidatePath("/motor-parks");
   return { success: true, data: { parkId } };
@@ -688,6 +874,7 @@ export async function rejectTerminal(terminalId: string, reason: string) {
   const authz = await authorize([
     "HOD_TRANSPORT_OPS",
     "HOD_PARKS",
+    "HOD_PARKS_REVALIDATION",
     "PERMANENT_SECRETARY",
     "COMMISSIONER",
     "SYSTEM_ADMIN",
@@ -740,6 +927,7 @@ export async function rejectTerminal(terminalId: string, reason: string) {
     newValues: { applicationStatus: "REJECTED" },
   });
 
+  await syncCompanyStatusFromTerminals(terminal.companyId);
   revalidatePath(`/fleet-operators/${terminal.companyId}`);
   return { success: true };
 }
@@ -783,6 +971,7 @@ export async function resubmitTerminal(terminalId: string) {
     newValues: { applicationStatus: "SUBMITTED" },
   });
 
+  await syncCompanyStatusFromTerminals(terminal.companyId);
   revalidatePath(`/fleet-operators/${terminal.companyId}`);
   return { success: true };
 }

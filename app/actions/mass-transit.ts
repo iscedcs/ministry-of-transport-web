@@ -22,11 +22,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { nextParkIds, terminalDesignation } from "@/lib/park-id";
 import { isRevalidation } from "@/lib/application-type";
 import { createRevalidationFromApplication } from "@/lib/revalidation-from-application";
 import { SCHEDULE_ROLES } from "@/lib/workflow-roles";
 import { getNumberSetting } from "@/lib/system-config";
-import { nextParkIds, terminalDesignation } from "@/lib/park-id";
 import { sendInspectionApprovalNotification } from "@/lib/email";
 import {
   requireAuth,
@@ -387,7 +387,9 @@ export async function submitFleetApplication(
         signagePhotoId: companyData.signagePhotoId || null,
         waterFacilityPhotoId: companyData.waterFacilityPhotoId || null,
         cctvPhotoId: companyData.cctvPhotoId || null,
-        applicationStatus: isFieldCapture ? "DRAFT" : "SUBMITTED",
+        // A field capture goes straight to the HOD queue; the owner details are
+        // completed afterwards by the HOD, not before submission.
+        applicationStatus: "SUBMITTED",
         currentFleetSize: vehicleCounts.reduce((sum: number, vc: unknown) => {
           const parsed = vehicleTypeCountSchema.safeParse(vc);
           return sum + (parsed.success ? parsed.data.count : 0);
@@ -488,6 +490,8 @@ export type FleetApplicationListItem = {
  */
 export async function listFleetApplications(filters?: {
   status?: string;
+  /** Companies with a later-added terminal at this status. */
+  terminalStatus?: string;
   search?: string;
   page?: number;
   limit?: number;
@@ -515,6 +519,16 @@ export async function listFleetApplications(filters?: {
 
   if (filters?.status && filters.status !== "ALL") {
     where.applicationStatus = filters.status;
+  }
+
+  if (filters?.terminalStatus) {
+    where.terminals = {
+      some: {
+        addedAt: { not: null },
+        motorParkId: null,
+        applicationStatus: filters.terminalStatus,
+      },
+    };
   }
 
   if (filters?.search) {
@@ -1581,177 +1595,200 @@ export async function approveBrandingScheme(
   return { success: true };
 }
 
-// ==================== WORKFLOW APPROVALS (HOD -> PS -> COMMISSIONER) ====================
+// ==================== WORKFLOW APPROVALS (HOD Ops -> HOD Reval -> PS -> COMMISSIONER) ====================
+//
+// Terminals declared on the first application are a pack: they are inspected,
+// then the company moves through this chain once, and the Commissioner's
+// single approval turns the whole pack into parks. Terminals added later run
+// their own chain in terminal-applications.ts.
 
-/**
- * Stage 3 — the HOD of Operations records a recommendation.
- *
- * This used to be the only HOD stage, and it accepted three different HOD
- * roles and two different statuses, so an application could reach the PS
- * having been seen by one HOD or by none of the intended two. The chain now
- * matches revalidation exactly: HOD Operations recommends, then the HOD of
- * Parks Revalidation reviews, and only then does it reach the PS.
- */
+async function companyStage(
+  companyId: string,
+  roles: string[],
+  from: string,
+  to: string,
+  extra: (userId: string) => Record<string, unknown>,
+  audit: { action: string; text: (name: string) => string },
+): Promise<ActionResult> {
+  await requireRole(roles as never);
+  const session = await requireAuth();
+
+  const company = await db.massTransitCompany.findUnique({
+    where: { id: companyId },
+    select: { id: true, applicationStatus: true, companyName: true },
+  });
+  if (!company) return { success: false, error: "Fleet application not found" };
+  if (company.applicationStatus !== from) {
+    return {
+      success: false,
+      error: `This application is not at your stage (currently ${company.applicationStatus}).`,
+    };
+  }
+
+  await db.$transaction(async (tx) => {
+    await tx.massTransitCompany.update({
+      where: { id: companyId },
+      data: { applicationStatus: to as never, ...extra(session.userId) },
+    });
+    await tx.auditLog.create({
+      data: {
+        performedByUserId: session.userId,
+        action: audit.action,
+        entityType: "MASS_TRANSIT",
+        entityId: companyId,
+        changeDescription: audit.text(company.companyName),
+      },
+    });
+  });
+
+  revalidatePath(`/fleet-operators/${companyId}`);
+  revalidatePath("/fleet-operators");
+  return { success: true };
+}
+
+/** HOD Operations records a written recommendation and forwards to HOD Revalidation. */
 export async function hodOpsApproveFleetOperator(
   companyId: string,
   recommendation: string,
 ): Promise<ActionResult> {
-  await requireRole(["HOD_TRANSPORT_OPS", "SYSTEM_ADMIN"]);
-  const session = await requireAuth();
-
   if (!recommendation?.trim()) {
     return { success: false, error: "A recommendation is required." };
   }
-
-  const company = await db.massTransitCompany.findUnique({
-    where: { id: companyId },
-    select: { id: true, applicationStatus: true, companyName: true },
-  });
-
-  if (!company) return { success: false, error: "Fleet application not found" };
-
-  if (company.applicationStatus !== "INSPECTION_COMPLETED") {
-    return {
-      success: false,
-      error: `The inspection report is not ready for your recommendation (currently ${company.applicationStatus}).`,
-    };
-  }
-
-  const now = new Date();
-  await db.$transaction(async (tx) => {
-    await tx.massTransitCompany.update({
-      where: { id: companyId },
-      data: {
-        applicationStatus: "PENDING_HOD_APPROVAL",
-        hodOpsRecommendation: recommendation.trim(),
-        hodOpsApprovedAt: now,
-        hodOpsApprovedByUserId: session.userId,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        performedByUserId: session.userId,
-        action: "HOD_OPS_APPROVED_FLEET_OPERATOR",
-        entityType: "MASS_TRANSIT",
-        entityId: companyId,
-        changeDescription: `HOD Operations recommended ${company.companyName}; forwarded to HOD Parks Revalidation`,
-      },
-    });
-  });
-
-  revalidatePath(`/fleet-operators/${companyId}`);
-  revalidatePath("/fleet-operators");
-  return { success: true };
+  return companyStage(
+    companyId,
+    ["HOD_TRANSPORT_OPS", "SYSTEM_ADMIN"],
+    "INSPECTION_COMPLETED",
+    "PENDING_HOD_APPROVAL",
+    (userId) => ({
+      hodOpsRecommendation: recommendation.trim(),
+      hodOpsApprovedAt: new Date(),
+      hodOpsApprovedByUserId: userId,
+    }),
+    {
+      action: "HOD_OPS_APPROVED_FLEET_OPERATOR",
+      text: (n) => `HOD Operations recommended ${n}; forwarded to HOD Parks Revalidation`,
+    },
+  );
 }
 
-/**
- * Stage 4 — the HOD of Parks Revalidation reviews, then sends it to the PS.
- */
+/** HOD Parks Revalidation reviews, then sends it to the PS. */
 export async function hodApproveFleetOperator(
   companyId: string,
 ): Promise<ActionResult> {
-  await requireRole(["HOD_PARKS_REVALIDATION", "SYSTEM_ADMIN"]);
-  const session = await requireAuth();
-
-  const company = await db.massTransitCompany.findUnique({
-    where: { id: companyId },
-    select: { id: true, applicationStatus: true, companyName: true },
-  });
-
-  if (!company) return { success: false, error: "Fleet application not found" };
-
-  if (company.applicationStatus !== "PENDING_HOD_APPROVAL") {
-    return {
-      success: false,
-      error: `This application is not awaiting your review (currently ${company.applicationStatus}).`,
-    };
-  }
-
-  const now = new Date();
-  await db.$transaction(async (tx) => {
-    await tx.massTransitCompany.update({
-      where: { id: companyId },
-      data: {
-        applicationStatus: "PENDING_PS_APPROVAL",
-        hodApprovedAt: now,
-      },
-    });
-
-    await tx.auditLog.create({
-      data: {
-        performedByUserId: session.userId,
-        action: "HOD_APPROVED_FLEET_OPERATOR",
-        entityType: "MASS_TRANSIT",
-        entityId: companyId,
-        changeDescription: `HOD reviewed terminal inspection report and signed off application to Permanent Secretary for ${company.companyName}`,
-      },
-    });
-  });
-
-  revalidatePath(`/fleet-operators/${companyId}`);
-  revalidatePath("/fleet-operators");
-  return { success: true };
+  return companyStage(
+    companyId,
+    ["HOD_PARKS_REVALIDATION", "SYSTEM_ADMIN"],
+    "PENDING_HOD_APPROVAL",
+    "PENDING_PS_APPROVAL",
+    () => ({ hodApprovedAt: new Date() }),
+    {
+      action: "HOD_APPROVED_FLEET_OPERATOR",
+      text: (n) => `HOD Parks Revalidation signed off ${n} to the Permanent Secretary`,
+    },
+  );
 }
 
-/**
- * Permanent Secretary reviews and approves fleet application to Commissioner.
- */
+/** Permanent Secretary recommends to the Commissioner, optionally adjusting the levy. */
 export async function psApproveFleetOperator(
   companyId: string,
   adjustedMonthlyLevy?: number,
   psRecommendationNotes?: string,
 ): Promise<ActionResult> {
-  await requireRole(["PERMANENT_SECRETARY", "SYSTEM_ADMIN"]);
+  const current = await db.massTransitCompany.findUnique({
+    where: { id: companyId },
+    select: { monthlyLevyAmount: true },
+  });
+  const amountInKobo =
+    adjustedMonthlyLevy !== undefined && adjustedMonthlyLevy >= 0
+      ? Math.round(adjustedMonthlyLevy * 100)
+      : (current?.monthlyLevyAmount ?? null);
+  return companyStage(
+    companyId,
+    ["PERMANENT_SECRETARY", "SYSTEM_ADMIN"],
+    "PENDING_PS_APPROVAL",
+    "PENDING_COMMISSIONER_APPROVAL",
+    () => ({
+      psApprovedAt: new Date(),
+      monthlyLevyAmount: amountInKobo,
+      psRecommendationNotes: psRecommendationNotes?.trim() || null,
+    }),
+    {
+      action: "PS_APPROVED_FLEET_OPERATOR",
+      text: (n) => `Permanent Secretary submitted recommendation to Commissioner for ${n}`,
+    },
+  );
+}
+
+/**
+ * Reject the whole application at whichever stage the caller holds. Every
+ * terminal that is not yet a park is rejected with it; a mandatory reason is
+ * recorded on the company and on each terminal.
+ */
+export async function rejectFleetOperator(
+  companyId: string,
+  reason: string,
+): Promise<ActionResult> {
+  if (!reason?.trim()) {
+    return { success: false, error: "A reason is required." };
+  }
+  await requireRole([
+    "HOD_TRANSPORT_OPS",
+    "HOD_PARKS_REVALIDATION",
+    "PERMANENT_SECRETARY",
+    "COMMISSIONER",
+    "SYSTEM_ADMIN",
+  ]);
   const session = await requireAuth();
 
   const company = await db.massTransitCompany.findUnique({
     where: { id: companyId },
-    select: { id: true, applicationStatus: true, companyName: true, monthlyLevyAmount: true },
+    select: { applicationStatus: true, companyName: true },
   });
-
   if (!company) return { success: false, error: "Fleet application not found" };
 
-  // INSPECTION_COMPLETED was accepted here too, which let an application
-  // reach the PS without either HOD having seen it.
-  if (company.applicationStatus !== "PENDING_PS_APPROVAL") {
+  const stageRole: Record<string, string> = {
+    INSPECTION_COMPLETED: "HOD_TRANSPORT_OPS",
+    PENDING_HOD_APPROVAL: "HOD_PARKS_REVALIDATION",
+    PENDING_PS_APPROVAL: "PERMANENT_SECRETARY",
+    PENDING_COMMISSIONER_APPROVAL: "COMMISSIONER",
+  };
+  const owner = stageRole[company.applicationStatus];
+  if (!owner) {
     return {
       success: false,
-      error: `This application is not awaiting your approval (currently ${company.applicationStatus}).`,
+      error: `This application cannot be rejected from ${company.applicationStatus}.`,
     };
   }
+  if (session.role !== "SYSTEM_ADMIN" && session.role !== owner) {
+    return { success: false, error: "This application is not at your stage." };
+  }
 
-  const now = new Date();
-  const amountInKobo =
-    adjustedMonthlyLevy !== undefined && adjustedMonthlyLevy >= 0
-      ? Math.round(adjustedMonthlyLevy * 100)
-      : company.monthlyLevyAmount;
-
-  await db.$transaction(async (tx) => {
-    await tx.massTransitCompany.update({
+  const text = reason.trim();
+  await db.$transaction([
+    db.massTransitCompany.update({
       where: { id: companyId },
       data: {
-        applicationStatus: "PENDING_COMMISSIONER_APPROVAL",
-        psApprovedAt: now,
-        monthlyLevyAmount: amountInKobo,
-        psRecommendationNotes: psRecommendationNotes?.trim() || null,
+        applicationStatus: "REJECTED",
+        rejectionReason: text,
+        hodOpsApprovedAt: null,
+        hodApprovedAt: null,
+        psApprovedAt: null,
       },
-    });
-
-    await tx.auditLog.create({
+    }),
+    db.terminal.updateMany({
+      where: { companyId, motorParkId: null },
+      data: { applicationStatus: "REJECTED", rejectionReason: text },
+    }),
+    db.auditLog.create({
       data: {
         performedByUserId: session.userId,
-        action: "PS_APPROVED_FLEET_OPERATOR",
+        action: "FLEET_OPERATOR_REJECTED",
         entityType: "MASS_TRANSIT",
         entityId: companyId,
-        changeDescription: `Permanent Secretary submitted recommendation to Commissioner for ${company.companyName}${
-          adjustedMonthlyLevy !== undefined
-            ? ` with finalized monthly levy of ₦${adjustedMonthlyLevy.toLocaleString()}`
-            : ""
-        }${psRecommendationNotes ? `. Notes: ${psRecommendationNotes}` : ""}`,
+        changeDescription: `${session.role} rejected ${company.companyName} and all its pending terminals: ${text}`,
       },
-    });
-  });
+    }),
+  ]);
 
   revalidatePath(`/fleet-operators/${companyId}`);
   revalidatePath("/fleet-operators");
@@ -1798,11 +1835,8 @@ export async function issuePermitToOperate(
       asinNumber: true,
       cacNumber: true,
       monthlyLevyAmount: true,
-      // The chain that approved the company; the park inherits it.
       hodApprovedAt: true,
       psApprovedAt: true,
-      // A terminal becomes a park on approval, so everything a park needs is
-      // read here.
       toiletPhotoId: true,
       waitingAreaPhotoId: true,
       signagePhotoId: true,
@@ -1816,11 +1850,18 @@ export async function issuePermitToOperate(
           id: true,
           terminalNumber: true,
           motorParkId: true,
+          addedAt: true,
+          applicationStatus: true,
           locationAddress: true,
           managerName: true,
           managerPhone: true,
           managerEmail: true,
           managerResidentialAddress: true,
+          toiletPhotoId: true,
+          waitingAreaPhotoId: true,
+          signagePhotoId: true,
+          waterFacilityPhotoId: true,
+          cctvPhotoId: true,
         },
         orderBy: { terminalNumber: "asc" },
       },
@@ -1829,8 +1870,7 @@ export async function issuePermitToOperate(
 
   if (!company) return { success: false, error: "Fleet application not found" };
 
-  const allowedStatuses = ["PENDING_COMMISSIONER_APPROVAL"];
-  if (!allowedStatuses.includes(company.applicationStatus)) {
+  if (company.applicationStatus !== "PENDING_COMMISSIONER_APPROVAL") {
     return {
       success: false,
       error: `Cannot issue permit — application is in status ${company.applicationStatus}. Permanent Secretary recommendation and approval must be completed first.`,
@@ -1860,9 +1900,11 @@ export async function issuePermitToOperate(
 
   const now = new Date();
 
-  // Terminals that do not yet have a park. Re-issuing a permit must not create
-  // a second park for a terminal that already has one.
-  const pendingTerminals = company.terminals.filter((t) => !t.motorParkId);
+  // The pack: terminals declared on the original application. Terminals added
+  // later run their own chain and are never swept up here.
+  const pendingTerminals = company.terminals.filter(
+    (t) => !t.motorParkId && !t.addedAt && t.applicationStatus !== "REJECTED",
+  );
   const parkIds = await nextParkIds(pendingTerminals.length);
 
   await db.$transaction(async (tx) => {
@@ -1881,46 +1923,33 @@ export async function issuePermitToOperate(
       },
     });
 
-    // ── Each terminal becomes a real motor park ──────────────────────────
-    // It then inherits park staff, revalidation, inspections and the
-    // certificate, rather than needing a parallel implementation.
     for (const [i, terminal] of pendingTerminals.entries()) {
-      const designation = terminalDesignation(
-        company.companyName,
-        terminal.terminalNumber,
-      );
-
       const park = await tx.motorPark.create({
         data: {
           businessName: company.companyName,
-          transportCompanyName: designation,
+          transportCompanyName: terminalDesignation(
+            company.companyName,
+            terminal.terminalNumber,
+          ),
           streetAddress: terminal.locationAddress,
-          // The terminal record carries a single address line; the LGA and
-          // town are filled in by the HOD on the park record afterwards.
           lga: "",
           townCity: "",
-          // anssidNumber is unique per park, so each terminal is suffixed
-          // rather than reusing the company's number.
           anssidNumber: `${company.asinNumber ?? company.id}-T${terminal.terminalNumber}`,
           cacRegistrationNumber: company.cacNumber,
           parkId: parkIds[i],
-
           contactUserId: company.contactUserId,
           contactPerson: terminal.managerName || company.contactPerson || "",
           contactPhone: terminal.managerPhone || company.contactPhone || "",
           contactEmail: terminal.managerEmail || company.contactEmail || "",
           managerResidentialAddress: terminal.managerResidentialAddress,
-
           landOwnershipDocId: company.landOwnershipDocId,
           cacDocumentId: company.cacDocumentId,
           corporateAsinDocumentId: company.corporateAsinDocumentId,
-          toiletPhotoId: company.toiletPhotoId,
-          waitingAreaPhotoId: company.waitingAreaPhotoId,
-          signagePhotoId: company.signagePhotoId,
-          waterFacilityPhotoId: company.waterFacilityPhotoId,
-          cctvPhotoId: company.cctvPhotoId,
-
-          // A terminal is only ever as approved as its company.
+          toiletPhotoId: terminal.toiletPhotoId ?? company.toiletPhotoId,
+          waitingAreaPhotoId: terminal.waitingAreaPhotoId ?? company.waitingAreaPhotoId,
+          signagePhotoId: terminal.signagePhotoId ?? company.signagePhotoId,
+          waterFacilityPhotoId: terminal.waterFacilityPhotoId ?? company.waterFacilityPhotoId,
+          cctvPhotoId: terminal.cctvPhotoId ?? company.cctvPhotoId,
           applicationStatus: isTemporal ? "TEMPORAL_APPROVAL" : "APPROVED",
           permitStatus: "ACTIVE",
           permitNumber: `${permitNumber}/T${terminal.terminalNumber}`,
@@ -1930,18 +1959,21 @@ export async function issuePermitToOperate(
           monthlyLevyAmount: company.monthlyLevyAmount,
           approvedAt: now,
           approvedByUserId: session.userId,
-          // The park exists because the company passed the whole chain, so it
-          // carries those signatures rather than showing three blanks.
           hodApprovedAt: company.hodApprovedAt,
           psApprovedAt: company.psApprovedAt,
           commissionerApprovedAt: now,
         },
         select: { id: true },
       });
-
       await tx.terminal.update({
         where: { id: terminal.id },
-        data: { motorParkId: park.id },
+        data: {
+          motorParkId: park.id,
+          applicationStatus: isTemporal ? "TEMPORAL_APPROVAL" : "APPROVED",
+          approvedAt: now,
+          commissionerApprovedAt: now,
+          approvedByUserId: session.userId,
+        },
       });
     }
 
@@ -1953,7 +1985,7 @@ export async function issuePermitToOperate(
           : "PERMIT_TO_OPERATE_ISSUED",
         entityType: "MASS_TRANSIT",
         entityId: companyId,
-        changeDescription: `${isTemporal ? "TEMPORAL" : "FULL"} approval granted. Permit: ${permitNumber}, valid ${validityMonths} months. ${pendingTerminals.length} terminal(s) registered as motor parks.${approvalNotes ? ` Notes: ${approvalNotes}` : ""}`,
+        changeDescription: `${isTemporal ? "TEMPORAL" : "FULL"} approval granted. Permit: ${permitNumber}, valid ${validityMonths} months. ${pendingTerminals.length} terminal(s) registered as parks.${approvalNotes ? ` Notes: ${approvalNotes}` : ""}`,
       },
     });
   });
@@ -2839,6 +2871,15 @@ export async function updateMassTransitCompany(
   const ansaaRegistration = formData.get("ansaaRegistration") as string;
   const approvedColour = formData.get("approvedColour") as string;
 
+  // Documents can be attached at edit time by the officer completing the
+  // record - CAC certificate, land ownership and corporate ASIN. Optional,
+  // and existing values are kept when a field is left blank.
+  const cacDocumentId = formData.get("cacDocumentId") as string | null;
+  const landOwnershipDocId = formData.get("landOwnershipDocId") as string | null;
+  const corporateAsinDocumentId = formData.get(
+    "corporateAsinDocumentId",
+  ) as string | null;
+
   const currentFleetSizeRaw = formData.get("currentFleetSize") as string;
   const currentFleetSize = currentFleetSizeRaw
     ? parseInt(currentFleetSizeRaw, 10)
@@ -2939,6 +2980,7 @@ export async function updateMassTransitCompany(
       where: { id: companyId },
       data: {
         companyName: companyName.trim(),
+        address: (formData.get("address") as string | null)?.trim() || null,
         cacNumber: cacNumber?.trim() || null,
         asinNumber: asinNumber?.trim() || null,
         contactPerson: contactPerson?.trim() || null,
@@ -2947,6 +2989,11 @@ export async function updateMassTransitCompany(
         businessPremisesCert: businessPremisesCert?.trim() || null,
         ansaaRegistration: ansaaRegistration?.trim() || null,
         approvedColour: approvedColour?.trim() || null,
+        // Only overwrite when a new document was actually uploaded, so the
+        // Save button does not blank one that was already attached.
+        ...(cacDocumentId ? { cacDocumentId } : {}),
+        ...(landOwnershipDocId ? { landOwnershipDocId } : {}),
+        ...(corporateAsinDocumentId ? { corporateAsinDocumentId } : {}),
         currentFleetSize:
           typeof currentFleetSize === "number" && !isNaN(currentFleetSize)
             ? currentFleetSize

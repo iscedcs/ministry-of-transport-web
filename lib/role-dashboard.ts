@@ -80,18 +80,13 @@ const item = (
 ): WorkItem => ({ key, label, hint, count, href, tone });
 
 /**
- * Terminals added to an operator that is already approved.
- *
- * These run their own chain and belong to no application queue, so without a
- * count here a new terminal reaches the HOD's desk with nothing to announce
- * it — the operator submits, and the Ministry finds out by chance.
+ * Terminals added after the first application, awaiting a decision. The
+ * original pack is approved with its company, so it never queues here.
  */
-async function addedTerminals(statuses: string[]): Promise<number> {
+async function pendingTerminals(statuses: string[]): Promise<number> {
   return db.terminal.count({
     where: {
       motorParkId: null,
-      // Only terminals added AFTER approval; those declared on a first
-      // application move with the company and are counted with it.
       addedAt: { not: null },
       applicationStatus: { in: statuses as never },
     },
@@ -185,8 +180,8 @@ export async function getRoleDashboard(
       );
 
     const [termSchedule, termRecommend] = await Promise.all([
-      addedTerminals(["SUBMITTED", "UNDER_REVIEW", "REJECTED"]),
-      addedTerminals(["INSPECTION_COMPLETED"]),
+      pendingTerminals(["SUBMITTED", "UNDER_REVIEW", "REJECTED"]),
+      pendingTerminals(["INSPECTION_COMPLETED"]),
     ]);
 
     if (termSchedule)
@@ -194,9 +189,9 @@ export async function getRoleDashboard(
         item(
           "term-schedule",
           "New terminals to inspect",
-          "Added to an approved operator - schedule the site visit",
+          "Schedule the terminal inspection",
           termSchedule,
-          "/fleet-operators?status=APPROVED",
+          "/fleet-operators?terminalStatus=SUBMITTED",
         ),
       );
     if (termRecommend)
@@ -204,9 +199,9 @@ export async function getRoleDashboard(
         item(
           "term-recommend",
           "Terminal inspections awaiting your recommendation",
-          "The site has been inspected - forward to the PS",
+          "The site has been inspected - record your recommendation",
           termRecommend,
-          "/fleet-operators?status=APPROVED",
+          "/inspections?status=COMPLETED",
         ),
       );
 
@@ -225,13 +220,25 @@ export async function getRoleDashboard(
 
   // ── HOD Parks Revalidation: the second review ────────────────────────────
   if (isHodReval || isAdmin) {
-    const [review, revalTotal, mtReview] = await Promise.all([
+    const [review, revalTotal, mtReview, termReview] = await Promise.all([
       revalidations(["PENDING_HOD_APPROVAL"]),
       db.revalidationApplication.count(),
       // Mass transit now runs the same two-HOD chain as revalidation, so this
       // stage reaches this desk rather than stopping at HOD Operations.
       fleetOperators(["PENDING_HOD_APPROVAL"]),
+      pendingTerminals(["PENDING_HOD_APPROVAL"]),
     ]);
+
+    if (termReview)
+      actions.push(
+        item(
+          "hodreval-terminal",
+          "New terminals awaiting your review",
+          "Recommended by HOD Operations - approve, or return with a reason",
+          termReview,
+          "/fleet-operators?terminalStatus=PENDING_HOD_APPROVAL",
+        ),
+      );
 
     if (mtReview)
       actions.push(
@@ -312,7 +319,7 @@ export async function getRoleDashboard(
         motorParks(["PENDING_PS_APPROVAL"]),
         fleetOperators(["PENDING_PS_APPROVAL"]),
         pendingInspectionSchedules(),
-        addedTerminals(["PENDING_PS_APPROVAL"]),
+        pendingTerminals(["PENDING_PS_APPROVAL"]),
       ]);
 
     if (termPs)
@@ -322,7 +329,7 @@ export async function getRoleDashboard(
           "New terminals awaiting your approval",
           "Inspected and recommended - approve, or return with a reason",
           termPs,
-          "/fleet-operators?status=APPROVED",
+          "/fleet-operators?terminalStatus=PENDING_PS_APPROVAL",
         ),
       );
 
@@ -377,7 +384,7 @@ export async function getRoleDashboard(
       tracasIdCards("PENDING_COMMISSIONER_APPROVAL"),
       motorParks(["PENDING_APPROVAL", "PENDING_COMMISSIONER_APPROVAL"]),
       fleetOperators(["PENDING_COMMISSIONER_APPROVAL"]),
-      addedTerminals(["PENDING_COMMISSIONER_APPROVAL"]),
+      pendingTerminals(["PENDING_COMMISSIONER_APPROVAL"]),
     ]);
 
     if (termCom)
@@ -387,7 +394,7 @@ export async function getRoleDashboard(
           "New terminals to approve",
           "Your approval turns the terminal into a park with its own letter",
           termCom,
-          "/fleet-operators?status=APPROVED",
+          "/fleet-operators?terminalStatus=PENDING_COMMISSIONER_APPROVAL",
         ),
       );
 
@@ -445,7 +452,7 @@ export async function getRoleDashboard(
 
   // ── Field inspector: only what is assigned to them ──────────────────────
   if (isInspector) {
-    const [assigned, inspections] = await Promise.all([
+    const [assigned, inspections, terminalVisits] = await Promise.all([
       db.revalidationApplication.count({
         where: {
           inspectionTeam: { some: { userId } },
@@ -455,13 +462,30 @@ export async function getRoleDashboard(
       db.inspection.count({
         where: { assignedToUserId: userId, completedAt: null },
       }),
+      db.terminal.count({
+        where: {
+          applicationStatus: "INSPECTION_SCHEDULED",
+          inspectionTeam: { some: { userId } },
+        },
+      }),
     ]);
+
+    if (terminalVisits)
+      actions.push(
+        item(
+          "insp-terminal",
+          "Terminal inspections you are on",
+          "Fill the checklist if you are lead, otherwise leave a comment",
+          terminalVisits,
+          "/inspections",
+        ),
+      );
 
     if (assigned)
       actions.push(
         item(
           "insp-reval",
-          "Park inspections you are on",
+          "Revalidation inspections you are on",
           "Fill the checklist if you are lead, otherwise leave a comment",
           assigned,
           "/admin/revalidation-queue",
