@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 
 export interface DraftData {
   businessName: string;
+  /** "Public" | "Private" | "Loading Bay" */
+  facilityType: string;
   transportCompanyName: string;
   cacRegistrationNumber: string;
   anssidNumber: string;

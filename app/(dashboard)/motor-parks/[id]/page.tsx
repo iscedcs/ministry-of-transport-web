@@ -46,17 +46,25 @@ import {
   Users,
 } from "lucide-react";
 import { MotorParkWorkflowActions } from "./motor-park-workflow-actions";
+import { MotorParkInspectionTeam } from "@/components/motor-park/inspection-team";
+import { ScheduleInspectionInline } from "@/components/motor-park/schedule-inspection-inline";
 import { canSchedule as canScheduleInspectionRole } from "@/lib/workflow-roles";
+import {
+  parseTerminalChecklist,
+  TERMINAL_SECTION_TITLES,
+} from "@/lib/terminal-checklist";
 
 // ── Status-based workflow actions ──────────────────────────────────────────────
 
 function ActionBar({
   park,
   role,
+  currentUserId,
   revalidationId,
 }: {
   park: MotorParkDetail;
   role: string;
+  currentUserId: string;
   /** Set when this park's approval came from the revalidation chain. */
   revalidationId?: string | null;
 }) {
@@ -65,19 +73,31 @@ function ActionBar({
   const pendingApplicationFee = park.fees?.find(
     (f) => f.feeType === "APPLICATION" && f.status === "PENDING",
   );
+  // INSPECTION_COMPLETED used to be schedulable too, which is why HOD
+  // Operations kept seeing "Schedule Inspection" instead of the
+  // recommendation form once a report was filed — this is the lead's job to
+  // report on, not a stage to reschedule. REJECTED is still here so a
+  // returned application can go round again, matching mass transit.
   const canSchedule =
     canScheduleInspectionRole(role) &&
-    ["SUBMITTED", "UNDER_REVIEW", "INSPECTION_COMPLETED"].includes(status) &&
+    ["SUBMITTED", "UNDER_REVIEW", "REJECTED"].includes(status) &&
     !pendingApplicationFee;
 
+  // Only the lead files the report — the rest of the team leaves a comment.
+  // This used to check only the role and the status, so any field inspector
+  // could open and file a report that was not theirs to file.
   const canInspect =
     role === "FIELD_INSPECTOR" &&
     status === "INSPECTION_SCHEDULED" &&
-    park.inspections.some((i) => i.status === "SCHEDULED");
+    park.inspections.some((i) => i.status === "SCHEDULED") &&
+    park.inspectorTeam.some((m) => m.userId === currentUserId && m.isLead);
 
+  // Matches issuePermitToBuild's own gate (PENDING_COMMISSIONER_APPROVAL,
+  // Commissioner only) — this used to show at INSPECTION_COMPLETED, before
+  // HOD Operations, HOD Parks Revalidation or the PS had even seen it, and
+  // to the PS too, who the action itself does not allow.
   const canIssuePTB =
-    ["COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
-    status === "INSPECTION_COMPLETED";
+    role === "COMMISSIONER" && status === "PENDING_COMMISSIONER_APPROVAL";
 
   const canIssueFinal =
     ["COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
@@ -92,15 +112,6 @@ function ActionBar({
     role === "EXTERNAL_APPLICANT" &&
     ["SUBMITTED", "UNDER_REVIEW"].includes(status) &&
     !(park.cacDocumentId || park.landOwnershipDocId);
-
-  const canProximityEval =
-    [
-      "FIELD_INSPECTOR",
-      "HOD_PARKS",
-      "HOD_VIS",
-      "HOD_TRANSPORT_OPS",
-      "HOD_PARKS_REVALIDATION",
-    ].includes(role) && status === "INSPECTION_COMPLETED";
 
   const canInitiateRevalidation =
     ["HOD_PARKS", "COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
@@ -119,9 +130,10 @@ function ActionBar({
     !pendingFee;
   const canPayFee = role === "EXTERNAL_APPLICANT" && !!pendingFee;
 
+  // Matches issueTemporalApproval's own gate — Commissioner only, and only
+  // once the full chain has run.
   const canIssueTemporal =
-    ["COMMISSIONER", "PERMANENT_SECRETARY"].includes(role) &&
-    (status === "INSPECTION_COMPLETED" || status === "PENDING_APPROVAL");
+    role === "COMMISSIONER" && status === "PENDING_COMMISSIONER_APPROVAL";
 
   const canDownloadTemporal = status === "TEMPORAL_APPROVAL";
 
@@ -172,7 +184,6 @@ function ActionBar({
     !canIssueFinal &&
     !canRequestReinspection &&
     !canUploadDocuments &&
-    !canProximityEval &&
     !canInitiateRevalidation &&
     !canAssessFees &&
     !canPayFee &&
@@ -193,11 +204,7 @@ function ActionBar({
       </CardHeader>
       <CardContent className="flex flex-wrap gap-3">
         {canSchedule && (
-          <Button asChild size="sm">
-            <Link href={`/motor-parks/${park.id}/schedule-inspection`}>
-              Schedule Inspection
-            </Link>
-          </Button>
+          <ScheduleInspectionInline parkId={park.id} currentUserId={currentUserId} />
         )}
         {canInspect && pendingInspection && (
           <Button asChild size="sm">
@@ -309,13 +316,6 @@ function ActionBar({
             </Link>
           </Button>
         )}
-        {canProximityEval && (
-          <Button asChild size="sm">
-            <Link href={`/motor-parks/${park.id}/proximity-evaluation`}>
-              Proximity Evaluation
-            </Link>
-          </Button>
-        )}
         {canInitiateRevalidation && (
           <Button asChild size="sm" variant="outline">
             <Link href={`/motor-parks/${park.id}/initiate-revalidation`}>
@@ -366,8 +366,19 @@ function ActionBar({
 
 function InspectionHistory({
   inspections,
+  proximity,
 }: {
   inspections: MotorParkDetail["inspections"];
+  proximity?: {
+    nearPublicPark: boolean | null;
+    publicParkDistanceM: number | null;
+    nearMajorRoad: boolean | null;
+    majorRoadDistanceM: number | null;
+    nearIntersection: boolean | null;
+    intersectionDistanceM: number | null;
+    proximityVerdict: string | null;
+    proximityNotes: string | null;
+  };
 }) {
   if (inspections.length === 0) {
     return (
@@ -379,7 +390,12 @@ function InspectionHistory({
 
   return (
     <div className="flex flex-col gap-3">
-      {inspections.map((ins) => (
+      {inspections.map((ins) => {
+        const checklist = parseTerminalChecklist(ins.inspectionChecklist);
+        const evidence = Array.isArray(ins.evidenceUrls)
+          ? (ins.evidenceUrls as { url?: string; caption?: string }[])
+          : [];
+        return (
         <div
           key={ins.id}
           className="flex flex-col gap-1 p-3 rounded-lg border border-border/50 bg-secondary/30">
@@ -415,114 +431,160 @@ function InspectionHistory({
               </p>
             )}
 
-            {ins.status === "COMPLETED" &&
-              ins.checklist &&
-              ins.checklist.length > 0 && (
-                <div className="col-span-2 mt-3 pt-3 border-t border-border/30">
-                  <details className="group">
-                    <summary className="flex items-center justify-between text-xs font-semibold text-primary cursor-pointer hover:underline list-none select-none">
-                      <span>
-                        View Checklist & Evidence Photos ({ins.checklist.length}{" "}
-                        items)
-                      </span>
-                      <span className="transition-transform duration-200 group-open:rotate-180">
-                        ▼
-                      </span>
-                    </summary>
-                    <div className="mt-3 flex flex-col gap-3 pl-2 border-l-2 border-primary/20">
-                      {ins.checklist.map((item) => {
-                        let pUrl = "";
-                        if (item.photoUrls) {
-                          try {
-                            const parsed = JSON.parse(item.photoUrls);
-                            pUrl = Array.isArray(parsed) ? parsed[0] : parsed;
-                          } catch {
-                            pUrl = item.photoUrls;
-                          }
-                        }
+            {(checklist.length > 0 || evidence.length > 0) && (
+              <div className="col-span-2 mt-3 pt-3 border-t border-border/30">
+                <details className="group">
+                  <summary className="flex items-center justify-between text-xs font-semibold text-primary cursor-pointer hover:underline list-none select-none">
+                    <span>
+                      View Checklist & Evidence
+                      {checklist.length > 0 ? ` (${checklist.length} items)` : ""}
+                    </span>
+                    <span className="transition-transform duration-200 group-open:rotate-180">
+                      ▼
+                    </span>
+                  </summary>
+                  <div className="mt-3 flex flex-col gap-3 pl-2 border-l-2 border-primary/20">
+                    {Object.entries(TERMINAL_SECTION_TITLES).map(
+                      ([section, title]) => {
+                        const items = checklist.filter(
+                          (i) => i.section === section,
+                        );
+                        if (items.length === 0) return null;
                         return (
-                          <div
-                            key={item.id}
-                            className="flex flex-col gap-1.5 p-2.5 rounded bg-background border border-border/40 text-xs">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex flex-col gap-0.5">
-                                <span className="font-semibold text-foreground">
-                                  {item.checklistItem.itemName}
-                                </span>
-                                <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                                  {item.checklistItem.itemCategory.replace(
-                                    /_/g,
-                                    " ",
-                                  )}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <span
-                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                    item.isCompliant
-                                      ? "bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/20"
-                                      : "bg-destructive/10 text-destructive border border-destructive/20"
-                                  }`}>
-                                  {item.isCompliant ? "Yes" : "No"}
-                                </span>
-                                {item.score !== null && (
-                                  <span className="px-2 py-0.5 rounded-full bg-secondary text-foreground text-[10px] font-semibold">
-                                    {item.score} /{" "}
-                                    {item.checklistItem.maxPoints} pts
+                          <div key={section} className="flex flex-col gap-1.5">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              {title}
+                            </p>
+                            {items.map((item) => (
+                              <div
+                                key={item.key}
+                                className="flex flex-col gap-1 p-2.5 rounded bg-background border border-border/40 text-xs">
+                                <div className="flex items-start justify-between gap-4">
+                                  <span className="font-medium text-foreground">
+                                    {item.label}
                                   </span>
+                                  <VerdictBadge verified={item.verified} />
+                                </div>
+                                <span className="text-[11px] text-muted-foreground">
+                                  Declared: {item.declared}
+                                </span>
+                                {item.note && (
+                                  <div className="bg-secondary/20 p-2 rounded text-[11px] border-l-2 border-border italic text-muted-foreground">
+                                    <strong>Inspector note:</strong> &quot;
+                                    {item.note}&quot;
+                                  </div>
                                 )}
                               </div>
-                            </div>
-
-                            {item.checklistItem.description && (
-                              <p className="text-[11px] text-muted-foreground">
-                                {item.checklistItem.description}
-                              </p>
-                            )}
-
-                            {item.notes && (
-                              <div className="bg-secondary/20 p-2 rounded text-[11px] border-l-2 border-border italic text-muted-foreground">
-                                <strong>Inspector Remarks:</strong> &quot;
-                                {item.notes}&quot;
-                              </div>
-                            )}
-
-                            {pUrl && (
-                              <div className="mt-1 flex flex-col gap-1">
-                                <span className="text-[10px] text-muted-foreground font-medium">
-                                  Evidence Photo:
-                                </span>
-                                <div className="relative aspect-[4/3] w-32 rounded border border-border overflow-hidden bg-muted group/img">
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
-                                    src={pUrl}
-                                    alt="Inspection Evidence"
-                                    className="object-cover w-full h-full"
-                                  />
-                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <a
-                                      href={pUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="p-1 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
-                                      title="Open photo in new tab">
-                                      <Eye className="w-3.5 h-3.5" />
-                                    </a>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
+                            ))}
                           </div>
                         );
-                      })}
-                    </div>
-                  </details>
-                </div>
-              )}
+                      },
+                    )}
+
+                    {evidence.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          Evidence
+                        </p>
+                        <div className="mt-2 grid grid-cols-3 gap-2">
+                          {evidence.map((e, i) =>
+                            e.url ? (
+                              <div
+                                key={i}
+                                className="relative aspect-[4/3] rounded border border-border overflow-hidden bg-muted group/img">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={e.url}
+                                  alt={e.caption ?? `Evidence ${i + 1}`}
+                                  className="object-cover w-full h-full"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <a
+                                    href={e.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-1 rounded-full bg-white/20 hover:bg-white/40 text-white transition-colors"
+                                    title="Open photo in new tab">
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </a>
+                                </div>
+                              </div>
+                            ) : null,
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </details>
+              </div>
+            )}
           </div>
         </div>
-      ))}
+        );
+      })}
+      {proximity && proximity.proximityVerdict && (
+        <div className="flex flex-col gap-2 p-3 rounded-lg border border-border/50 bg-secondary/30">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className="text-sm font-medium">Proximity Evaluation</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                proximity.proximityVerdict === "PASS"
+                  ? "bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/20"
+                  : proximity.proximityVerdict === "FAIL"
+                    ? "bg-destructive/10 text-destructive border border-destructive/20"
+                    : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+              }`}>
+              {proximity.proximityVerdict}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-muted-foreground">
+            <span>
+              Near public park: {proximity.nearPublicPark ? "Yes" : "No"}
+              {proximity.nearPublicPark && proximity.publicParkDistanceM != null
+                ? ` (${proximity.publicParkDistanceM}m)`
+                : ""}
+            </span>
+            <span>
+              Near major road: {proximity.nearMajorRoad ? "Yes" : "No"}
+              {proximity.nearMajorRoad && proximity.majorRoadDistanceM != null
+                ? ` (${proximity.majorRoadDistanceM}m)`
+                : ""}
+            </span>
+            <span>
+              Near intersection: {proximity.nearIntersection ? "Yes" : "No"}
+              {proximity.nearIntersection &&
+              proximity.intersectionDistanceM != null
+                ? ` (${proximity.intersectionDistanceM}m)`
+                : ""}
+            </span>
+          </div>
+          {proximity.proximityNotes && (
+            <p className="text-xs text-muted-foreground italic">
+              &ldquo;{proximity.proximityNotes}&rdquo;
+            </p>
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+function VerdictBadge({ verified }: { verified: string | null }) {
+  const tone: Record<string, string> = {
+    YES: "bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/20",
+    PARTIAL:
+      "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20",
+    NO: "bg-destructive/10 text-destructive border border-destructive/20",
+    N_A: "bg-muted text-muted-foreground border border-border",
+  };
+  const label = verified === "N_A" ? "N/A" : verified ?? "—";
+  return (
+    <span
+      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+        tone[verified ?? ""] ?? "bg-muted text-muted-foreground border border-border"
+      }`}>
+      {label}
+    </span>
   );
 }
 
@@ -763,7 +825,14 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
       <ActionBar
         park={park}
         role={session.role}
+        currentUserId={session.userId}
         revalidationId={revalidationOrigin?.id ?? null}
+      />
+
+      <MotorParkInspectionTeam
+        parkId={park.id}
+        team={park.inspectorTeam}
+        currentUserId={session.userId}
       />
 
       {/* Sequential Executive Workflow Actions */}
@@ -1547,30 +1616,26 @@ export default async function MotorParkDetailPage({ params }: PageProps) {
       {/* Inspection history */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <CardTitle className="text-base">Inspection History</CardTitle>
-              <CardDescription>
-                {park.inspections.length} inspection
-                {park.inspections.length !== 1 ? "s" : ""} recorded
-              </CardDescription>
-            </div>
-            {[
-              "HOD_PARKS",
-              "HOD_VIS",
-              "HOD_TRANSPORT_OPS",
-              "HOD_PARKS_REVALIDATION",
-            ].includes(session.role) && (
-              <Button asChild size="sm" variant="outline">
-                <Link href={`/motor-parks/${park.id}/schedule-inspection`}>
-                  + Schedule
-                </Link>
-              </Button>
-            )}
-          </div>
+          <CardTitle className="text-base">Inspection History</CardTitle>
+          <CardDescription>
+            {park.inspections.length} inspection
+            {park.inspections.length !== 1 ? "s" : ""} recorded
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <InspectionHistory inspections={park.inspections} />
+          <InspectionHistory
+            inspections={park.inspections}
+            proximity={{
+              nearPublicPark: park.nearPublicPark,
+              publicParkDistanceM: park.publicParkDistanceM,
+              nearMajorRoad: park.nearMajorRoad,
+              majorRoadDistanceM: park.majorRoadDistanceM,
+              nearIntersection: park.nearIntersection,
+              intersectionDistanceM: park.intersectionDistanceM,
+              proximityVerdict: park.proximityVerdict,
+              proximityNotes: park.proximityNotes,
+            }}
+          />
         </CardContent>
       </Card>
 

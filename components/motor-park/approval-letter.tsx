@@ -35,6 +35,11 @@ export interface ApprovalLetterData {
   /** Conditions the park must satisfy — the point of a temporal approval. */
   conditions?: string | null;
   commissionerName: string;
+  /**
+   * "Public" | "Private" | "Loading Bay". A loading bay never meets the
+   * standard of a motor park — the letter must say so, not call it one.
+   */
+  facilityType?: string | null;
 }
 
 const fmt = (d: Date | string | null | undefined) =>
@@ -80,6 +85,8 @@ export function MotorParkApprovalLetter({
   const isTemporal = data.approvalType === "TEMPORAL";
   const issued = Boolean(data.permitNumber);
   const fee = naira(data.monthlyFeeKobo);
+  const isLoadingBay = data.facilityType === "Loading Bay";
+  const facilityLabel = isLoadingBay ? "Loading Bay" : "Motor Park";
 
   return (
     <>
@@ -127,8 +134,8 @@ export function MotorParkApprovalLetter({
 
           <h3 className="mt-5 text-sm font-bold uppercase leading-snug underline decoration-2 underline-offset-4 sm:text-base">
             {isTemporal
-              ? "Temporary Approval to Operate a Motor Park"
-              : "Approval to Operate a Motor Park"}
+              ? `Temporary Approval to Operate a ${facilityLabel}`
+              : `Approval to Operate a ${facilityLabel}`}
           </h3>
 
           <div className="mt-3 space-y-3 text-justify text-sm leading-relaxed sm:text-[15px]">
@@ -181,8 +188,8 @@ export function MotorParkApprovalLetter({
 
             {fee && (
               <p>
-                3. You are to continue the payment of the monthly motor park
-                (operational) fee of{" "}
+                3. You are to continue the payment of the monthly {facilityLabel.toLowerCase()}
+                {" "}(operational) fee of{" "}
                 <span className="font-semibold">{fee}</span> as assessed by the
                 Ministry.
               </p>

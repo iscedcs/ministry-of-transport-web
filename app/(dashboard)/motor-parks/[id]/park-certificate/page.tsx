@@ -48,6 +48,7 @@ export default async function ParkCertificatePage({
       id: true,
       parkId: true,
       businessName: true,
+      facilityType: true,
       transportCompanyName: true,
       streetAddress: true,
       townCity: true,
@@ -82,10 +83,14 @@ export default async function ParkCertificatePage({
     )) || (isTemporal ? 6 : 12);
 
   // For a terminal, TYPE OF PARK carries the terminal designation, which was
-  // stored on the park as transportCompanyName when it was created.
+  // stored on the park as transportCompanyName when it was created. A
+  // standalone park states what it actually is — a loading bay never meets
+  // the standard of a motor park, so it must not be certified as one.
   const parkType = fromTerminal
     ? park.transportCompanyName
-    : "Motor Park";
+    : park.facilityType === "Loading Bay"
+      ? "Loading Bay"
+      : "Motor Park";
 
   const locationParts = [
     park.streetAddress?.trim(),

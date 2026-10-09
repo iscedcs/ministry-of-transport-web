@@ -204,6 +204,7 @@ model User {
   inspectedRevalidations RevalidationApplication[] @relation("RevalidationInspector")
   revalidationTeams      RevalidationInspector[]   @relation("RevalidationTeamMember")
   terminalTeams          TerminalInspector[]       @relation("TerminalTeamMember")
+  motorParkTeams         MotorParkInspector[]      @relation("MotorParkTeamMember")
   revalidationDraft      RevalidationDraft?
 
   @@index([email])
@@ -288,6 +289,29 @@ model MotorPark {
   gpsCoordinates        String? // lat,lon format
   cacRegistrationNumber String? // optional — uploaded CAC doc takes precedence
   anssidNumber          String  @unique
+  /// "Public" | "Private" | "Loading Bay" — matches the revalidation form's
+  /// own Section C field. Not every site is a standard motor park; a loading
+  /// bay is a site used for loading/offloading that never meets that
+  /// standard, and its documents must say so, not call it a motor park.
+  facilityType          String? @db.VarChar(50)
+
+  /// What the park has, as { [facility]: boolean } over FACILITY_ITEMS.
+  /// Declared by the applicant; verified at inspection, exactly as mass
+  /// transit and revalidation already work.
+  facilitiesAvailable  Json?
+  maintainsManifest    Boolean?
+  operatorsRegistered  Boolean?
+  paymentsUpToDate     Boolean?
+  safetySignages       Boolean?
+  pendingSanctions     Boolean?
+  sanctionDetails      String?  @db.Text
+  managementStaffCount Int?
+  adminStaffCount      Int?
+  securityStaffCount   Int?
+  otherStaffCount      Int?
+  securityArrangement  String?  @db.VarChar(50)
+  operationalStatus    String?  @db.VarChar(50)
+  dailyVehiclesCount   String?  @db.VarChar(50)
 
   /// Permanent public identifier printed on the revalidation certificate:
   /// ANS-MOT-PK-000125 — Anambra State, Ministry of Transport, Park, serial.
@@ -353,6 +377,11 @@ model MotorPark {
 
   // Audit
   appliedAt              DateTime  @default(now())
+  /// HOD of Operations' recommendation — the stage before HOD Parks
+  /// Revalidation, matching mass transit and revalidation's own chain.
+  hodOpsRecommendation   String?   @db.Text
+  hodOpsApprovedAt       DateTime?
+  hodOpsApprovedByUserId String?
   hodApprovedAt          DateTime?
   psApprovedAt           DateTime?
   commissionerApprovedAt DateTime?
@@ -360,8 +389,23 @@ model MotorPark {
   approvedByUserId       String? // Commissioner or PS
   revokedAt              DateTime?
   revocationReason       String?   @db.Text
+  /// Why the application was returned, at whichever stage rejected it.
+  rejectionReason        String?   @db.Text
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
+
+  /// Recorded once, with the inspection checklist — no longer a separate
+  /// step with its own verdict and its own status change. A FAIL here is a
+  /// finding HOD Operations weighs, not an automatic rejection; the chain
+  /// (HOD Ops -> HOD Reval -> PS -> Commissioner) is what decides.
+  nearPublicPark        Boolean?
+  publicParkDistanceM   Int?
+  nearMajorRoad         Boolean?
+  majorRoadDistanceM    Int?
+  nearIntersection      Boolean?
+  intersectionDistanceM Int?
+  proximityVerdict      String?  @db.VarChar(20)
+  proximityNotes        String?  @db.Text
 
   // Relations
   applicant     User?                     @relation("ApplicationContact", fields: [contactUserId], references: [id])
@@ -373,12 +417,33 @@ model MotorPark {
   revalidations RevalidationApplication[] @relation("MotorParkRevalidation")
   /// Set when this park was created from a mass transit terminal.
   terminal      Terminal?                 @relation("TerminalPark")
+  inspectorTeam MotorParkInspector[]
 
   @@index([applicationStatus])
   @@index([permitStatus])
   @@index([contactUserId])
   @@index([nextRevalidationDue])
   @@index([lga]) // Enables Commissioner "search by LGA" (report item 8)
+}
+
+/// The inspection team for a motor park's own site visit — the lead files the
+/// checklist, findings and evidence; everyone else leaves a comment the HOD
+/// reads before recommending. Mirrors TerminalInspector/RevalidationInspector.
+model MotorParkInspector {
+  id          String    @id @default(cuid())
+  parkId      String
+  userId      String
+  isLead      Boolean   @default(false)
+  comment     String?   @db.Text
+  commentedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  park MotorPark @relation(fields: [parkId], references: [id], onDelete: Cascade)
+  user User      @relation("MotorParkTeamMember", fields: [userId], references: [id])
+
+  @@unique([parkId, userId])
+  @@index([parkId])
+  @@index([userId])
 }
 
 enum ParkStaffStatus {
@@ -468,10 +533,10 @@ model Inspection {
   ///
   /// Optional on the model so existing inspections that predate the team are
   /// not invalidated; the schedule action requires both going forward.
-  leadUserId      String?
-  teamMemberIds   String[]
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  leadUserId    String?
+  teamMemberIds String[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relations
   assignedTo  User @relation("AssignedToInspector", fields: [assignedToUserId], references: [id])
@@ -630,16 +695,16 @@ model MassTransitCompany {
   terminalInspectionDueAt DateTime? // 5 working days per FR-023
 
   // Fees & PS Recommendation
-  assessedFeeAmount     Int? // in kobo
-  monthlyLevyAmount     Int? // in kobo
+  assessedFeeAmount        Int? // in kobo
+  monthlyLevyAmount        Int? // in kobo
   // ── Certificate terms (printed on the approval letter) ──
   // Match the revalidation flow so an officer moving between the two modules
   // learns one process. The Commissioner does not print the letter until
   // these are set, so `monthlyLevyAmount` alone is no longer the whole story.
-  previousMonthlyFeeAmount Int?      // kobo; set only when the fee was reviewed
+  previousMonthlyFeeAmount Int? // kobo; set only when the fee was reviewed
   effectiveFrom            DateTime?
   requiredFacilities       String?   @db.Text
-  psRecommendationNotes String? @db.Text
+  psRecommendationNotes    String?   @db.Text
 
   // Revalidation
   lastRevalidatedAt   DateTime?
@@ -747,9 +812,9 @@ model Terminal {
   adminStaffCount      Int?
   securityStaffCount   Int?
   otherStaffCount      Int?
-  securityArrangement  String?  @db.VarChar(50)
-  operationalStatus    String?  @db.VarChar(50)
-  dailyVehiclesCount   String?  @db.VarChar(50)
+  securityArrangement  String? @db.VarChar(50)
+  operationalStatus    String? @db.VarChar(50)
+  dailyVehiclesCount   String? @db.VarChar(50)
 
   // Status
   inspectionStatus InspectionStatus @default(SCHEDULED)
@@ -1893,10 +1958,10 @@ model TracasDriver {
 // Stage 2: VIN assignment — MOT/<LGA>/<Town>/<Serial><CategoryLetter> (designated staff)
 
 enum CvrVehicleCategory {
-  TRICYCLE    // Keke — VIN suffix K
+  TRICYCLE // Keke — VIN suffix K
   SHUTTLE_BUS
-  BUS         // VIN suffix B
-  TRUCK       // VIN suffix T
+  BUS // VIN suffix B
+  TRUCK // VIN suffix T
   MINIBUS
   OTHER
 }
@@ -1909,19 +1974,25 @@ enum CvrOperationType {
 
 enum CvrRegistrationStatus {
   DRAFT
-  REGISTERED  // Stage 1 complete
-  IDENTIFIED  // Stage 2 complete — VIN assigned
+  REGISTERED // Stage 1 complete
+  IDENTIFIED // Stage 2 complete — VIN assigned
 }
 
 /// Preloaded Local Government Areas.
 /// Seeded from ANAMBRA_LGAS in lib/consts.ts, expandable to other states.
 model CvrLga {
-  id    String @id @default(cuid())
-  name  String
-  state String @default("Anambra")
+  id           String  @id @default(cuid())
+  name         String
+  state        String  @default("Anambra")
+  /// Short code printed in generated numbers (VIN, towing permit) instead of
+  /// the full name — "Idemili North" on a permit is too long to read off a
+  /// vehicle at a glance. 3 letters, unique; the third letter carries the
+  /// compass direction for LGAs that split North/South/East/West.
+  abbreviation String? @db.VarChar(10)
 
-  towns    CvrTown[]
-  vehicles CvrVehicle[]
+  towns      CvrTown[]
+  vehicles   CvrVehicle[]
+  towingVans TowingVan[]
 
   @@unique([name, state])
   @@index([state])
@@ -1934,9 +2005,9 @@ model CvrTown {
   state String @default("Anambra")
   lgaId String
 
-  lga        CvrLga     @relation(fields: [lgaId], references: [id])
-  fromRoutes CvrRoute[] @relation("RouteFromTown")
-  toRoutes   CvrRoute[] @relation("RouteToTown")
+  lga        CvrLga       @relation(fields: [lgaId], references: [id])
+  fromRoutes CvrRoute[]   @relation("RouteFromTown")
+  toRoutes   CvrRoute[]   @relation("RouteToTown")
   vehicles   CvrVehicle[]
 
   @@unique([name, lgaId])
@@ -1999,8 +2070,8 @@ model CvrVehicle {
   // ── Stage 2: Vehicle Identification Number ──
   // Format: MOT/<LGA>/<Town>/<serial padded to 3><CategoryLetter>
   // Example: MOT/Awka South/Awka/001B
-  vin           String?               @unique
-  vinAssignedAt DateTime?
+  vin                 String?   @unique
+  vinAssignedAt       DateTime?
   vinAssignedByUserId String?
 
   // ── Registration Status ──
@@ -2057,4 +2128,150 @@ model CvrDriver {
 
   @@index([capturedByUserId])
   @@index([phoneNumber])
+}
+
+/// A towing van: vehicle + operator (the registered keeper, standing in for
+/// "owner") + an optional assistant. Registration and the Anambra State
+/// Towing Permit are two separate steps — the permit is only issued once the
+/// Commissioner (or PS) signs off, it is not automatic on registration.
+model TowingVan {
+  id String @id @default(cuid())
+
+  // ── Vehicle ──
+  plateNumber   String  @unique
+  chassisNumber String? @unique
+  /// Free text: keke, bus, truck, lorry, van, etc. No fixed category letter —
+  /// towing vans are numbered with a plain serial, unlike CVR's category suffix.
+  vehicleType   String  @db.VarChar(80)
+  make          String?
+  model         String?
+  color         String?
+  stickerNumber String? @db.VarChar(100)
+
+  // ── Operator (replaces "owner") ──
+  operatorName    String
+  operatorPhone   String
+  operatorAddress String? @db.Text
+  operatorGender  String? @db.VarChar(10)
+
+  // ── Assistant (optional) ──
+  hasAssistant   Boolean @default(false)
+  assistantName  String?
+  assistantPhone String?
+
+  // ── Association membership ──
+  associationMember Boolean @default(false)
+  associationName   String?
+
+  // ── Area of operation — LGA only, no interstate/intrastate split ──
+  lgaId String?
+  lga   CvrLga? @relation(fields: [lgaId], references: [id])
+
+  // ── Permit ──
+  /// Format: ANS-MOT-TOW/<LGA>/<serial padded to 3>, assigned on issue.
+  permitNumber   String?   @unique
+  permitIssuedAt DateTime?
+  issuedByUserId String?
+
+  status TowingVanStatus @default(REGISTERED)
+
+  // ── Audit ──
+  capturedByUserId String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([status])
+  @@index([lgaId])
+  @@index([capturedByUserId])
+}
+
+enum TowingVanStatus {
+  REGISTERED
+  PERMIT_ISSUED
+}
+
+/// A logistics applicant: either a company with several vehicles, or an
+/// individual with their own single vehicle. One approval chain per
+/// applicant — HOD Operations sets the monthly fee and recommends, the PS
+/// approves, the Commissioner gives the final sign-off. There is no HOD
+/// Parks Revalidation stage here, unlike mass transit and motor parks.
+///
+/// One letter template covers both: a company's letter is distributed to
+/// every one of its vehicles; an individual's letter speaks only of their
+/// one vehicle. Both exempt the vehicle(s) from Anambra livery and state the
+/// monthly fee.
+model LogisticsApplicant {
+  id String @id @default(cuid())
+
+  applicantType LogisticsApplicantType
+
+  // Company fields — set when applicantType = COMPANY
+  companyName String?
+  cacNumber   String? @unique
+
+  // Applies to both: the company's contact person, or the individual
+  // operator's own details.
+  contactPerson String
+  contactPhone  String
+  contactEmail  String?
+  address       String? @db.Text
+
+  /// Kobo. Set by HOD Operations at their review stage — there is no fixed
+  /// schedule, the Ministry sets it per applicant.
+  monthlyFeeAmount Int?
+
+  applicationStatus ApplicationStatus @default(SUBMITTED)
+  rejectionReason   String?           @db.Text
+
+  hodOpsRecommendation         String?   @db.Text
+  hodOpsApprovedAt             DateTime?
+  hodOpsApprovedByUserId       String?
+  psApprovedAt                 DateTime?
+  psApprovedByUserId           String?
+  commissionerApprovedAt       DateTime?
+  commissionerApprovedByUserId String?
+
+  /// Reference number printed on the letter, assigned on Commissioner
+  /// approval. Format: ANS-MOT-LOG-YYYY/#####.
+  permitNumber   String?   @unique
+  permitIssuedAt DateTime?
+
+  capturedByUserId String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  vehicles LogisticsVehicle[]
+
+  @@index([applicationStatus])
+  @@index([capturedByUserId])
+}
+
+enum LogisticsApplicantType {
+  COMPANY
+  INDIVIDUAL
+}
+
+/// A single logistics vehicle, declared on the application (company or
+/// individual) and carrying the same letter as its applicant, with its own
+/// plate number stated on it.
+model LogisticsVehicle {
+  id String @id @default(cuid())
+
+  applicantId String
+  applicant   LogisticsApplicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+
+  plateNumber   String  @unique
+  /// Tricycle, keke, bus, van, truck, lorry — anything above a bike. Bikes
+  /// are excluded; they already have their own waiver route.
+  vehicleType   String  @db.VarChar(80)
+  chassisNumber String? @unique
+  make          String?
+  model         String?
+  color         String?
+  stickerNumber String? @db.VarChar(100)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([applicantId])
 }

@@ -88,20 +88,24 @@ const CATEGORY_LETTER: Record<CvrVehicleCategory, string> = {
 
 /**
  * Generates the next VIN for the given LGA, Town and category.
- * Format: MOT/<LGA>/<Town>/<serial 3-padded><categoryLetter>
- * e.g. MOT/Awka South/Awka/001B
+ * Format: MOT/<LGA abbreviation>/<Town>/<serial 3-padded><categoryLetter>
+ * e.g. MOT/AWS/Awka/001B
+ *
+ * The LGA is abbreviated — "Idemili North" on a printed VIN is too long to
+ * read off a vehicle at a glance, and some LGAs run longer still. Town is
+ * still spelled out; abbreviating LGAs only was the specific ask.
  *
  * Serial is scoped to (LGA, Town, category letter) so each combination
  * restarts at 001. The next number is derived from existing VINs to keep
  * things consistent even after manual corrections.
  */
 async function generateVin(
-  lgaName: string,
+  lgaAbbr: string,
   townName: string,
   category: CvrVehicleCategory,
 ): Promise<string> {
   const letter = CATEGORY_LETTER[category];
-  const prefix = `MOT/${lgaName}/${townName}/`;
+  const prefix = `MOT/${lgaAbbr}/${townName}/`;
   // Find the highest serial already in use for this prefix + letter
   const existing = await db.cvrVehicle.findMany({
     where: {
@@ -276,7 +280,11 @@ export async function assignCvrVin(vehicleId: string): Promise<
       return { success: false, error: "LGA or Town record could not be found." };
     }
 
-    const vin = await generateVin(vehicle.lga.name, vehicle.town.name, vehicle.category);
+    const vin = await generateVin(
+      vehicle.lga.abbreviation || vehicle.lga.name,
+      vehicle.town.name,
+      vehicle.category,
+    );
 
     await db.cvrVehicle.update({
       where: { id: vehicleId },

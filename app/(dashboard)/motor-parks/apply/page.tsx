@@ -46,8 +46,11 @@ type WizardData = DraftData;
 
 type StepErrors = Partial<Record<keyof WizardData, string>>;
 
+const FACILITY_TYPES = ["Public", "Private", "Loading Bay"] as const;
+
 const EMPTY: WizardData = {
   businessName: "",
+  facilityType: "Public",
   transportCompanyName: "",
   cacRegistrationNumber: "",
   anssidNumber: "",
@@ -668,6 +671,7 @@ export default function ApplyMotorParkPage() {
     setSubmitError(null);
     const fd = new globalThis.FormData();
     fd.append("businessName", data.businessName);
+    fd.append("facilityType", data.facilityType);
     if (data.transportCompanyName)
       fd.append("transportCompanyName", data.transportCompanyName);
     if (data.cacRegistrationNumber)
@@ -967,6 +971,24 @@ export default function ApplyMotorParkPage() {
                 placeholder="e.g. Awka Central Motor Park"
                 className={errors.businessName ? "border-destructive" : ""}
               />
+            </Field>
+
+            <Field
+              id="facilityType"
+              label="Type of Facility"
+              required
+              hint="A loading bay is a site used for loading/offloading that does not meet the standard of a motor park.">
+              <select
+                id="facilityType"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={data.facilityType}
+                onChange={(e) => set("facilityType", e.target.value)}>
+                {FACILITY_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
             </Field>
 
             <Field

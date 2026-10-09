@@ -23,16 +23,14 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { isRevalidation } from "@/lib/application-type";
 import { createRevalidationFromApplication } from "@/lib/revalidation-from-application";
-import { SCHEDULE_ROLES } from "@/lib/workflow-roles";
 import { getNumberSetting } from "@/lib/system-config";
-import { sendInspectionApprovalNotification } from "@/lib/email";
 import {
   requireAuth,
   requireRole,
   requireExecutive,
-  canScheduleInspections,
   canPerformInspections,
   canIssuePermits,
+  authorize,
 } from "@/lib/auth";
 import { uploadDocument } from "@/lib/spaces";
 import {
@@ -40,7 +38,6 @@ import {
   motorParkFieldCaptureSchema,
   motorParkStatusUpdateSchema,
   motorParkFeeRecordSchema,
-  inspectionScheduleSchema,
   inspectionChecklistResultSchema,
 } from "@/lib/validation-schemas";
 import type { ActionResult } from "@/lib/server-actions-pattern";
@@ -75,6 +72,7 @@ export async function submitParkApplication(
 
   const raw = {
     businessName: getCleanString(formData.get("businessName"), true),
+    facilityType: getCleanString(formData.get("facilityType")),
     transportCompanyName: getCleanString(formData.get("transportCompanyName")),
     streetAddress: getCleanString(formData.get("streetAddress"), true),
     lga: getCleanString(formData.get("lga"), true),
@@ -84,31 +82,30 @@ export async function submitParkApplication(
       formData.get("cacRegistrationNumber"),
     ),
     anssidNumber: getCleanString(formData.get("anssidNumber"), true),
-    contactPerson: getCleanString(formData.get("contactPerson"), true),
-    contactPhone: getCleanString(formData.get("contactPhone"), true),
-    contactEmail: getCleanString(formData.get("contactEmail"), true),
+    // These are all relaxed to optional for a field capture (see
+    // motorParkFieldCaptureSchema below), but forcing them required here
+    // turned a blank field into "" instead of undefined — and an empty
+    // string still fails .min(), optional() or not. The enumerator could
+    // not submit with the owner's details left blank, exactly what field
+    // capture is for.
+    contactPerson: getCleanString(formData.get("contactPerson")),
+    contactPhone: getCleanString(formData.get("contactPhone")),
+    contactEmail: getCleanString(formData.get("contactEmail")),
     managerResidentialAddress: getCleanString(
       formData.get("managerResidentialAddress"),
     ),
     nextOfKinName: getCleanString(formData.get("nextOfKinName")),
     nextOfKinPhone: getCleanString(formData.get("nextOfKinPhone")),
-    landOwnershipDocId: getCleanString(
-      formData.get("landOwnershipDocId"),
-      true,
-    ),
-    cacDocumentId: getCleanString(formData.get("cacDocumentId"), true),
+    landOwnershipDocId: getCleanString(formData.get("landOwnershipDocId")),
+    cacDocumentId: getCleanString(formData.get("cacDocumentId")),
     corporateAsinDocumentId: getCleanString(
       formData.get("corporateAsinDocumentId"),
     ),
-    toiletPhotoId: getCleanString(formData.get("toiletPhotoId"), true),
-    waitingAreaPhotoId: getCleanString(
-      formData.get("waitingAreaPhotoId"),
-      true,
-    ),
-    signagePhotoId: getCleanString(formData.get("signagePhotoId"), true),
+    toiletPhotoId: getCleanString(formData.get("toiletPhotoId")),
+    waitingAreaPhotoId: getCleanString(formData.get("waitingAreaPhotoId")),
+    signagePhotoId: getCleanString(formData.get("signagePhotoId")),
     waterFacilityPhotoId: getCleanString(
       formData.get("waterFacilityPhotoId"),
-      true,
     ),
     cctvPhotoId: getCleanString(formData.get("cctvPhotoId")),
   };
@@ -147,6 +144,7 @@ export async function submitParkApplication(
       physicalLocation: data.streetAddress,
       townCommunity: data.townCity,
       lga: data.lga,
+      facilityType: data.facilityType,
     });
     if (!seeded.success) return { success: false, error: seeded.error };
 
@@ -183,6 +181,7 @@ export async function submitParkApplication(
   const motorPark = await db.motorPark.create({
     data: {
       businessName: data.businessName,
+      facilityType: data.facilityType ?? null,
       transportCompanyName: data.transportCompanyName,
       streetAddress: data.streetAddress,
       lga: data.lga,
@@ -210,7 +209,9 @@ export async function submitParkApplication(
       signagePhotoId: data.signagePhotoId,
       waterFacilityPhotoId: data.waterFacilityPhotoId,
       cctvPhotoId: data.cctvPhotoId,
-      applicationStatus: isFieldCapture ? "DRAFT" : "SUBMITTED",
+      // A field capture goes straight to the HOD queue; the owner details are
+      // completed afterwards by the HOD, not before submission.
+      applicationStatus: "SUBMITTED",
     },
     select: { id: true },
   });
@@ -268,6 +269,7 @@ export type MotorParkListItem = {
   nextRevalidationDue: Date | null;
   contactPerson: string;
   contactPhone: string;
+  staffCount: number;
   fees: Array<{
     id: string;
     amount: number;
@@ -378,6 +380,7 @@ export async function listMotorParks(filters?: {
             status: "PENDING",
           },
         },
+        _count: { select: { parkStaff: true } },
       },
     }),
     db.motorPark.count({ where }),
@@ -392,6 +395,8 @@ export async function listMotorParks(filters?: {
         streetAddress: undefined,
         lga: undefined,
         townCity: undefined,
+        staffCount: p._count.parkStaff,
+        _count: undefined,
       })) as MotorParkListItem[],
       total,
     },
@@ -441,6 +446,28 @@ export type MotorParkDetail = {
   signagePhotoId: string | null;
   waterFacilityPhotoId: string | null;
   cctvPhotoId: string | null;
+  facilitiesAvailable: unknown;
+  maintainsManifest: boolean | null;
+  operatorsRegistered: boolean | null;
+  paymentsUpToDate: boolean | null;
+  safetySignages: boolean | null;
+  pendingSanctions: boolean | null;
+  sanctionDetails: string | null;
+  managementStaffCount: number | null;
+  adminStaffCount: number | null;
+  securityStaffCount: number | null;
+  otherStaffCount: number | null;
+  securityArrangement: string | null;
+  operationalStatus: string | null;
+  dailyVehiclesCount: string | null;
+  nearPublicPark: boolean | null;
+  publicParkDistanceM: number | null;
+  nearMajorRoad: boolean | null;
+  majorRoadDistanceM: number | null;
+  nearIntersection: boolean | null;
+  intersectionDistanceM: number | null;
+  proximityVerdict: string | null;
+  proximityNotes: string | null;
   documents: {
     cac?: ParkDocument;
     land?: ParkDocument;
@@ -513,6 +540,12 @@ export type MotorParkDetail = {
     lastName: string;
     email: string | null;
   } | null;
+  inspectorTeam: {
+    userId: string;
+    isLead: boolean;
+    comment: string | null;
+    user: { firstName: string; lastName: string };
+  }[];
   inspections: {
     id: string;
     inspectionType: string;
@@ -522,6 +555,8 @@ export type MotorParkDetail = {
     completedAt: Date | null;
     overallAssessment: string | null;
     recommendedAction: string | null;
+    inspectionChecklist: unknown;
+    evidenceUrls: unknown;
     checklist: {
       id: string;
       isCompliant: boolean;
@@ -599,8 +634,39 @@ export async function getMotorPark(
       waitingAreaPhotoId: true,
       signagePhotoId: true,
       waterFacilityPhotoId: true,
+      facilitiesAvailable: true,
+      maintainsManifest: true,
+      operatorsRegistered: true,
+      paymentsUpToDate: true,
+      safetySignages: true,
+      pendingSanctions: true,
+      sanctionDetails: true,
+      managementStaffCount: true,
+      adminStaffCount: true,
+      securityStaffCount: true,
+      otherStaffCount: true,
+      securityArrangement: true,
+      operationalStatus: true,
+      dailyVehiclesCount: true,
+      nearPublicPark: true,
+      publicParkDistanceM: true,
+      nearMajorRoad: true,
+      majorRoadDistanceM: true,
+      nearIntersection: true,
+      intersectionDistanceM: true,
+      proximityVerdict: true,
+      proximityNotes: true,
       applicant: {
         select: { id: true, firstName: true, lastName: true, email: true },
+      },
+      inspectorTeam: {
+        select: {
+          userId: true,
+          isLead: true,
+          comment: true,
+          user: { select: { firstName: true, lastName: true } },
+        },
+        orderBy: { isLead: "desc" },
       },
       inspections: {
         select: {
@@ -611,6 +677,8 @@ export async function getMotorPark(
           completedAt: true,
           overallAssessment: true,
           recommendedAction: true,
+          inspectionChecklist: true,
+          evidenceUrls: true,
           assignedTo: { select: { firstName: true, lastName: true } },
           checklist: {
             select: {
@@ -728,52 +796,72 @@ export async function getMotorPark(
  * FR-011: HOD Parks (or above) schedules an inspection.
  * Creates Inspection record and moves park status to INSPECTION_SCHEDULED.
  */
+const MOTOR_PARK_MIN_TEAM = 2;
+const MOTOR_PARK_MAX_TEAM = 4;
+
+/**
+ * HOD Operations schedules the inspection team — same pattern as mass
+ * transit and revalidation: a lead plus 1-3 other officers, the date, and
+ * where they meet. The visit goes straight to SCHEDULED; there is no longer
+ * a separate "PS clears the schedule" step before the site visit happens.
+ */
 export async function scheduleParkInspection(
   prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult<{ inspectionId: string }>> {
-  // Only the HOD of Operations schedules inspections. This previously
-  // accepted any authenticated caller.
-  const session = await requireRole([...SCHEDULE_ROLES]);
+  const authz = await authorize(["HOD_TRANSPORT_OPS", "SYSTEM_ADMIN"]);
+  if (!authz.ok) return { success: false, error: authz.error };
+  const session = authz.session;
 
-  if (!canScheduleInspections(session.role)) {
+  const parkId = formData.get("parkId") as string;
+  const inspectionType = (formData.get("inspectionType") as string) || "INITIAL";
+  const scheduledDateRaw = formData.get("scheduledDate") as string;
+  const inspectorStationLocation =
+    (formData.get("inspectorStationLocation") as string) || null;
+  const leadId = formData.get("leadId") as string;
+  const memberIdsRaw = formData.getAll("memberIds").map(String).filter(Boolean);
+
+  if (!parkId) return { success: false, error: "Park ID required" };
+
+  const scheduledDate = new Date(scheduledDateRaw);
+  if (Number.isNaN(scheduledDate.getTime()) || scheduledDate <= new Date()) {
+    return { success: false, error: "Choose an inspection date in the future." };
+  }
+
+  // The HOD always attends, whether or not they ticked their own name.
+  const team = Array.from(new Set([...memberIdsRaw, session.userId])).filter(Boolean);
+
+  if (team.length < MOTOR_PARK_MIN_TEAM) {
     return {
       success: false,
-      error: "Insufficient permissions to schedule inspections",
+      error: `An inspection needs at least ${MOTOR_PARK_MIN_TEAM} officers - select at least one besides yourself.`,
+    };
+  }
+  if (team.length > MOTOR_PARK_MAX_TEAM) {
+    return {
+      success: false,
+      error: `An inspection team may hold at most ${MOTOR_PARK_MAX_TEAM} officers (you are counted automatically).`,
+    };
+  }
+  if (!leadId || !team.includes(leadId)) {
+    return {
+      success: false,
+      error: "The lead inspector must be one of the selected officers.",
     };
   }
 
-  const raw = {
-    linkedEntityType: "MOTOR_PARK",
-    linkedEntityId: formData.get("parkId"),
-    inspectionType: formData.get("inspectionType") ?? "INITIAL",
-    scheduledDate: formData.get("scheduledDate"),
-    assignedToUserId: formData.get("assignedToUserId"),
-    inspectorStationLocation:
-      formData.get("inspectorStationLocation") || undefined,
-  };
-
-  const parsed = inspectionScheduleSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0].message };
+  const found = await db.user.count({ where: { id: { in: team }, isActive: true } });
+  if (found !== team.length) {
+    return { success: false, error: "One or more selected officers are invalid." };
   }
 
-  const data = parsed.data;
-
-  // Verify the park exists
   const park = await db.motorPark.findUnique({
-    where: { id: data.linkedEntityId },
+    where: { id: parkId },
     select: { id: true, applicationStatus: true, businessName: true },
   });
-
   if (!park) return { success: false, error: "Motor park not found" };
 
-  // Can only schedule inspection if application is SUBMITTED or UNDER_REVIEW
-  const schedulableStatuses = [
-    "SUBMITTED",
-    "UNDER_REVIEW",
-    "INSPECTION_COMPLETED",
-  ];
+  const schedulableStatuses = ["SUBMITTED", "UNDER_REVIEW", "INSPECTION_COMPLETED"];
   if (!schedulableStatuses.includes(park.applicationStatus)) {
     return {
       success: false,
@@ -781,225 +869,278 @@ export async function scheduleParkInspection(
     };
   }
 
-  const [inspection, inspectorUser] = await Promise.all([
-    db.inspection.create({
-      data: {
-        inspectionType: data.inspectionType,
-        linkedEntityType: data.linkedEntityType,
-        linkedEntityId: data.linkedEntityId,
-        motorParkId: data.linkedEntityId,
-        scheduledDate: data.scheduledDate,
-        scheduledByUserId: session.userId,
-        assignedToUserId: data.assignedToUserId,
-        inspectorStationLocation: data.inspectorStationLocation,
-        status: "PENDING_PS_APPROVAL",
-        completedByUserId: data.assignedToUserId, // Will be overwritten on completion
-      },
-      select: { id: true },
-    }),
-    db.user.findUnique({
-      where: { id: data.assignedToUserId },
-      select: { firstName: true, lastName: true },
+  const inspection = await db.inspection.create({
+    data: {
+      inspectionType,
+      linkedEntityType: "MOTOR_PARK",
+      linkedEntityId: parkId,
+      motorParkId: parkId,
+      scheduledDate,
+      scheduledByUserId: session.userId,
+      assignedToUserId: leadId,
+      inspectorStationLocation,
+      status: "SCHEDULED",
+      completedByUserId: leadId, // overwritten on completion
+    },
+    select: { id: true },
+  });
+
+  await db.$transaction([
+    db.motorParkInspector.deleteMany({ where: { parkId } }),
+    db.motorParkInspector.createMany({
+      data: team.map((userId) => ({
+        parkId,
+        userId,
+        isLead: userId === leadId,
+      })),
     }),
     db.motorPark.update({
-      where: { id: data.linkedEntityId },
-      data: {
-        applicationStatus: "INSPECTION_SCHEDULED",
-        firstInspectionId:
-          data.inspectionType === "INITIAL" ? undefined : undefined,
-      },
+      where: { id: parkId },
+      data: { applicationStatus: "INSPECTION_SCHEDULED" },
     }),
     db.auditLog.create({
       data: {
         performedByUserId: session.userId,
-        action: "INSPECTION_SCHEDULED_PENDING_PS_APPROVAL",
+        action: "INSPECTION_SCHEDULED",
         entityType: "MOTOR_PARK",
-        entityId: data.linkedEntityId,
-        changeDescription: `${data.inspectionType} inspection scheduled for ${data.scheduledDate} (Pending PS Approval)`,
+        entityId: parkId,
+        changeDescription: `${inspectionType} inspection scheduled for ${park.businessName} on ${scheduledDate.toDateString()} - ${team.length} officers, lead assigned`,
       },
     }),
   ]);
 
-  // Dispatch email notification to Permanent Secretary
-  try {
-    const [inspectorUser, schedulerUser] = await Promise.all([
-      db.user.findUnique({
-        where: { id: data.assignedToUserId },
-        select: { firstName: true, lastName: true },
-      }),
-      db.user.findUnique({
-        where: { id: session.userId },
-        select: { firstName: true, lastName: true, role: true },
-      }),
-    ]);
-    const inspectorName = inspectorUser ? `${inspectorUser.firstName} ${inspectorUser.lastName}` : "Assigned Inspector";
-    const scheduledByName = schedulerUser ? `${schedulerUser.firstName} ${schedulerUser.lastName}` : `HOD (${session.role})`;
-    await sendInspectionApprovalNotification({
-      entityName: park.businessName,
-      entityType: "Motor Park",
-      scheduledDate: data.scheduledDate,
-      inspectorName,
-      scheduledByName,
-      entityUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://mot.anambra.gov.ng"}/motor-parks/${park.id}`,
-    });
-  } catch (emailErr) {
-    console.error("Failed to send PS email notification for scheduled inspection:", emailErr);
-  }
-
-  revalidatePath(`/motor-parks/${data.linkedEntityId}`);
+  revalidatePath(`/motor-parks/${parkId}`);
   revalidatePath("/motor-parks");
   revalidatePath("/inspections");
 
   return { success: true, data: { inspectionId: inspection.id } };
 }
 
-// ==================== INSPECTION EXECUTION (FR-012, STORY-024) ====================
-
-/**
- * FR-012: Field inspector submits inspection checklist results and overall assessment.
- * Moves inspection status to COMPLETED, park to INSPECTION_COMPLETED.
- */
-export async function submitInspectionReport(
-  prevState: ActionResult,
-  formData: FormData,
+/** A team member who is not the lead records what they saw. */
+export async function commentOnMotorParkInspection(
+  parkId: string,
+  comment: string,
 ): Promise<ActionResult> {
   const session = await requireAuth();
 
-  if (!canPerformInspections(session.role)) {
+  if (!comment?.trim()) {
+    return { success: false, error: "Write what you saw before saving." };
+  }
+
+  const member = await db.motorParkInspector.findUnique({
+    where: { parkId_userId: { parkId, userId: session.userId } },
+  });
+  if (!member) {
+    return { success: false, error: "You are not on this inspection's team." };
+  }
+
+  await db.motorParkInspector.update({
+    where: { id: member.id },
+    data: { comment: comment.trim(), commentedAt: new Date() },
+  });
+
+  revalidatePath(`/motor-parks/${parkId}`);
+  return { success: true };
+}
+
+// ==================== INSPECTION EXECUTION (FR-012, STORY-024) ====================
+
+/**
+ * The lead inspector files the report. Only the lead does this — the others
+ * comment (see commentOnMotorParkInspection). Matches mass transit and
+ * revalidation's own inspection report exactly: a declared-vs-found
+ * checklist (Sections A-D, F, G), findings, and required site evidence —
+ * this replaces the old scored AN/MOT/40/29 checklist entirely.
+ */
+export interface ProximityEvaluationInput {
+  nearPublicPark: boolean;
+  publicParkDistanceM?: number | null;
+  nearMajorRoad: boolean;
+  majorRoadDistanceM?: number | null;
+  nearIntersection: boolean;
+  intersectionDistanceM?: number | null;
+  verdict: "PASS" | "CONDITIONAL" | "FAIL";
+  notes?: string | null;
+}
+
+export async function submitInspectionReport(
+  parkId: string,
+  input: {
+    findings: string;
+    checklist?: unknown;
+    evidenceUrls?: unknown;
+    proximity?: ProximityEvaluationInput;
+  },
+): Promise<ActionResult> {
+  const session = await requireAuth();
+
+  if (!input.findings?.trim()) {
+    return { success: false, error: "Record what was found at the site." };
+  }
+  if (!Array.isArray(input.evidenceUrls) || input.evidenceUrls.length === 0) {
     return {
       success: false,
-      error: "Only field inspectors can submit inspection reports",
+      error: "Upload at least one piece of site evidence before filing.",
     };
   }
 
-  const inspectionId = formData.get("inspectionId") as string;
-  const overallAssessment = formData.get("overallAssessment") as string;
-  const recommendedAction = formData.get("recommendedAction") as string;
-  const checklistJson = formData.get("checklistItems") as string;
-
-  if (!inspectionId) return { success: false, error: "Inspection ID required" };
-  if (!overallAssessment)
-    return { success: false, error: "Overall assessment required" };
-  if (!["APPROVE", "REJECT", "CONDITIONAL"].includes(recommendedAction)) {
-    return { success: false, error: "Invalid recommended action" };
-  }
-
-  const inspection = await db.inspection.findUnique({
-    where: { id: inspectionId },
+  const park = await db.motorPark.findUnique({
+    where: { id: parkId },
     select: {
-      id: true,
-      status: true,
-      linkedEntityId: true,
-      assignedToUserId: true,
-      motorParkId: true,
+      applicationStatus: true,
+      businessName: true,
+      inspectorTeam: { select: { userId: true, isLead: true } },
     },
   });
+  if (!park) return { success: false, error: "Motor park not found." };
 
-  if (!inspection) return { success: false, error: "Inspection not found" };
-  if (inspection.status === "COMPLETED") {
-    return { success: false, error: "Inspection already completed" };
+  const isLead = park.inspectorTeam.some(
+    (m) => m.userId === session.userId && m.isLead,
+  );
+  if (!isLead && session.role !== "SYSTEM_ADMIN") {
+    return {
+      success: false,
+      error:
+        "Only the lead inspector files the report. If you attended, leave a comment instead.",
+    };
   }
 
-  // Field inspectors can only complete their own assigned inspections
-  if (
-    session.role === "FIELD_INSPECTOR" &&
-    inspection.assignedToUserId !== session.userId
-  ) {
-    return { success: false, error: "You are not assigned to this inspection" };
+  if (park.applicationStatus !== "INSPECTION_SCHEDULED") {
+    return {
+      success: false,
+      error: `No inspection is outstanding for this park (currently ${park.applicationStatus}).`,
+    };
   }
 
-  // Parse checklist items from JSON
-  let checklistItems: Array<{
-    checklistItemId: string;
-    isCompliant: boolean;
-    notes?: string;
-    photoUrls?: string;
-    score?: number;
-  }> = [];
-
-  if (checklistJson) {
-    try {
-      checklistItems = JSON.parse(checklistJson);
-    } catch {
-      return { success: false, error: "Invalid checklist data format" };
-    }
-  }
+  const inspection = await db.inspection.findFirst({
+    where: { linkedEntityType: "MOTOR_PARK", linkedEntityId: parkId },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
 
   const now = new Date();
 
-  // Create checklist results and update inspection in one transaction
-  await db.$transaction(async (tx) => {
-    // Delete existing checklist results first to prevent duplicates or constraint errors
-    await tx.inspectionChecklistResult.deleteMany({
-      where: { inspectionId },
-    });
-
-    // Insert checklist results
-    if (checklistItems.length > 0) {
-      await tx.inspectionChecklistResult.createMany({
-        data: checklistItems.map((item) => ({
-          inspectionId,
-          checklistItemId: item.checklistItemId,
-          isCompliant: item.isCompliant,
-          notes: item.notes || null,
-          photoUrls: item.photoUrls || null,
-          score: item.score !== undefined ? item.score : null,
-          recordedAt: now,
-          recordedByUserId: session.userId,
-        })),
-      });
-    }
-
-    // Update inspection
-    await tx.inspection.update({
-      where: { id: inspectionId },
+  if (inspection) {
+    await db.inspection.update({
+      where: { id: inspection.id },
       data: {
         status: "COMPLETED",
-        overallAssessment,
-        recommendedAction,
-        completedAt: now,
         completedByUserId: session.userId,
+        overallAssessment: input.findings.trim(),
         inspectionEndTime: now,
+        ...(input.checklist ? { inspectionChecklist: input.checklist as never } : {}),
+        ...(input.evidenceUrls ? { evidenceUrls: input.evidenceUrls as never } : {}),
       },
     });
+  }
 
-    // Update motor park status to PENDING_HOD_APPROVAL for HOD review
-    if (inspection.motorParkId) {
-      await tx.motorPark.update({
-        where: { id: inspection.motorParkId },
-        data: { applicationStatus: "PENDING_HOD_APPROVAL" },
-      });
-    }
-
-    // Audit log
-    await tx.auditLog.create({
-      data: {
-        performedByUserId: session.userId,
-        action: "INSPECTION_REPORT_SUBMITTED",
-        entityType: "INSPECTION",
-        entityId: inspectionId,
-        changeDescription: `Inspection completed. Recommendation: ${recommendedAction}`,
-      },
-    });
+  // The report is filed; HOD Operations has not recommended yet, so this
+  // goes to INSPECTION_COMPLETED, not straight to PENDING_HOD_APPROVAL. The
+  // proximity verdict is recorded alongside it as a finding, not as its own
+  // status change — a FAIL does not auto-reject, HOD Operations weighs it
+  // like everything else on the report.
+  const p = input.proximity;
+  await db.motorPark.update({
+    where: { id: parkId },
+    data: {
+      applicationStatus: "INSPECTION_COMPLETED",
+      ...(p && {
+        nearPublicPark: p.nearPublicPark,
+        publicParkDistanceM: p.publicParkDistanceM ?? null,
+        nearMajorRoad: p.nearMajorRoad,
+        majorRoadDistanceM: p.majorRoadDistanceM ?? null,
+        nearIntersection: p.nearIntersection,
+        intersectionDistanceM: p.intersectionDistanceM ?? null,
+        proximityVerdict: p.verdict,
+        proximityNotes: p.notes?.trim() || null,
+      }),
+    },
   });
 
-  if (inspection.motorParkId) {
-    revalidatePath(`/motor-parks/${inspection.motorParkId}`);
-  }
+  await db.auditLog.create({
+    data: {
+      performedByUserId: session.userId,
+      action: "INSPECTION_REPORT_SUBMITTED",
+      entityType: "MOTOR_PARK",
+      entityId: parkId,
+      changeDescription: `Inspection filed for ${park.businessName}`,
+    },
+  });
+
+  revalidatePath(`/motor-parks/${parkId}`);
   revalidatePath("/motor-parks");
 
   return { success: true };
 }
 
-// ==================== WORKFLOW APPROVALS (HOD -> PS -> COMMISSIONER) ====================
+// ==================== WORKFLOW APPROVALS (HOD Ops -> HOD Reval -> PS -> COMMISSIONER) ====================
 
 /**
- * HOD Parks reviews inspection report and approves to Permanent Secretary.
+ * HOD of Operations records a recommendation on the filed inspection report
+ * and forwards to HOD Parks Revalidation. Matches mass transit and
+ * revalidation's own chain — this used to go straight from the inspection to
+ * a single HOD stage, with no written recommendation required.
+ */
+export async function hodOpsRecommendMotorPark(
+  parkId: string,
+  recommendation: string,
+): Promise<ActionResult> {
+  const authz = await authorize(["HOD_TRANSPORT_OPS", "SYSTEM_ADMIN"]);
+  if (!authz.ok) return { success: false, error: authz.error };
+
+  if (!recommendation?.trim()) {
+    return { success: false, error: "Write your recommendation before forwarding." };
+  }
+
+  const park = await db.motorPark.findUnique({
+    where: { id: parkId },
+    select: { id: true, applicationStatus: true, businessName: true },
+  });
+  if (!park) return { success: false, error: "Motor park not found" };
+
+  if (park.applicationStatus !== "INSPECTION_COMPLETED") {
+    return {
+      success: false,
+      error: `The inspection report is not ready for your recommendation (currently ${park.applicationStatus}).`,
+    };
+  }
+
+  const now = new Date();
+  await db.$transaction(async (tx) => {
+    await tx.motorPark.update({
+      where: { id: parkId },
+      data: {
+        applicationStatus: "PENDING_HOD_APPROVAL",
+        hodOpsRecommendation: recommendation.trim(),
+        hodOpsApprovedAt: now,
+        hodOpsApprovedByUserId: authz.session.userId,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        performedByUserId: authz.session.userId,
+        action: "HOD_OPS_RECOMMENDED_MOTOR_PARK",
+        entityType: "MOTOR_PARK",
+        entityId: parkId,
+        changeDescription: `HOD Operations recommended ${park.businessName}; forwarded to HOD Parks Revalidation`,
+      },
+    });
+  });
+
+  revalidatePath(`/motor-parks/${parkId}`);
+  revalidatePath("/motor-parks");
+  return { success: true };
+}
+
+/**
+ * HOD Parks Revalidation reviews HOD Operations' recommendation and signs
+ * off to the Permanent Secretary.
  */
 export async function hodApproveMotorPark(
   parkId: string,
 ): Promise<ActionResult> {
-  await requireRole(["HOD_PARKS", "HOD_PARKS_REVALIDATION", "SYSTEM_ADMIN"]);
+  await requireRole(["HOD_PARKS_REVALIDATION", "SYSTEM_ADMIN"]);
   const session = await requireAuth();
 
   const park = await db.motorPark.findUnique({
@@ -1009,8 +1150,9 @@ export async function hodApproveMotorPark(
 
   if (!park) return { success: false, error: "Motor park not found" };
 
-  const validStatuses = ["PENDING_HOD_APPROVAL", "INSPECTION_COMPLETED"];
-  if (!validStatuses.includes(park.applicationStatus)) {
+  // INSPECTION_COMPLETED was accepted here too, which let an application
+  // reach this desk without HOD Operations ever recommending it.
+  if (park.applicationStatus !== "PENDING_HOD_APPROVAL") {
     return {
       success: false,
       error: `Cannot approve — current status is ${park.applicationStatus}.`,
@@ -1033,7 +1175,7 @@ export async function hodApproveMotorPark(
         action: "HOD_APPROVED_MOTOR_PARK",
         entityType: "MOTOR_PARK",
         entityId: parkId,
-        changeDescription: `HOD reviewed inspection report and signed off application to Permanent Secretary for ${park.businessName}`,
+        changeDescription: `HOD Parks Revalidation reviewed and signed off application to Permanent Secretary for ${park.businessName}`,
       },
     });
   });
@@ -1061,8 +1203,9 @@ export async function psApproveMotorPark(
 
   if (!park) return { success: false, error: "Motor park not found" };
 
-  const validStatuses = ["PENDING_PS_APPROVAL", "INSPECTION_COMPLETED"];
-  if (!validStatuses.includes(park.applicationStatus)) {
+  // INSPECTION_COMPLETED was accepted here too, which let an application
+  // reach the PS without either HOD having seen it.
+  if (park.applicationStatus !== "PENDING_PS_APPROVAL") {
     return {
       success: false,
       error: `Cannot approve — current status is ${park.applicationStatus}.`,
@@ -1124,6 +1267,80 @@ export async function psApproveMotorPark(
       },
     });
   });
+
+  revalidatePath(`/motor-parks/${parkId}`);
+  revalidatePath("/motor-parks");
+  return { success: true };
+}
+
+/**
+ * Return the application with a reason, from whichever stage the caller
+ * holds. There was no reject-with-reason action anywhere in this chain —
+ * the only way an application became REJECTED was an inspection verdict of
+ * FAIL, with no way for a HOD, the PS or the Commissioner to send it back.
+ */
+export async function rejectMotorPark(
+  parkId: string,
+  reason: string,
+): Promise<ActionResult> {
+  if (!reason?.trim()) {
+    return { success: false, error: "A reason is required — the operator needs to know what to fix." };
+  }
+
+  const authz = await authorize([
+    "HOD_TRANSPORT_OPS",
+    "HOD_PARKS_REVALIDATION",
+    "PERMANENT_SECRETARY",
+    "COMMISSIONER",
+    "SYSTEM_ADMIN",
+  ]);
+  if (!authz.ok) return { success: false, error: authz.error };
+
+  const park = await db.motorPark.findUnique({
+    where: { id: parkId },
+    select: { applicationStatus: true, businessName: true },
+  });
+  if (!park) return { success: false, error: "Motor park not found" };
+
+  const stageRole: Record<string, string> = {
+    INSPECTION_COMPLETED: "HOD_TRANSPORT_OPS",
+    PENDING_HOD_APPROVAL: "HOD_PARKS_REVALIDATION",
+    PENDING_PS_APPROVAL: "PERMANENT_SECRETARY",
+    PENDING_COMMISSIONER_APPROVAL: "COMMISSIONER",
+  };
+  const owner = stageRole[park.applicationStatus];
+  if (!owner) {
+    return {
+      success: false,
+      error: `This application cannot be rejected from ${park.applicationStatus}.`,
+    };
+  }
+  if (authz.session.role !== "SYSTEM_ADMIN" && authz.session.role !== owner) {
+    return { success: false, error: "This application is not at your stage." };
+  }
+
+  const text = reason.trim();
+  await db.$transaction([
+    db.motorPark.update({
+      where: { id: parkId },
+      data: {
+        applicationStatus: "REJECTED",
+        rejectionReason: text,
+        hodOpsApprovedAt: null,
+        hodApprovedAt: null,
+        psApprovedAt: null,
+      },
+    }),
+    db.auditLog.create({
+      data: {
+        performedByUserId: authz.session.userId,
+        action: "MOTOR_PARK_REJECTED",
+        entityType: "MOTOR_PARK",
+        entityId: parkId,
+        changeDescription: `${authz.session.role} rejected ${park.businessName}: ${text}`,
+      },
+    }),
+  ]);
 
   revalidatePath(`/motor-parks/${parkId}`);
   revalidatePath("/motor-parks");
@@ -1354,7 +1571,11 @@ export async function issueTemporalApproval(
   prevState: ActionResult,
   formData: FormData,
 ): Promise<ActionResult<{ parkId: string }>> {
-  await requireRole(["COMMISSIONER", "PERMANENT_SECRETARY"]);
+  // Commissioner only, and only once the full chain has run — this used to
+  // accept INSPECTION_COMPLETED or PENDING_APPROVAL, and the PS, which meant
+  // a temporal approval could be issued before HOD Operations, HOD Parks
+  // Revalidation or the PS had ever seen the application.
+  await requireRole(["COMMISSIONER"]);
   const session = await requireAuth();
 
   const parkId = formData.get("parkId") as string;
@@ -1369,13 +1590,10 @@ export async function issueTemporalApproval(
 
   if (!park) return { success: false, error: "Motor park not found" };
 
-  if (
-    park.applicationStatus !== "INSPECTION_COMPLETED" &&
-    park.applicationStatus !== "PENDING_APPROVAL"
-  ) {
+  if (park.applicationStatus !== "PENDING_COMMISSIONER_APPROVAL") {
     return {
       success: false,
-      error: "Temporal approval requires a completed inspection",
+      error: `Cannot issue temporal approval — current status is ${park.applicationStatus}. HOD Operations, HOD Parks Revalidation and the Permanent Secretary must sign off first.`,
     };
   }
 
@@ -2198,6 +2416,40 @@ export async function triggerRevalidation(
  * Get all field inspectors (for assignment dropdown in scheduling).
  * Available to HOD roles and above.
  */
+/**
+ * Who may be put on a motor park inspection team. The same pool mass
+ * transit draws from, so HOD Operations sees one list of officers rather
+ * than a shorter one here and a longer one there. The signed-in HOD is
+ * excluded: they attend automatically and listing them only invites someone
+ * to spend one of three seats on a person already in the room.
+ */
+export async function getMotorParkTeamCandidates() {
+  const authz = await authorize(["HOD_TRANSPORT_OPS", "SYSTEM_ADMIN"]);
+  if (!authz.ok) return { success: false as const, error: authz.error };
+
+  const officers = await db.user.findMany({
+    where: {
+      isActive: true,
+      id: { not: authz.session.userId },
+      role: {
+        in: [
+          "FIELD_INSPECTOR",
+          "VEHICLE_INSPECTION_OFFICER",
+          "HOD_VIS",
+          "HOD_TRANSPORT_OPS",
+          "HOD_PARKS",
+          "HOD_PARKS_REVALIDATION",
+          "PARK_MONITOR",
+        ],
+      },
+    },
+    select: { id: true, firstName: true, lastName: true, role: true },
+    orderBy: { firstName: "asc" },
+  });
+
+  return { success: true as const, data: officers };
+}
+
 export async function getFieldInspectors(): Promise<
   ActionResult<
     {
@@ -2251,6 +2503,7 @@ export async function updateMotorParkApplication(
   if (!park) return { success: false, error: "Motor park not found" };
 
   const businessName = formData.get("businessName") as string;
+  const facilityType = formData.get("facilityType") as string;
   const transportCompanyName = formData.get("transportCompanyName") as string;
   const streetAddress = formData.get("streetAddress") as string;
   const townCity = formData.get("townCity") as string;
@@ -2326,6 +2579,7 @@ export async function updateMotorParkApplication(
       where: { id: parkId },
       data: {
         businessName: businessName.trim(),
+        facilityType: facilityType?.trim() || null,
         transportCompanyName: transportCompanyName?.trim() || null,
         streetAddress: streetAddress.trim(),
         townCity: townCity.trim(),

@@ -42,6 +42,7 @@ export default async function MotorParkApprovalLetterPage({
     select: {
       id: true,
       businessName: true,
+      facilityType: true,
       transportCompanyName: true,
       streetAddress: true,
       townCity: true,
@@ -100,6 +101,7 @@ export default async function MotorParkApprovalLetterPage({
           validUntil: park.permitExpiresAt,
           validityMonths,
           monthlyFeeKobo: park.monthlyLevyAmount,
+          facilityType: park.facilityType,
           conditions: park.psRecommendationNotes,
           commissionerName: commissioner
             ? `${commissioner.firstName} ${commissioner.lastName}`
