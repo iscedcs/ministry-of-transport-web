@@ -17,6 +17,11 @@ import { cr80PrintCss } from "@/lib/card-spec";
  * The QR and the security code both appear: the code is what an officer reads
  * aloud, the QR is what a phone scans. The same code is what goes on the
  * reflective vest.
+ *
+ * Two faces, printed on separate sheets (see cr80PrintCss's [data-face]
+ * handling) — the reverse carries the state seal, the Ministry's official
+ * "approved personnel" stamp, the security code and QR again, and the
+ * surrender/return notice, matching the sample card the Ministry supplied.
  */
 export default async function StaffIdCardPage({
   params,
@@ -27,7 +32,9 @@ export default async function StaffIdCardPage({
 
   const staff = await db.parkStaff.findUnique({
     where: { id: staffId },
-    include: { motorPark: { select: { businessName: true, lga: true, townCity: true } } },
+    include: {
+      motorPark: { select: { businessName: true, lga: true, townCity: true } },
+    },
   });
 
   if (!staff || staff.motorParkId !== id) notFound();
@@ -41,8 +48,10 @@ export default async function StaffIdCardPage({
     `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(verifyUrl)}`;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-4 print:m-0 print:max-w-none print:gap-0 print:bg-white print:p-0">
-      <style dangerouslySetInnerHTML={{ __html: cr80PrintCss("staff-id-sheet") }} />
+    <div className="mx-auto flex max-w-5xl flex-col gap-6 p-4 print:m-0 print:max-w-none print:gap-0 print:bg-white print:p-0">
+      <style
+        dangerouslySetInnerHTML={{ __html: cr80PrintCss("staff-id-sheet") }}
+      />
 
       <div className="flex items-center justify-between print:hidden">
         <Link
@@ -67,12 +76,29 @@ export default async function StaffIdCardPage({
         Print at 100% scale; do not &ldquo;fit to page&rdquo;.
       </p>
 
-      <div id="staff-id-sheet" className="flex justify-center">
+      <div
+        id="staff-id-sheet"
+        className="flex flex-row items-start justify-center gap-8">
+        {/* ══════════════════ FRONT ══════════════════ */}
         <div
+          data-face="front"
           className="cr80-card relative flex h-[647px] w-[408px] flex-col overflow-hidden rounded-2xl border-2 border-primary bg-white text-black shadow-xl print:shadow-none"
-          style={{ WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
+          style={{
+            WebkitPrintColorAdjust: "exact",
+            printColorAdjust: "exact",
+          }}>
+          {/* Seal */}
+          <div className="flex justify-center bg-white pt-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/anambra_mot_logo.png"
+              alt="Government of Anambra State"
+              className="h-[72px] w-[72px]"
+            />
+          </div>
+
           {/* Header */}
-          <div className="relative bg-primary px-4 py-3 text-center text-primary-foreground">
+          <div className="relative bg-primary px-4 py-2 mt-4 text-center text-primary-foreground">
             <h2 className="text-[17px] font-extrabold uppercase leading-tight">
               Ministry of Transport
             </h2>
@@ -84,12 +110,12 @@ export default async function StaffIdCardPage({
             </span>
           </div>
 
-          <div className="flex flex-1 flex-col items-center px-5 pt-5">
-            <div className="mb-3 h-[220px] w-[186px] overflow-hidden rounded-xl border-[3px] border-primary bg-gray-100">
+          <div className="flex flex-1 flex-col items-center px-5 pt-3">
+            <div className="mb-2 h-[196px] w-[166px] overflow-hidden rounded-xl border-[3px] border-primary bg-gray-100">
               {staff.photoUrl ? (
                 <Image
-                  width={186}
-                  height={220}
+                  width={166}
+                  height={196}
                   quality={100}
                   priority
                   src={staff.photoUrl}
@@ -144,6 +170,67 @@ export default async function StaffIdCardPage({
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* ══════════════════ BACK ══════════════════ */}
+        <div
+          data-face="back"
+          className="cr80-card relative flex h-[647px] w-[408px] flex-col items-center overflow-hidden rounded-2xl border-2 border-primary bg-white px-5 pb-5 pt-6 text-center text-black shadow-xl print:shadow-none"
+          style={{
+            WebkitPrintColorAdjust: "exact",
+            printColorAdjust: "exact",
+          }}>
+          {/* Seal watermark */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/anambra_mot_logo.png"
+            alt=""
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-[230px] h-[260px] w-[260px] -translate-x-1/2 -translate-y-1/2 opacity-[0.08]"
+          />
+
+          <p className="text-[15px] font-semibold leading-snug text-gray-700">
+            This Identity Card is the property of
+            <br />
+            Anambra State Government.
+          </p>
+          <p className="mt-3 text-[15px] font-semibold leading-snug text-gray-700">
+            If misplaced, kindly return it to
+            <br />
+            Ministry of Transport Office
+          </p>
+
+          <div className="relative mt-6 flex flex-1 flex-col items-center justify-center gap-3">
+            <p className="text-[25px] font-extrabold uppercase tracking-wide ">
+              M.O.T
+            </p>
+            <p className="text-[19px] font-extrabold uppercase leading-tight text-primary">
+              Approved Park Marshal
+            </p>
+
+            <p className="mt-2 font-mono text-[15px] font-extrabold text-slate-900">
+              {staff.securityCode}
+            </p>
+
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={qrSrc}
+              className="h-[140px] w-[140px] border border-gray-300 bg-white p-1"
+              alt="Scan to verify this officer"
+            />
+            <span className="text-[12px] font-extrabold uppercase tracking-wide text-gray-600">
+              Scan to verify Personnel
+            </span>
+          </div>
+
+          <div className="relative w-full border-t border-gray-200 pt-3">
+            <p className="text-[15px] font-extrabold uppercase leading-tight text-slate-900">
+              {staff.name}
+            </p>
+            <p className="text-[12px] font-semibold text-gray-600">
+              {staff.role} · {staff.motorPark.businessName}
+            </p>
           </div>
         </div>
       </div>

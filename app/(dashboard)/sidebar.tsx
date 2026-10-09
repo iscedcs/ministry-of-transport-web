@@ -90,20 +90,12 @@ const NAV_ITEMS: NavItem[] = [
     label: "Motor Parks",
     href: "/motor-parks",
     icon: "🏗️",
-    allowedRoles: [
-      "COMMISSIONER",
-      "PERMANENT_SECRETARY",
-      "HOD_PARKS",
-      "HOD_VIS",
-      "HOD_TRANSPORT_OPS",
-      "HOD_PARKS_REVALIDATION",
-      "FIELD_INSPECTOR",
-      "FINANCE_OFFICER",
-      "EXTERNAL_APPLICANT",
-      "SYSTEM_ADMIN",
-      "ADMIN",
-      "ENUMERATOR",
-    ],
+    // Every Ministry role can see the register, read-only beyond the
+    // write actions each page already gates by role. The VIO chief asked for
+    // exactly this - staff were locked out of parks and mass transit simply
+    // because their role was missing from this list, not because they
+    // weren't meant to see it.
+    allowedRoles: "ALL",
   },
 
   // ── Mass Transit Module (EPIC-003, future) ──
@@ -111,20 +103,8 @@ const NAV_ITEMS: NavItem[] = [
     label: "Mass Transit",
     href: "/fleet-operators",
     icon: "🚌",
-    allowedRoles: [
-      "COMMISSIONER",
-      "PERMANENT_SECRETARY",
-      "HOD_PARKS",
-      "HOD_VIS",
-      "HOD_TRANSPORT_OPS",
-      "HOD_PARKS_REVALIDATION",
-      "FIELD_INSPECTOR",
-      "FINANCE_OFFICER",
-      "EXTERNAL_APPLICANT",
-      "SYSTEM_ADMIN",
-      "ADMIN",
-      "ENUMERATOR",
-    ],
+    // See the Motor Parks entry above - same reasoning, same fix.
+    allowedRoles: "ALL",
   },
 
   // ── Commercial Vehicle Registration Module ──
@@ -136,6 +116,36 @@ const NAV_ITEMS: NavItem[] = [
     href: "/commercial-vehicles",
     icon: "🚛",
     allowedRoles: [] as unknown as "ALL",
+  },
+
+  // ── Logistics Module ──
+  {
+    label: "Logistics",
+    href: "/logistics",
+    icon: "📦",
+    allowedRoles: [
+      "ENUMERATOR",
+      "ADMIN",
+      "SYSTEM_ADMIN",
+      "COMMISSIONER",
+      "PERMANENT_SECRETARY",
+      "HOD_TRANSPORT_OPS",
+    ],
+  },
+
+  // ── Towing Van Module ──
+  {
+    label: "Towing Vans",
+    href: "/towing-vans",
+    icon: "🪝",
+    allowedRoles: [
+      "ENUMERATOR",
+      "ADMIN",
+      "SYSTEM_ADMIN",
+      "COMMISSIONER",
+      "PERMANENT_SECRETARY",
+      "HOD_TRANSPORT_OPS",
+    ],
   },
 
   // ── Boats & Maritime Module ──

@@ -83,6 +83,18 @@ const item = (
  * Terminals added after the first application, awaiting a decision. The
  * original pack is approved with its company, so it never queues here.
  */
+/** Registered towing vans still waiting on the Commissioner's permit. */
+async function pendingTowingPermits(): Promise<number> {
+  return db.towingVan.count({ where: { status: "REGISTERED" } });
+}
+
+/** Logistics applicants (company or individual) at a given stage. */
+async function logisticsApplicants(statuses: string[]): Promise<number> {
+  return db.logisticsApplicant.count({
+    where: { applicationStatus: { in: statuses as never } },
+  });
+}
+
 async function pendingTerminals(statuses: string[]): Promise<number> {
   return db.terminal.count({
     where: {
@@ -168,6 +180,22 @@ export async function getRoleDashboard(
           "/fleet-operators?status=SUBMITTED",
         ),
       );
+
+    // Scheduling a motor park's inspection is now HOD Operations' job (see
+    // scheduleParkInspection), matching mass transit - but nothing told HOD
+    // Operations a new submission existed. The only "new applications" tile
+    // belonged to HOD Parks, a different role.
+    const parkIntakeOps = await motorParks(["SUBMITTED", "UNDER_REVIEW"]);
+    if (parkIntakeOps)
+      actions.push(
+        item(
+          "park-intake-ops",
+          "Motor park applications to schedule",
+          "Schedule the inspection",
+          parkIntakeOps,
+          "/motor-parks?status=SUBMITTED",
+        ),
+      );
     if (mtRecommend)
       actions.push(
         item(
@@ -176,6 +204,18 @@ export async function getRoleDashboard(
           "The inspection is in — record your recommendation",
           mtRecommend,
           "/fleet-operators?status=INSPECTION_COMPLETED",
+        ),
+      );
+
+    const parkRecommend = await motorParks(["INSPECTION_COMPLETED"]);
+    if (parkRecommend)
+      actions.push(
+        item(
+          "park-recommend",
+          "Motor parks awaiting your recommendation",
+          "The inspection is in — record your recommendation",
+          parkRecommend,
+          "/motor-parks?status=INSPECTION_COMPLETED",
         ),
       );
 
@@ -202,6 +242,18 @@ export async function getRoleDashboard(
           "The site has been inspected - record your recommendation",
           termRecommend,
           "/inspections?status=COMPLETED",
+        ),
+      );
+
+    const logisticsIntake = await logisticsApplicants(["SUBMITTED"]);
+    if (logisticsIntake)
+      actions.push(
+        item(
+          "logistics-ops",
+          "Logistics applications to review",
+          "Set the monthly fee and record your recommendation",
+          logisticsIntake,
+          "/logistics?status=SUBMITTED",
         ),
       );
 
@@ -248,6 +300,18 @@ export async function getRoleDashboard(
           "Recommended by HOD Operations - approve, or return with a reason",
           mtReview,
           "/fleet-operators?status=PENDING_HOD_APPROVAL",
+        ),
+      );
+
+    const parkReview = await motorParks(["PENDING_HOD_APPROVAL"]);
+    if (parkReview)
+      actions.push(
+        item(
+          "hodreval-park",
+          "Motor parks awaiting your review",
+          "Recommended by HOD Operations - approve, or return with a reason",
+          parkReview,
+          "/motor-parks?status=PENDING_HOD_APPROVAL",
         ),
       );
 
@@ -313,14 +377,38 @@ export async function getRoleDashboard(
 
   // ── Permanent Secretary: two distinct revalidation gates ────────────────
   if (isPs || isAdmin) {
-    const [psApproval, parkApproval, mtPs, schedules, termPs] =
+    const [psApproval, parkApproval, mtPs, schedules, termPs, towingPs] =
       await Promise.all([
         revalidations(REVALIDATION_STAGES.PS_APPROVAL),
         motorParks(["PENDING_PS_APPROVAL"]),
         fleetOperators(["PENDING_PS_APPROVAL"]),
         pendingInspectionSchedules(),
         pendingTerminals(["PENDING_PS_APPROVAL"]),
+        pendingTowingPermits(),
       ]);
+
+    if (towingPs)
+      actions.push(
+        item(
+          "ps-towing",
+          "Towing vans awaiting a permit",
+          "Registered and ready - issue the Anambra State Towing Permit",
+          towingPs,
+          "/towing-vans?status=REGISTERED",
+        ),
+      );
+
+    const logisticsPsCount = await logisticsApplicants(["PENDING_PS_APPROVAL"]);
+    if (logisticsPsCount)
+      actions.push(
+        item(
+          "ps-logistics",
+          "Logistics applications awaiting your approval",
+          "Approve to forward to the Commissioner",
+          logisticsPsCount,
+          "/logistics?status=PENDING_PS_APPROVAL",
+        ),
+      );
 
     if (termPs)
       actions.push(
@@ -378,14 +466,38 @@ export async function getRoleDashboard(
 
   // ── Commissioner: the final signature on four separate chains ───────────
   if (isCommissioner || isAdmin) {
-    const [reval, letters, idCards, parks, mtCom, termCom] = await Promise.all([
+    const [reval, letters, idCards, parks, mtCom, termCom, towingCom] = await Promise.all([
       revalidations(REVALIDATION_STAGES.COMMISSIONER),
       tracasLetters("PENDING_COMMISSIONER_APPROVAL"),
       tracasIdCards("PENDING_COMMISSIONER_APPROVAL"),
       motorParks(["PENDING_APPROVAL", "PENDING_COMMISSIONER_APPROVAL"]),
       fleetOperators(["PENDING_COMMISSIONER_APPROVAL"]),
       pendingTerminals(["PENDING_COMMISSIONER_APPROVAL"]),
+      pendingTowingPermits(),
     ]);
+
+    if (towingCom)
+      actions.push(
+        item(
+          "com-towing",
+          "Towing vans awaiting a permit",
+          "Registered and ready - issue the Anambra State Towing Permit",
+          towingCom,
+          "/towing-vans?status=REGISTERED",
+        ),
+      );
+
+    const logisticsComCount = await logisticsApplicants(["PENDING_COMMISSIONER_APPROVAL"]);
+    if (logisticsComCount)
+      actions.push(
+        item(
+          "com-logistics",
+          "Logistics applications to approve",
+          "Final sign-off - issues the reference number and the letter",
+          logisticsComCount,
+          "/logistics?status=PENDING_COMMISSIONER_APPROVAL",
+        ),
+      );
 
     if (termCom)
       actions.push(

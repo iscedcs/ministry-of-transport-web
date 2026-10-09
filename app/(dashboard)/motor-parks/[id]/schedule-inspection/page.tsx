@@ -57,6 +57,8 @@ export default function ScheduleInspectionPage() {
 
   const [inspectors, setInspectors] = useState<Inspector[]>([]);
   const [loadingInspectors, setLoadingInspectors] = useState(true);
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [leadId, setLeadId] = useState("");
 
   // Load field inspectors on mount
   useEffect(() => {
@@ -158,32 +160,70 @@ export default function ScheduleInspectionPage() {
               </Select>
             </div>
 
-            {/* Assigned inspector */}
+            {/* Inspection team — a lead plus at least one other officer. The
+                HOD signing in attends automatically and is counted toward
+                the team without needing to tick their own name. */}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="assignedToUserId">Assigned Inspector</Label>
+              <Label>Inspection Team</Label>
               {loadingInspectors ? (
-                <div className="h-10 rounded-md border border-border bg-secondary/30 animate-pulse" />
+                <div className="h-20 rounded-md border border-border bg-secondary/30 animate-pulse" />
               ) : inspectors.length === 0 ? (
                 <p className="text-sm text-destructive">
                   No active field inspectors found. Please ensure inspector
                   accounts are provisioned.
                 </p>
               ) : (
-                <Select name="assignedToUserId" required>
-                  <SelectTrigger id="assignedToUserId">
-                    <SelectValue placeholder="Select inspector…" />
+                <div className="flex flex-col gap-2 rounded-md border border-border p-3">
+                  {inspectors.map((i) => (
+                    <label key={i.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        name="memberIds"
+                        value={i.id}
+                        checked={selectedMembers.includes(i.id)}
+                        onChange={(e) => {
+                          setSelectedMembers((prev) =>
+                            e.target.checked
+                              ? [...prev, i.id]
+                              : prev.filter((id) => id !== i.id),
+                          );
+                          if (!e.target.checked && leadId === i.id) setLeadId("");
+                        }}
+                      />
+                      {i.firstName} {i.lastName}
+                      {i.stationLocation ? ` — ${i.stationLocation}` : ""}
+                    </label>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                You attend automatically. Select at least one other officer (up to three).
+              </p>
+            </div>
+
+            {/* Lead inspector */}
+            {selectedMembers.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="leadId">Lead Inspector</Label>
+                <Select name="leadId" required value={leadId} onValueChange={setLeadId}>
+                  <SelectTrigger id="leadId">
+                    <SelectValue placeholder="Who leads the visit?" />
                   </SelectTrigger>
                   <SelectContent>
-                    {inspectors.map((i) => (
-                      <SelectItem key={i.id} value={i.id}>
-                        {i.firstName} {i.lastName}
-                        {i.stationLocation ? ` — ${i.stationLocation}` : ""}
-                      </SelectItem>
-                    ))}
+                    {inspectors
+                      .filter((i) => selectedMembers.includes(i.id))
+                      .map((i) => (
+                        <SelectItem key={i.id} value={i.id}>
+                          {i.firstName} {i.lastName}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
-              )}
-            </div>
+                <p className="text-xs text-muted-foreground">
+                  The lead files the checklist and findings; the rest leave a comment.
+                </p>
+              </div>
+            )}
 
             {/* Scheduled date */}
             <div className="flex flex-col gap-1.5">
@@ -223,7 +263,13 @@ export default function ScheduleInspectionPage() {
           </Button>
           <Button
             type="submit"
-            disabled={isPending || loadingInspectors || inspectors.length === 0}
+            disabled={
+              isPending ||
+              loadingInspectors ||
+              inspectors.length === 0 ||
+              selectedMembers.length === 0 ||
+              !leadId
+            }
             aria-busy={isPending}>
             {isPending ? "Scheduling…" : "Confirm Schedule"}
           </Button>

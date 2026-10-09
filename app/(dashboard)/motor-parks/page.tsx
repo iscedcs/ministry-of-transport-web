@@ -196,6 +196,9 @@ export default async function MotorParksPage({ searchParams }: PageProps) {
                 <th className="px-4 py-3 text-left font-semibold text-muted-foreground">
                   Status
                 </th>
+                <th className="px-4 py-3 text-center font-semibold text-muted-foreground hidden sm:table-cell">
+                  Staff
+                </th>
                 <th className="px-4 py-3 text-left font-semibold text-muted-foreground hidden lg:table-cell">
                   Applied
                 </th>
@@ -242,6 +245,9 @@ export default async function MotorParksPage({ searchParams }: PageProps) {
                           >[0]["status"]
                         }
                       />
+                    </td>
+                    <td className="px-4 py-3 text-center text-muted-foreground hidden sm:table-cell">
+                      {park.staffCount}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground text-xs hidden lg:table-cell">
                       {formatDate(park.appliedAt)}

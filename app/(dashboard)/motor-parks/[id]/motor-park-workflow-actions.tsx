@@ -10,8 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Loader2, CheckCircle2, Clock, Send } from "lucide-react";
 import Link from "next/link";
 import {
+  hodOpsRecommendMotorPark,
   hodApproveMotorPark,
   psApproveMotorPark,
+  rejectMotorPark,
 } from "@/app/actions/motor-park";
 
 export function MotorParkWorkflowActions({
@@ -31,11 +33,39 @@ export function MotorParkWorkflowActions({
   const initialNaira = initialMonthlyLevyKobo ? Math.round(initialMonthlyLevyKobo / 100) : "";
   const [monthlyLevy, setMonthlyLevy] = useState<number | "">(initialNaira);
   const [psNotes, setPsNotes] = useState("");
+  const [hodOpsRecommendation, setHodOpsRecommendation] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
-  const isHod =
-    ["HOD_PARKS", "HOD_PARKS_REVALIDATION", "SYSTEM_ADMIN"].includes(role);
+  // Two distinct HOD stages, as on revalidation and mass transit. One
+  // combined "isHod" meant whichever HOD opened the page first could clear
+  // the other's stage.
+  const isHodOps = ["HOD_TRANSPORT_OPS", "SYSTEM_ADMIN"].includes(role);
+  const isHodReval = ["HOD_PARKS_REVALIDATION", "SYSTEM_ADMIN"].includes(role);
   const isPs = ["PERMANENT_SECRETARY", "SYSTEM_ADMIN"].includes(role);
   const isComm = ["COMMISSIONER", "SYSTEM_ADMIN"].includes(role);
+
+  const canReject =
+    (status === "INSPECTION_COMPLETED" && isHodOps) ||
+    (status === "PENDING_HOD_APPROVAL" && isHodReval) ||
+    (status === "PENDING_PS_APPROVAL" && isPs) ||
+    (status === "PENDING_COMMISSIONER_APPROVAL" && isComm);
+
+  const handleHodOpsRecommend = () => {
+    if (!hodOpsRecommendation.trim()) {
+      toast.error("Write your recommendation before forwarding.");
+      return;
+    }
+    startTransition(async () => {
+      const res = await hodOpsRecommendMotorPark(parkId, hodOpsRecommendation);
+      if (res.success) {
+        toast.success("Recommended & forwarded to HOD Parks Revalidation");
+        setHodOpsRecommendation("");
+      } else {
+        toast.error(res.error || "Failed to record the recommendation");
+      }
+    });
+  };
 
   const handleHodApprove = () => {
     startTransition(async () => {
@@ -60,17 +90,66 @@ export function MotorParkWorkflowActions({
     });
   };
 
+  const handleReject = () => {
+    if (!rejectReason.trim()) {
+      toast.error("A reason is required.");
+      return;
+    }
+    startTransition(async () => {
+      const res = await rejectMotorPark(parkId, rejectReason);
+      if (res.success) {
+        toast.success("Application rejected.");
+        setRejecting(false);
+        setRejectReason("");
+      } else {
+        toast.error(res.error || "Could not reject the application.");
+      }
+    });
+  };
+
   return (
     <div className="flex flex-col gap-4 my-4">
-      {/* HOD Approval Action */}
-      {(status === "PENDING_HOD_APPROVAL" || status === "INSPECTION_COMPLETED") && isHod && (
+      {/* Stage 3 — HOD Operations records a recommendation */}
+      {status === "INSPECTION_COMPLETED" && isHodOps && (
         <Card className="border-amber-500/30 bg-amber-500/5">
           <CardHeader className="pb-3">
             <CardTitle className="text-base text-amber-900 dark:text-amber-200">
-              HOD Approval & Forwarding
+              HOD Transport Operations - Recommendation
             </CardTitle>
             <CardDescription>
-              Review inspector findings and sign to forward application to the Permanent Secretary.
+              Read the inspection checklist and the team&apos;s comments, then record your
+              recommendation. It goes to the HOD of Parks Revalidation.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <textarea
+              rows={3}
+              value={hodOpsRecommendation}
+              onChange={(e) => setHodOpsRecommendation(e.target.value)}
+              placeholder="Your recommendation on this application."
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            />
+            <Button
+              onClick={handleHodOpsRecommend}
+              disabled={isPending || !hodOpsRecommendation.trim()}
+              className="w-fit bg-amber-600 hover:bg-amber-700 text-white">
+              {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Recommend & Forward to HOD Parks Revalidation
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Stage 4 — HOD Parks Revalidation reviews */}
+      {status === "PENDING_HOD_APPROVAL" && isHodReval && (
+        <Card className="border-amber-500/30 bg-amber-500/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base text-amber-900 dark:text-amber-200">
+              HOD Parks Revalidation - Review
+            </CardTitle>
+            <CardDescription>
+              Reviewed by HOD Operations. Sign to forward the application to the Permanent
+              Secretary.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex items-center gap-3">
@@ -82,7 +161,7 @@ export function MotorParkWorkflowActions({
         </Card>
       )}
 
-      {/* PS Recommendation & Levy Adjustment Action (ENG-227) */}
+      {/* PS Recommendation & Levy Adjustment Action */}
       {status === "PENDING_PS_APPROVAL" && isPs && (
         <Card className="border-blue-500/30 bg-blue-500/5">
           <CardHeader className="pb-3">
@@ -136,7 +215,7 @@ export function MotorParkWorkflowActions({
         </Card>
       )}
 
-      {/* Commissioner Final Approval Action (ENG-220) */}
+      {/* Commissioner Final Approval Action */}
       {status === "PENDING_COMMISSIONER_APPROVAL" && isComm && (
         <Card className="border-emerald-500/30 bg-emerald-500/5">
           <CardHeader className="pb-3">
@@ -162,8 +241,40 @@ export function MotorParkWorkflowActions({
         </Card>
       )}
 
+      {canReject && !rejecting && (
+        <Button variant="outline" size="sm" className="w-fit text-destructive" onClick={() => setRejecting(true)}>
+          Return with reason
+        </Button>
+      )}
+      {canReject && rejecting && (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Reject this application</CardTitle>
+            <CardDescription>The operator needs to know what to fix.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <textarea
+              rows={3}
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Why is this application being rejected?"
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            />
+            <div className="flex gap-2">
+              <Button variant="destructive" onClick={handleReject} disabled={isPending || !rejectReason.trim()}>
+                Reject application
+              </Button>
+              <Button variant="outline" onClick={() => setRejecting(false)} disabled={isPending}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Waiting Status Indicators */}
-      {(status === "PENDING_HOD_APPROVAL" || status === "INSPECTION_COMPLETED") && !isHod && (
+      {((status === "INSPECTION_COMPLETED" && !isHodOps) ||
+        (status === "PENDING_HOD_APPROVAL" && !isHodReval)) && (
         <Card className="bg-muted/40">
           <CardContent className="pt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
             <Clock className="w-4 h-4" /> Awaiting HOD review and sign-off

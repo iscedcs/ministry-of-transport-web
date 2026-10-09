@@ -17,19 +17,50 @@ import {
   Filter,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   getIctPrintingQueues,
   type PrintingQueue,
   type PrintingQueuesResult,
+  type PrintingItem,
 } from "@/app/actions/ict-printing";
+import {
+  overrideMassTransitFee,
+  overrideMotorParkFee,
+  overrideRevalidationFee,
+} from "@/app/actions/fee-override";
+
+/** Which action corrects the fee behind each printable category, if any. */
+const FEE_OVERRIDE_ACTION: Partial<
+  Record<PrintingItem["category"], (id: string, feeNaira: number) => Promise<{ success: boolean; error?: string }>>
+> = {
+  MASS_TRANSIT_LETTER: overrideMassTransitFee,
+  REVALIDATION_CERTIFICATE: overrideRevalidationFee,
+  TEMPORAL_APPROVAL: overrideMotorParkFee,
+};
 
 export function IctPrintingClient({
   initialData,
+  role,
 }: {
   initialData: PrintingQueuesResult;
+  role: string | null;
 }) {
+  const isCommissioner = role === "COMMISSIONER";
+  const [editingItem, setEditingItem] = useState<PrintingItem | null>(null);
+  const [feeInput, setFeeInput] = useState("");
+  const [savingFee, startFeeSave] = useTransition();
   /**
    * A TRACAS-scoped ICT officer only handles driver ID cards and letters of
    * authority; the park-staff and maritime queues are not theirs to print.
@@ -479,6 +510,17 @@ export function IctPrintingClient({
                 </span>
 
                 <div className="flex items-center gap-2">
+                  {isCommissioner && FEE_OVERRIDE_ACTION[item.category] && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingItem(item);
+                        setFeeInput("");
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border font-semibold rounded-xl hover:bg-secondary transition-colors text-xs">
+                      Edit fee
+                    </button>
+                  )}
                   <Link
                     href={item.printUrl}
                     target="_blank"
@@ -523,6 +565,65 @@ export function IctPrintingClient({
           </button>
         </div>
       )}
+
+      <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Correct the monthly fee</DialogTitle>
+            <DialogDescription>
+              {editingItem?.title}. This overwrites the figure on the letter directly — no
+              approval step, no record of the old amount. Reprint afterwards so the holder
+              gets the corrected copy.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label htmlFor="newFee">New monthly fee (₦)</Label>
+            <Input
+              id="newFee"
+              type="number"
+              value={feeInput}
+              onChange={(e) => setFeeInput(e.target.value)}
+              placeholder="e.g. 50000"
+              autoFocus
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setEditingItem(null)}
+              disabled={savingFee}
+              className="px-3.5 py-2 text-sm font-medium rounded-xl border border-border hover:bg-secondary disabled:opacity-50">
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={savingFee || !feeInput.trim()}
+              onClick={() => {
+                if (!editingItem) return;
+                const action = FEE_OVERRIDE_ACTION[editingItem.category];
+                if (!action) return;
+                const fee = Number(feeInput);
+                if (!fee || fee <= 0) {
+                  toast.error("Enter a fee amount greater than zero.");
+                  return;
+                }
+                startFeeSave(async () => {
+                  const res = await action(editingItem.id, fee);
+                  if (res.success) {
+                    toast.success("Fee corrected. Reprint the letter to see it reflected.");
+                    setEditingItem(null);
+                    load(activeTab, searchQuery, data.page);
+                  } else {
+                    toast.error(res.error || "Could not save the new fee.");
+                  }
+                });
+              }}
+              className="px-3.5 py-2 text-sm font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+              {savingFee ? "Saving..." : "Save new fee"}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -34,6 +34,7 @@ import { updateMotorParkApplication } from "@/app/actions/motor-park";
 interface MotorParkInitialData {
   id: string;
   businessName: string;
+  facilityType: string | null;
   transportCompanyName: string | null;
   streetAddress: string;
   townCity: string;
@@ -88,6 +89,7 @@ export function EditMotorParkClient({
 
   const [form, setForm] = useState({
     businessName: park.businessName || "",
+    facilityType: park.facilityType || "Public",
     transportCompanyName: park.transportCompanyName || "",
     streetAddress: park.streetAddress || "",
     townCity: park.townCity || "",
@@ -298,6 +300,22 @@ export function EditMotorParkClient({
                 placeholder="e.g. Peace Mass Transit Park Awka"
                 required
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="facilityType">Type of Facility</Label>
+              <select
+                id="facilityType"
+                name="facilityType"
+                value={form.facilityType}
+                onChange={handleChange}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                {["Public", "Private", "Loading Bay"].map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-1.5">

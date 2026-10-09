@@ -68,6 +68,10 @@ export const motorParkApplicationSchema = z.object({
     .string()
     .min(3, "Business name required")
     .max(100, "Business name too long"),
+  /// Not every site is a standard motor park — a loading bay is used for
+  /// loading/offloading without meeting that standard, and its documents
+  /// must say so.
+  facilityType: z.enum(["Public", "Private", "Loading Bay"]).optional(),
   transportCompanyName: z.string().max(100).optional(),
   streetAddress: z.string().min(5, "Street address required").max(200),
   lga: z.string().min(2, "LGA required").max(100),

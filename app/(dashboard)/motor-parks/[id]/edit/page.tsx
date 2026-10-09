@@ -44,6 +44,7 @@ export default async function EditMotorParkPage({
     select: {
       id: true,
       businessName: true,
+      facilityType: true,
       transportCompanyName: true,
       streetAddress: true,
       townCity: true,
