@@ -99,7 +99,7 @@ export default async function ParkCertificatePage({
   ].filter(Boolean);
   const location = locationParts.length > 0 ? locationParts.join(", ") : null;
 
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const base = process.env.NEXT_PUBLIC_APP_URL!;
 
   return (
     <div className="flex flex-col items-center gap-4 bg-slate-900/5 p-4 dark:bg-slate-950 sm:p-8 print:bg-white print:p-0">

@@ -88,7 +88,8 @@ export function DriverIdCard({
     process.env.NEXT_PUBLIC_APP_URL ||
     (typeof window !== "undefined" && window.location.origin
       ? window.location.origin
-      : "https://ministry-of-transport-web.vercel.app");
+      : "https://ministry-of-transport-web.vercel.app",
+    "https://mot.anambrastate.gov.ng");
 
   const publicVerificationUrl = `${baseUrl}/verify/tracas-driver/${driver.id}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(
@@ -381,7 +382,9 @@ export function DriverIdCard({
                 <p className="text-[11px] uppercase font-extrabold text-gray-600 mt-0.5 leading-tight">
                   Ag. MD/CEO
                 </p>
-                <p className="text-[11px] text-gray-500 leading-tight">TRACAS</p>
+                <p className="text-[11px] text-gray-500 leading-tight">
+                  TRACAS
+                </p>
               </div>
 
               <div>

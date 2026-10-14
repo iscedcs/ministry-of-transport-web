@@ -185,7 +185,8 @@ export default async function FleetOperatorsPage({ searchParams }: PageProps) {
         />
       ) : (
         <div className="rounded-lg border border-border overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
             <thead className="bg-muted/50">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">
@@ -294,6 +295,7 @@ export default async function FleetOperatorsPage({ searchParams }: PageProps) {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

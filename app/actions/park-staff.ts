@@ -51,7 +51,11 @@ export async function onboardParkStaff(data: {
         !!park.approvedAt);
 
     if (!park || !isApproved) {
-      return { success: false, error: "Only approved or temporally approved motor parks can onboard staff." };
+      return {
+        success: false,
+        error:
+          "Only approved or temporally approved motor parks can onboard staff.",
+      };
     }
 
     // Determine next serial number
@@ -59,7 +63,7 @@ export async function onboardParkStaff(data: {
       where: { motorParkId: park.id },
       _max: { parkSerialNumber: true },
     });
-    
+
     const nextSerial = (maxSerial._max.parkSerialNumber || 0) + 1;
 
     // MOT/Awk/Isc./001 — the format printed on the reflective vest, so the
@@ -83,9 +87,9 @@ export async function onboardParkStaff(data: {
     });
 
     // Update with actual profile URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:8150";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL!;
     const profileUrl = `${baseUrl}/verify/park-staff/${staff.id}`;
-    
+
     // Simple QR generation using an external service for now (or standard lib)
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(profileUrl)}`;
 
@@ -118,7 +122,7 @@ export async function deleteParkStaff(staffId: string, parkId: string) {
     if (!authz.ok) return { success: false, error: authz.error };
 
     await db.parkStaff.delete({
-      where: { id: staffId }
+      where: { id: staffId },
     });
     revalidatePath(`/motor-parks/${parkId}/staff`);
     return { success: true };

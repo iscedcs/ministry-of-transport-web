@@ -97,7 +97,7 @@ export default async function ParkCertificatePage({
     select: { firstName: true, lastName: true },
   });
 
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const base = process.env.NEXT_PUBLIC_APP_URL!;
 
   return (
     <div className="flex flex-col items-center gap-4 bg-slate-900/5 p-4 dark:bg-slate-950 sm:p-8 print:min-h-0 print:bg-white print:p-0">

@@ -4,6 +4,14 @@ import { requireAuth } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export interface DraftData {
+  /**
+   * "NEW" | "REVALIDATION", saved verbatim from lib/application-type.ts.
+   * Resuming a draft jumps straight past step 1 — where this is chosen — to
+   * wherever the user left off, so without it the choice was silently lost
+   * and every resumed draft submitted as a brand-new application even when
+   * the user had picked Revalidation before saving.
+   */
+  applicationType?: string;
   businessName: string;
   /** "Public" | "Private" | "Loading Bay" */
   facilityType: string;

@@ -134,7 +134,9 @@ const fleetCompanyFieldCaptureSchema = fleetCompanySchema.partial({
  * Full vehicle details are collected AFTER approval via VehicleSubmissionRequest.
  */
 export async function submitFleetApplication(
-  prevState: ActionResult<{ companyId: string; isRevalidation?: boolean }> | undefined,
+  prevState:
+    | ActionResult<{ companyId: string; isRevalidation?: boolean }>
+    | undefined,
   formData: FormData,
 ): Promise<ActionResult<{ companyId: string; isRevalidation?: boolean }>> {
   const session = await requireRole(["EXTERNAL_APPLICANT", "ENUMERATOR"]);
@@ -266,8 +268,7 @@ export async function submitFleetApplication(
    * "No" and must stay null all the way to the checklist, where it reads
    * "Not stated".
    */
-  const tri = (v: unknown) =>
-    v === "YES" ? true : v === "NO" ? false : null;
+  const tri = (v: unknown) => (v === "YES" ? true : v === "NO" ? false : null);
   const num = (v: unknown) => {
     const n = Number(String(v ?? "").trim());
     return String(v ?? "").trim() === "" || !Number.isFinite(n) || n < 0
@@ -647,7 +648,12 @@ export type FleetApplicationDetail = {
   commissionerApprovedAt: Date | null;
   approvedAt: Date | null;
   approvedByUserId: string | null;
-  applicant: { id: string; firstName: string; lastName: string; email: string | null } | null;
+  applicant: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string | null;
+  } | null;
   vehicles: {
     id: string;
     registrationNumber: string;
@@ -952,7 +958,9 @@ export async function addVehicle(
   if (plateCheck.isTaken) {
     return {
       success: false,
-      error: plateCheck.message || "A vehicle with this registration number already exists.",
+      error:
+        plateCheck.message ||
+        "A vehicle with this registration number already exists.",
     };
   }
 
@@ -1021,12 +1029,19 @@ export async function attachStickerToVehicle(
 
   const vehicle = await db.vehicle.findUnique({
     where: { id: vehicleId },
-    select: { id: true, registrationNumber: true, companyId: true, stickerNumber: true },
+    select: {
+      id: true,
+      registrationNumber: true,
+      companyId: true,
+      stickerNumber: true,
+    },
   });
 
   if (!vehicle) return { success: false, error: "Vehicle not found." };
 
-  const cleanSticker = stickerNumber?.trim() ? stickerNumber.trim().toUpperCase() : null;
+  const cleanSticker = stickerNumber?.trim()
+    ? stickerNumber.trim().toUpperCase()
+    : null;
 
   await db.$transaction(async (tx) => {
     await tx.vehicle.update({
@@ -1037,7 +1052,9 @@ export async function attachStickerToVehicle(
     await tx.auditLog.create({
       data: {
         performedByUserId: session.userId,
-        action: cleanSticker ? "VEHICLE_STICKER_ATTACHED" : "VEHICLE_STICKER_REMOVED",
+        action: cleanSticker
+          ? "VEHICLE_STICKER_ATTACHED"
+          : "VEHICLE_STICKER_REMOVED",
         entityType: "MASS_TRANSIT",
         entityId: vehicle.companyId,
         changeDescription: cleanSticker
@@ -1164,8 +1181,13 @@ export async function setFleetCertificateTerms(
     return { success: false, error: "Enter a valid fee amount." };
   }
 
-  const effectiveFrom = input.effectiveFrom ? new Date(input.effectiveFrom) : null;
-  if (input.effectiveFrom && (!effectiveFrom || Number.isNaN(effectiveFrom.getTime()))) {
+  const effectiveFrom = input.effectiveFrom
+    ? new Date(input.effectiveFrom)
+    : null;
+  if (
+    input.effectiveFrom &&
+    (!effectiveFrom || Number.isNaN(effectiveFrom.getTime()))
+  ) {
     return { success: false, error: "Enter a valid effective date." };
   }
 
@@ -1250,7 +1272,8 @@ export async function scheduleTerminalInspection(
   }
 
   if (!companyId) return { success: false, error: "Company ID required." };
-  if (!scheduledDateStr) return { success: false, error: "Choose an inspection date." };
+  if (!scheduledDateStr)
+    return { success: false, error: "Choose an inspection date." };
 
   const scheduledDate = new Date(scheduledDateStr);
   if (Number.isNaN(scheduledDate.getTime())) {
@@ -1261,7 +1284,9 @@ export async function scheduleTerminalInspection(
   }
 
   // The HOD always attends, whether or not their own name was ticked.
-  const team = Array.from(new Set([...memberIds, session.userId])).filter(Boolean);
+  const team = Array.from(new Set([...memberIds, session.userId])).filter(
+    Boolean,
+  );
   const MIN_TEAM = 2;
   const MAX_TEAM = 4;
 
@@ -1291,7 +1316,10 @@ export async function scheduleTerminalInspection(
     where: { id: { in: team }, isActive: true },
   });
   if (foundCount !== team.length) {
-    return { success: false, error: "One or more selected officers are invalid." };
+    return {
+      success: false,
+      error: "One or more selected officers are invalid.",
+    };
   }
 
   const data = {
@@ -1398,8 +1426,12 @@ export async function scheduleTerminalInspection(
         select: { firstName: true, lastName: true, role: true },
       }),
     ]);
-    const inspectorName = inspectorUser ? `${inspectorUser.firstName} ${inspectorUser.lastName}` : "Assigned Inspector";
-    const scheduledByName = schedulerUser ? `${schedulerUser.firstName} ${schedulerUser.lastName}` : `HOD (${session.role})`;
+    const inspectorName = inspectorUser
+      ? `${inspectorUser.firstName} ${inspectorUser.lastName}`
+      : "Assigned Inspector";
+    const scheduledByName = schedulerUser
+      ? `${schedulerUser.firstName} ${schedulerUser.lastName}`
+      : `HOD (${session.role})`;
 
     await sendInspectionApprovalNotification({
       entityName: company.companyName,
@@ -1407,10 +1439,13 @@ export async function scheduleTerminalInspection(
       scheduledDate: data.scheduledDate,
       inspectorName,
       scheduledByName,
-      entityUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://mot.anambra.gov.ng"}/fleet-operators/${company.id}`,
+      entityUrl: `${process.env.NEXT_PUBLIC_APP_URL}/fleet-operators/${company.id}`,
     });
   } catch (emailErr) {
-    console.error("Failed to send PS email notification for terminal inspection:", emailErr);
+    console.error(
+      "Failed to send PS email notification for terminal inspection:",
+      emailErr,
+    );
   }
 
   revalidatePath(`/fleet-operators/${data.linkedEntityId}`);
@@ -1666,7 +1701,8 @@ export async function hodOpsApproveFleetOperator(
     }),
     {
       action: "HOD_OPS_APPROVED_FLEET_OPERATOR",
-      text: (n) => `HOD Operations recommended ${n}; forwarded to HOD Parks Revalidation`,
+      text: (n) =>
+        `HOD Operations recommended ${n}; forwarded to HOD Parks Revalidation`,
     },
   );
 }
@@ -1683,7 +1719,8 @@ export async function hodApproveFleetOperator(
     () => ({ hodApprovedAt: new Date() }),
     {
       action: "HOD_APPROVED_FLEET_OPERATOR",
-      text: (n) => `HOD Parks Revalidation signed off ${n} to the Permanent Secretary`,
+      text: (n) =>
+        `HOD Parks Revalidation signed off ${n} to the Permanent Secretary`,
     },
   );
 }
@@ -1714,7 +1751,8 @@ export async function psApproveFleetOperator(
     }),
     {
       action: "PS_APPROVED_FLEET_OPERATOR",
-      text: (n) => `Permanent Secretary submitted recommendation to Commissioner for ${n}`,
+      text: (n) =>
+        `Permanent Secretary submitted recommendation to Commissioner for ${n}`,
     },
   );
 }
@@ -1946,9 +1984,11 @@ export async function issuePermitToOperate(
           cacDocumentId: company.cacDocumentId,
           corporateAsinDocumentId: company.corporateAsinDocumentId,
           toiletPhotoId: terminal.toiletPhotoId ?? company.toiletPhotoId,
-          waitingAreaPhotoId: terminal.waitingAreaPhotoId ?? company.waitingAreaPhotoId,
+          waitingAreaPhotoId:
+            terminal.waitingAreaPhotoId ?? company.waitingAreaPhotoId,
           signagePhotoId: terminal.signagePhotoId ?? company.signagePhotoId,
-          waterFacilityPhotoId: terminal.waterFacilityPhotoId ?? company.waterFacilityPhotoId,
+          waterFacilityPhotoId:
+            terminal.waterFacilityPhotoId ?? company.waterFacilityPhotoId,
           cctvPhotoId: terminal.cctvPhotoId ?? company.cctvPhotoId,
           applicationStatus: isTemporal ? "TEMPORAL_APPROVAL" : "APPROVED",
           permitStatus: "ACTIVE",
@@ -2465,7 +2505,9 @@ export async function addVehicleToSubmission(
   if (plateCheck.isTaken) {
     return {
       success: false,
-      error: plateCheck.message || `A vehicle with registration '${v.registrationNumber}' is already registered.`,
+      error:
+        plateCheck.message ||
+        `A vehicle with registration '${v.registrationNumber}' is already registered.`,
     };
   }
 
@@ -2859,7 +2901,8 @@ export async function updateMassTransitCompany(
       },
     },
   });
-  if (!company) return { success: false, error: "Mass transit company not found" };
+  if (!company)
+    return { success: false, error: "Mass transit company not found" };
 
   const companyName = formData.get("companyName") as string;
   const cacNumber = formData.get("cacNumber") as string;
@@ -2875,10 +2918,12 @@ export async function updateMassTransitCompany(
   // record - CAC certificate, land ownership and corporate ASIN. Optional,
   // and existing values are kept when a field is left blank.
   const cacDocumentId = formData.get("cacDocumentId") as string | null;
-  const landOwnershipDocId = formData.get("landOwnershipDocId") as string | null;
-  const corporateAsinDocumentId = formData.get(
-    "corporateAsinDocumentId",
-  ) as string | null;
+  const landOwnershipDocId = formData.get("landOwnershipDocId") as
+    | string
+    | null;
+  const corporateAsinDocumentId = formData.get("corporateAsinDocumentId") as
+    | string
+    | null;
 
   const currentFleetSizeRaw = formData.get("currentFleetSize") as string;
   const currentFleetSize = currentFleetSizeRaw
@@ -2920,8 +2965,12 @@ export async function updateMassTransitCompany(
 
   // Terminal fields
   const terminalId = formData.get("terminalId") as string;
-  const terminalLocationAddress = formData.get("terminalLocationAddress") as string;
-  const terminalGpsCoordinates = formData.get("terminalGpsCoordinates") as string;
+  const terminalLocationAddress = formData.get(
+    "terminalLocationAddress",
+  ) as string;
+  const terminalGpsCoordinates = formData.get(
+    "terminalGpsCoordinates",
+  ) as string;
   const terminalManagerName = formData.get("terminalManagerName") as string;
   const terminalManagerPhone = formData.get("terminalManagerPhone") as string;
   const terminalManagerEmail = formData.get("terminalManagerEmail") as string;
@@ -3027,7 +3076,8 @@ export async function updateMassTransitCompany(
       terminalManagerPhone?.trim()
     ) {
       const primaryTerm =
-        (terminalId && (await tx.terminal.findUnique({ where: { id: terminalId } }))) ||
+        (terminalId &&
+          (await tx.terminal.findUnique({ where: { id: terminalId } }))) ||
         company.terminals[0];
 
       if (primaryTerm) {
@@ -3038,8 +3088,7 @@ export async function updateMassTransitCompany(
               terminalLocationAddress?.trim() || primaryTerm.locationAddress,
             gpsCoordinates:
               terminalGpsCoordinates?.trim() || primaryTerm.gpsCoordinates,
-            managerName:
-              terminalManagerName?.trim() || primaryTerm.managerName,
+            managerName: terminalManagerName?.trim() || primaryTerm.managerName,
             managerPhone:
               terminalManagerPhone?.trim() || primaryTerm.managerPhone,
             managerEmail:
@@ -3115,4 +3164,3 @@ export async function updateMassTransitCompany(
 
   return { success: true };
 }
-

@@ -34,7 +34,7 @@ import { TRANSIT_REGISTRATION_FEE_KOBO } from "@/lib/consts";
 
 /** Base URL for Paystack callback — uses NEXT_PUBLIC_APP_URL (same host) */
 function getAppUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:8150";
+  return process.env.NEXT_PUBLIC_APP_URL!;
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -282,8 +282,8 @@ export async function initiateParkMonitorIdPayment(): Promise<never> {
         select: {
           firstName: true,
           lastName: true,
-        }
-      }
+        },
+      },
     },
   });
 
@@ -314,7 +314,9 @@ export async function initiateParkMonitorIdPayment(): Promise<never> {
     metadata: {
       entityType: "PARK_MONITOR_APP",
       entityId: app.id,
-      applicantName: app.user ? `${app.user.firstName} ${app.user.lastName}` : "Applicant",
+      applicantName: app.user
+        ? `${app.user.firstName} ${app.user.lastName}`
+        : "Applicant",
     },
   });
 
@@ -350,7 +352,6 @@ export async function initiateParkMonitorIdPayment(): Promise<never> {
 }
 
 // ── Initiate payment: Mass Transit Registration ────────────────────────────────
-
 
 /**
  * STORY-061 | FR-040
