@@ -46,9 +46,7 @@ export default async function PublicTracasStickerViewPage({
   if (!vehicle) notFound();
 
   const driver = vehicle.assignedDriver;
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    "https://ministry-of-transport-web.vercel.app";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL!;
   const publicUrl = `${baseUrl}/v/tracas/${encodeURIComponent(vehicle.registrationNumber || vehicle.id)}`;
 
   const formatDate = (date: Date | null) => {
@@ -226,11 +224,7 @@ export default async function PublicTracasStickerViewPage({
                     <div className="text-xs text-muted-foreground mt-0.5">
                       {/* Licence number withheld — a public scan confirms the
                           driver is licensed, it does not publish the number. */}
-                      {driver.licenseNumber && (
-                        <span>
-                          Licence held •{" "}
-                        </span>
-                      )}
+                      {driver.licenseNumber && <span>Licence held • </span>}
                       {driver.securityCode && (
                         <span>
                           Security Code:{" "}

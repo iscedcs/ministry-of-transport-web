@@ -324,6 +324,8 @@ export default function ApplyMotorParkPage() {
   const [uploadingCctv, setUploadingCctv] = useState(false);
   const [draftLoading, setDraftLoading] = useState(true);
   const [ownerProfile, setOwnerProfile] = useState<UserProfile | null>(null);
+  const [applicationType, setApplicationType] =
+    useState<ApplicationType>("NEW");
 
   // Load draft from DB on mount (falls back to empty state)
   useEffect(() => {
@@ -331,6 +333,9 @@ export default function ApplyMotorParkPage() {
       .then(([draft, profileResult]) => {
         if (draft) {
           setData(draft.data);
+          if (draft.data.applicationType === "REVALIDATION") {
+            setApplicationType("REVALIDATION");
+          }
           setCurrentStep(draft.stepReached);
           const done = new Set<number>();
           for (let i = 1; i < draft.stepReached; i++) done.add(i);
@@ -352,8 +357,6 @@ export default function ApplyMotorParkPage() {
    * fills those details in afterwards — and the record is saved as a draft.
    */
   const isFieldCapture = ownerProfile?.role === "ENUMERATOR";
-  const [applicationType, setApplicationType] =
-    useState<ApplicationType>("NEW");
   const router = useRouter();
   // Step 1 is shown to everyone. For an applicant it is their own account
   // details; for an Enumerator it records who captured the park and then
@@ -432,8 +435,10 @@ export default function ApplyMotorParkPage() {
     const nextStep = currentStep + 1;
     setCompletedSteps((prev) => new Set([...prev, currentStep]));
     setCurrentStep(nextStep);
-    // Auto-save to DB so progress survives logout
-    saveParkDraft(nextStep, data).catch(() => {
+    // Auto-save to DB so progress survives logout. applicationType is saved
+    // alongside the rest — it's chosen on step 1, and resuming a draft lands
+    // past that step, so it has to travel with the draft or it's lost.
+    saveParkDraft(nextStep, { ...data, applicationType }).catch(() => {
       /* best-effort */
     });
   }

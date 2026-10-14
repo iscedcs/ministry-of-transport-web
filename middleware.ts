@@ -169,8 +169,20 @@ export async function middleware(request: NextRequest) {
   }
 
   // 7. Role guards — per-role ceilings
+  //
+  // The revalidation queue deliberately admits ENUMERATOR (its own page-level
+  // allow-list includes it, since an Enumerator's field submission is what
+  // lands an application there) — it must be carved out of the blanket
+  // "/admin/" ceiling below, or that submission becomes unreachable the
+  // moment it leaves the Enumerator's hands.
+  const isRevalidationQueueRoute = pathname.startsWith(
+    "/admin/revalidation-queue",
+  );
   const deniedForRole = ROLE_DENIED_PREFIXES[session.role];
-  if (deniedForRole?.some((prefix) => pathname.startsWith(prefix))) {
+  if (
+    !isRevalidationQueueRoute &&
+    deniedForRole?.some((prefix) => pathname.startsWith(prefix))
+  ) {
     return NextResponse.redirect(new URL("/unauthorized", request.url));
   }
 

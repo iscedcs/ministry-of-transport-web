@@ -92,7 +92,8 @@ export function LetterOfAuthorityDocument({
     process.env.NEXT_PUBLIC_APP_URL ||
     (typeof window !== "undefined" && window.location.origin
       ? window.location.origin
-      : "https://ministry-of-transport-web.vercel.app");
+      : "https://ministry-of-transport-web.vercel.app",
+    "https://mot.anambrastate.gov.ng");
 
   const publicVerificationUrl = `${baseUrl}/verify/tracas/${vehicle.authorityRef}`;
 

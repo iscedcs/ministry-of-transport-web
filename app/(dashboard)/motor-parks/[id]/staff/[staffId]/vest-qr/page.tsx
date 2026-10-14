@@ -28,7 +28,7 @@ export default async function VestQrPage({
 
   if (!staff || staff.motorParkId !== id) notFound();
 
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const base = process.env.NEXT_PUBLIC_APP_URL!;
   const verifyUrl = `${base}/verify/park-staff/${staff.id}`;
 
   // Requested large and with high error correction: a vest creases, and the

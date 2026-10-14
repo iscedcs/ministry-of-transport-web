@@ -54,7 +54,6 @@ export interface OnboardTracasVehicleInput {
   assignedDriverId?: string;
 }
 
-
 export interface OnboardTracasDriverInput {
   fullName: string;
   phoneNumber: string;
@@ -129,7 +128,10 @@ export async function addStickerUrlsToTracasPool(inputUrls: string[]) {
     return { success: true, count: addedCount };
   } catch (error: any) {
     console.error("Error adding TRACAS stickers:", error);
-    return { success: false, error: error?.message || "Failed to add stickers." };
+    return {
+      success: false,
+      error: error?.message || "Failed to add stickers.",
+    };
   }
 }
 
@@ -137,7 +139,12 @@ export async function getAvailableTracasStickers() {
   try {
     const stickers = await db.tracasSticker.findMany({
       where: { isAssigned: false },
-      select: { id: true, stickerCode: true, stickerUrl: true, createdAt: true },
+      select: {
+        id: true,
+        stickerCode: true,
+        stickerUrl: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: "desc" },
       // Stickers are pre-loaded in bulk, so this list grows in jumps. The cap
       // is far above any realistic batch; it exists so the query cannot run
@@ -187,7 +194,9 @@ export async function getTracasStickersList() {
  *
  * Whatever the settings say, a number already in use is never handed out.
  */
-async function generateNextFleetNumber(ownershipType?: string): Promise<string> {
+async function generateNextFleetNumber(
+  ownershipType?: string,
+): Promise<string> {
   const isGov = ownershipType === "GOVERNMENT_OWNED";
   const prefix = isGov ? "FT" : "LV";
 
@@ -236,7 +245,9 @@ async function generateDriverSecurityCode(): Promise<string> {
   let attempts = 0;
   while (attempts < 20) {
     const code = Math.floor(1000 + Math.random() * 9000).toString();
-    const existing = await db.tracasDriver.findFirst({ where: { securityCode: code } });
+    const existing = await db.tracasDriver.findFirst({
+      where: { securityCode: code },
+    });
     if (!existing) return code;
     attempts++;
   }
@@ -248,7 +259,9 @@ async function generateUniqueAuthorityRef(): Promise<string> {
   while (attempts < 20) {
     const randomNum = Math.floor(10000 + Math.random() * 90000);
     const ref = `TRAC-${randomNum}-AN`;
-    const existing = await db.tracasVehicle.findUnique({ where: { authorityRef: ref } });
+    const existing = await db.tracasVehicle.findUnique({
+      where: { authorityRef: ref },
+    });
     if (!existing) return ref;
     attempts++;
   }
@@ -274,11 +287,7 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
     // them got a government FT number on a private vehicle — a mistake that
     // then needs a data migration to unpick. Both are now mandatory and must
     // be an explicit, recognised value.
-    const VALID_OWNERSHIP = [
-      "GOVERNMENT_OWNED",
-      "INDIVIDUAL",
-      "COLLABORATIVE",
-    ];
+    const VALID_OWNERSHIP = ["GOVERNMENT_OWNED", "INDIVIDUAL", "COLLABORATIVE"];
     const VALID_ENROLLMENT = ["EXISTING", "NEW_JOINER"];
 
     const ownershipType = input.ownershipType?.trim() ?? "";
@@ -310,7 +319,10 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
 
     const particularsIssue = new Date(input.particularsIssueDate);
     const particularsExpiry = new Date(input.particularsExpiryDate);
-    if (isNaN(particularsIssue.getTime()) || isNaN(particularsExpiry.getTime())) {
+    if (
+      isNaN(particularsIssue.getTime()) ||
+      isNaN(particularsExpiry.getTime())
+    ) {
       return { success: false, error: "Particulars dates are invalid." };
     }
     if (particularsExpiry <= particularsIssue) {
@@ -320,19 +332,28 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
       };
     }
 
-    const fleetNo = input.fleetNumber?.trim() || (await generateNextFleetNumber(ownershipType));
+    const fleetNo =
+      input.fleetNumber?.trim() ||
+      (await generateNextFleetNumber(ownershipType));
 
     const plateCheck = await checkDuplicatePlateNumber(regNo);
     if (plateCheck.isTaken) {
       return {
         success: false,
-        error: plateCheck.message || `Vehicle with registration '${regNo}' already exists.`,
+        error:
+          plateCheck.message ||
+          `Vehicle with registration '${regNo}' already exists.`,
       };
     }
 
-    const existingFleet = await db.tracasVehicle.findUnique({ where: { fleetNumber: fleetNo } });
+    const existingFleet = await db.tracasVehicle.findUnique({
+      where: { fleetNumber: fleetNo },
+    });
     if (existingFleet) {
-      return { success: false, error: `Vehicle with fleet number '${fleetNo}' already exists.` };
+      return {
+        success: false,
+        error: `Vehicle with fleet number '${fleetNo}' already exists.`,
+      };
     }
 
     // A driver already operating a vehicle cannot be attached to another.
@@ -349,14 +370,23 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
       }
     }
 
-    const authorityRef = input.authorityRef?.trim() || (await generateUniqueAuthorityRef());
+    const authorityRef =
+      input.authorityRef?.trim() || (await generateUniqueAuthorityRef());
 
     if (ownershipType !== "GOVERNMENT_OWNED") {
       if (!input.ownerName?.trim()) {
-        return { success: false, error: "Vehicle Owner Name is required for private/collaborative vehicles." };
+        return {
+          success: false,
+          error:
+            "Vehicle Owner Name is required for private/collaborative vehicles.",
+        };
       }
       if (!input.ownerPhone?.trim()) {
-        return { success: false, error: "Vehicle Owner Phone is required for private/collaborative vehicles." };
+        return {
+          success: false,
+          error:
+            "Vehicle Owner Phone is required for private/collaborative vehicles.",
+        };
       }
     }
 
@@ -373,8 +403,12 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
         engineNumber: input.engineNumber || null,
         chassisNumber: input.chassisNumber || null,
         insuranceCertificateNo: input.insuranceCertificateNo || null,
-        insuranceCommencement: input.insuranceCommencement ? new Date(input.insuranceCommencement) : null,
-        insuranceExpiry: input.insuranceExpiry ? new Date(input.insuranceExpiry) : null,
+        insuranceCommencement: input.insuranceCommencement
+          ? new Date(input.insuranceCommencement)
+          : null,
+        insuranceExpiry: input.insuranceExpiry
+          ? new Date(input.insuranceExpiry)
+          : null,
         particularsIssueDate: particularsIssue,
         particularsExpiryDate: particularsExpiry,
         assignedRoute: input.assignedRoute || null,
@@ -392,12 +426,15 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
         ownerAddress: input.ownerAddress?.trim() || null,
         ownerNIN: input.ownerNIN?.trim() || null,
         authorityRef: authorityRef,
-        authorityIssueDate: input.authorityIssueDate ? new Date(input.authorityIssueDate) : new Date(),
-        authorityExpiryDate: input.authorityExpiryDate ? new Date(input.authorityExpiryDate) : null,
+        authorityIssueDate: input.authorityIssueDate
+          ? new Date(input.authorityIssueDate)
+          : new Date(),
+        authorityExpiryDate: input.authorityExpiryDate
+          ? new Date(input.authorityExpiryDate)
+          : null,
         assignedDriverId: input.assignedDriverId || null,
       },
     });
-
 
     if (input.stickerId) {
       await db.tracasSticker.update({
@@ -429,13 +466,16 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
     return { success: true, data: vehicle };
   } catch (error: any) {
     console.error("Error onboarding TRACAS vehicle:", error);
-    return { success: false, error: error?.message || "Failed to onboard vehicle." };
+    return {
+      success: false,
+      error: error?.message || "Failed to onboard vehicle.",
+    };
   }
 }
 
 export async function assignStickerToTracasVehicle(
   vehicleId: string,
-  stickerIdentifier: string | null
+  stickerIdentifier: string | null,
 ) {
   try {
     // Sticker binding is part of onboarding.
@@ -475,7 +515,7 @@ export async function assignStickerToTracasVehicle(
 
       // If sticker does not exist in pool, create it dynamically
       if (!sticker) {
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:8150";
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL!;
         const stickerUrl = rawInput.startsWith("http")
           ? rawInput
           : `${baseUrl}/v/tracas/${extractedCode}`;
@@ -502,13 +542,17 @@ export async function assignStickerToTracasVehicle(
     }
 
     await recordAudit({
-      action: stickerIdentifier ? "TRACAS_STICKER_BOUND" : "TRACAS_STICKER_UNBOUND",
+      action: stickerIdentifier
+        ? "TRACAS_STICKER_BOUND"
+        : "TRACAS_STICKER_UNBOUND",
       entityType: "TRACAS_VEHICLE",
       entityId: vehicleId,
       changeDescription: stickerIdentifier
         ? `Bound sticker to vehicle ${vehicleId}`
         : `Unbound sticker from vehicle ${vehicleId}`,
-      oldValues: previousStickerCode ? { stickerCode: previousStickerCode } : undefined,
+      oldValues: previousStickerCode
+        ? { stickerCode: previousStickerCode }
+        : undefined,
       newValues: stickerIdentifier ? { scanned: stickerIdentifier } : null,
     });
 
@@ -523,7 +567,10 @@ export async function assignStickerToTracasVehicle(
   }
 }
 
-export async function reassignTracasDriver(vehicleId: string, driverId: string | null) {
+export async function reassignTracasDriver(
+  vehicleId: string,
+  driverId: string | null,
+) {
   try {
     // Two different operations share this action:
     //
@@ -596,7 +643,10 @@ export async function reassignTracasDriver(vehicleId: string, driverId: string |
     return { success: true, data: updated };
   } catch (error: any) {
     console.error("Error reassigning TRACAS driver:", error);
-    return { success: false, error: error?.message || "Failed to reassign driver." };
+    return {
+      success: false,
+      error: error?.message || "Failed to reassign driver.",
+    };
   }
 }
 
@@ -623,7 +673,10 @@ export async function onboardTracasDriver(input: OnboardTracasDriverInput) {
         where: { licenseNumber: input.licenseNumber.trim() },
       });
       if (existingLic) {
-        return { success: false, error: `Driver with license '${input.licenseNumber.trim()}' already exists.` };
+        return {
+          success: false,
+          error: `Driver with license '${input.licenseNumber.trim()}' already exists.`,
+        };
       }
     }
 
@@ -659,8 +712,12 @@ export async function onboardTracasDriver(input: OnboardTracasDriverInput) {
         guarantorPhone: input.guarantorPhone || null,
         guarantorAddress: input.guarantorAddress || null,
         licenseNumber: input.licenseNumber?.trim() || null,
-        licenseIssueDate: input.licenseIssueDate ? new Date(input.licenseIssueDate) : null,
-        licenseExpiryDate: input.licenseExpiryDate ? new Date(input.licenseExpiryDate) : null,
+        licenseIssueDate: input.licenseIssueDate
+          ? new Date(input.licenseIssueDate)
+          : null,
+        licenseExpiryDate: input.licenseExpiryDate
+          ? new Date(input.licenseExpiryDate)
+          : null,
         operatorAssociation: input.operatorAssociation || null,
         notes: input.notes || null,
       },
@@ -683,7 +740,10 @@ export async function onboardTracasDriver(input: OnboardTracasDriverInput) {
     return { success: true, data: driver };
   } catch (error: any) {
     console.error("Error onboarding TRACAS driver:", error);
-    return { success: false, error: error?.message || "Failed to onboard driver." };
+    return {
+      success: false,
+      error: error?.message || "Failed to onboard driver.",
+    };
   }
 }
 
@@ -773,9 +833,21 @@ export async function getTracasFleetData(params?: {
       ...(search
         ? {
             OR: [
-              { registrationNumber: { contains: search, mode: "insensitive" as const } },
-              { fleetNumber: { contains: search, mode: "insensitive" as const } },
-              { authorityRef: { contains: search, mode: "insensitive" as const } },
+              {
+                registrationNumber: {
+                  contains: search,
+                  mode: "insensitive" as const,
+                },
+              },
+              {
+                fleetNumber: { contains: search, mode: "insensitive" as const },
+              },
+              {
+                authorityRef: {
+                  contains: search,
+                  mode: "insensitive" as const,
+                },
+              },
               {
                 assignedDriver: {
                   fullName: { contains: search, mode: "insensitive" as const },
@@ -797,7 +869,9 @@ export async function getTracasFleetData(params?: {
           OR: [
             { fullName: { contains: search, mode: "insensitive" as const } },
             { phoneNumber: { contains: search } },
-            { licenseNumber: { contains: search, mode: "insensitive" as const } },
+            {
+              licenseNumber: { contains: search, mode: "insensitive" as const },
+            },
           ],
         }
       : {};
@@ -949,7 +1023,12 @@ export async function getTracasFleetData(params?: {
       }),
       db.tracasSticker.findMany({
         where: { isAssigned: false },
-        select: { id: true, stickerCode: true, stickerUrl: true, isAssigned: true },
+        select: {
+          id: true,
+          stickerCode: true,
+          stickerUrl: true,
+          isAssigned: true,
+        },
         orderBy: { createdAt: "desc" },
         take: MAX_LIST_ROWS,
       }),
@@ -1279,7 +1358,9 @@ export async function updateTracasVehicle(
       if (plateCheck.isTaken) {
         return {
           success: false,
-          error: plateCheck.message || `Registration '${nextReg}' already belongs to another vehicle.`,
+          error:
+            plateCheck.message ||
+            `Registration '${nextReg}' already belongs to another vehicle.`,
         };
       }
     }
@@ -1291,7 +1372,10 @@ export async function updateTracasVehicle(
         input.ownershipType,
       )
     ) {
-      return { success: false, error: "Select a valid Vehicle Ownership Type." };
+      return {
+        success: false,
+        error: "Select a valid Vehicle Ownership Type.",
+      };
     }
     if (
       input.enrollmentType !== undefined &&

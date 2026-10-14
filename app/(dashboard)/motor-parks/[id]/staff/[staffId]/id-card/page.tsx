@@ -39,7 +39,7 @@ export default async function StaffIdCardPage({
 
   if (!staff || staff.motorParkId !== id) notFound();
 
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const base = process.env.NEXT_PUBLIC_APP_URL!;
   const verifyUrl = `${base}/verify/park-staff/${staff.id}`;
   // Falls back to a generated code if the stored QR image is missing, so the
   // card is never printed without a scannable mark.

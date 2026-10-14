@@ -10,18 +10,24 @@ export type ParkMonitorApplicationResult =
   | { success: false; error: string };
 
 export async function submitParkMonitorApplication(
-  data: Omit<Parameters<typeof db.parkMonitorApplication.create>[0]["data"], "userId">
+  data: Omit<
+    Parameters<typeof db.parkMonitorApplication.create>[0]["data"],
+    "userId"
+  >,
 ): Promise<ParkMonitorApplicationResult> {
   try {
     // Public submission - no session required
-    
+
     // Check if user already applied with this NIN to prevent duplicates
     const existing = await db.parkMonitorApplication.findUnique({
       where: { nin: data.nin },
     });
 
     if (existing) {
-      return { success: false, error: "An application with this NIN already exists." };
+      return {
+        success: false,
+        error: "An application with this NIN already exists.",
+      };
     }
 
     const application = await db.parkMonitorApplication.create({
@@ -35,7 +41,8 @@ export async function submitParkMonitorApplication(
     console.error("[SubmitParkMonitorApplication Error]", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to submit application",
+      error:
+        error instanceof Error ? error.message : "Failed to submit application",
     };
   }
 }
@@ -43,12 +50,15 @@ export async function submitParkMonitorApplication(
 export async function reviewParkMonitorApplication(
   id: string,
   status: "APPROVED" | "REJECTED" | "WAITLISTED",
-  notes: string
+  notes: string,
 ) {
   try {
     const session = await getSession();
     if (!session || session.role !== "COMMISSIONER") {
-      return { success: false, error: "Unauthorized. Only Commissioner can review." };
+      return {
+        success: false,
+        error: "Unauthorized. Only Commissioner can review.",
+      };
     }
 
     const app = await db.parkMonitorApplication.findUnique({ where: { id } });
@@ -73,13 +83,13 @@ export async function reviewParkMonitorApplication(
       if (status === "APPROVED" && !app.userId) {
         // Check if user already exists by email
         let user = await tx.user.findUnique({
-          where: { email: app.emailAddress }
+          where: { email: app.emailAddress },
         });
 
         // Also check by phone if not found by email
         if (!user && app.phoneNumber) {
           user = await tx.user.findFirst({
-            where: { phone: app.phoneNumber }
+            where: { phone: app.phoneNumber },
           });
         }
 
@@ -97,7 +107,7 @@ export async function reviewParkMonitorApplication(
 
           user = await tx.user.update({
             where: { id: user.id },
-            data: updatePayload
+            data: updatePayload,
           });
         } else {
           // Create new user
@@ -134,7 +144,8 @@ export async function reviewParkMonitorApplication(
     console.error("[ReviewParkMonitorApplication Error]", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to review application",
+      error:
+        error instanceof Error ? error.message : "Failed to review application",
     };
   }
 }
@@ -145,7 +156,10 @@ export async function updateParkMonitorPhoto(photoUrl: string) {
     if (photoProblem) return { success: false, error: photoProblem };
 
     const session = await getSession();
-    if (!session || (session.role !== "EXTERNAL_APPLICANT" && session.role !== "PARK_MONITOR")) {
+    if (
+      !session ||
+      (session.role !== "EXTERNAL_APPLICANT" && session.role !== "PARK_MONITOR")
+    ) {
       return { success: false, error: "Unauthorized" };
     }
 
@@ -175,27 +189,30 @@ export async function updateParkMonitorPhoto(photoUrl: string) {
 export async function issueParkMonitorId(applicationId: string) {
   try {
     const session = await getSession();
-    if (!session || (session.role !== "HOD_PARKS" && session.role !== "SYSTEM_ADMIN")) {
+    if (
+      !session ||
+      (session.role !== "HOD_PARKS" && session.role !== "SYSTEM_ADMIN")
+    ) {
       return { success: false, error: "Unauthorized. Only HOD can issue ID." };
     }
 
     const app = await db.parkMonitorApplication.findUnique({
       where: { id: applicationId },
-      include: { user: true }
+      include: { user: true },
     });
 
     if (!app || app.status !== "APPROVED") {
       return { success: false, error: "Application is not approved." };
     }
-    
+
     if (app.idCardIssued) {
       return { success: false, error: "ID Card already issued." };
     }
 
     // Generate unique URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:8150";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL!;
     const idUrl = `${baseUrl}/verify/park-monitor/${app.id}`;
-    
+
     // In a real implementation, we would generate a QR code image and upload it to Spaces.
     // For now, we store the URL and generate the QR code on the fly in the UI, or use a public API
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(idUrl)}`;
