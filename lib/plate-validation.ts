@@ -1,11 +1,12 @@
 /**
  * Platform-wide Plate Number Validation & Collision Detection
- * 
+ *
  * Enforces cross-module uniqueness across:
  * - CvrVehicle (Commercial Vehicle Registration)
  * - TracasVehicle (TRACAS Fleet)
  * - Vehicle (Mass Transit Operators)
  * - VehicleSubmission (Pending Mass Transit Submissions)
+ * - LogisticsVehicle (Logistics Operators)
  */
 
 import { db } from "@/lib/db";
@@ -14,12 +15,14 @@ export type VehicleModuleSource =
   | "Commercial Vehicle Registration (CVR)"
   | "TRACAS Fleet"
   | "Mass Transit Fleet"
-  | "Mass Transit Submission";
+  | "Mass Transit Submission"
+  | "Logistics Fleet";
 
 export interface PlateExclusionOptions {
   cvrVehicleId?: string;
   tracasVehicleId?: string;
   massTransitVehicleId?: string;
+  logisticsVehicleId?: string;
 }
 
 export interface PlateCheckResult {
@@ -49,6 +52,18 @@ export function normalizePlateDisplay(plate: string): string {
 export function toAlphanumericPlate(plate: string): string {
   if (!plate) return "";
   return plate.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+/**
+ * Canonical form for a plate number entered anywhere on the platform:
+ * uppercased with all whitespace removed ("GRS 4246 HG" -> "GRS4246HG").
+ * Applied both as the user types (input onChange) and again in server
+ * actions before validation, duplicate checks, and storage, so a plate is
+ * stored in exactly one shape no matter how it was typed.
+ */
+export function normalizePlateInput(plate: string): string {
+  if (!plate) return "";
+  return plate.replace(/\s+/g, "").toUpperCase();
 }
 
 /**
@@ -126,25 +141,37 @@ export async function checkDuplicatePlateNumber(
     })),
   };
 
-  // Perform parallel checks across all 4 registries
-  const [cvrMatch, tracasMatch, vehicleMatch, submissionMatch] = await Promise.all([
-    db.cvrVehicle.findFirst({
-      where: cvrWhere,
-      select: { id: true, plateNumber: true },
-    }),
-    db.tracasVehicle.findFirst({
-      where: tracasWhere,
-      select: { id: true, registrationNumber: true, fleetNumber: true },
-    }),
-    db.vehicle.findFirst({
-      where: vehicleWhere,
-      select: { id: true, registrationNumber: true },
-    }),
-    db.vehicleSubmission.findFirst({
-      where: submissionWhere,
-      select: { id: true, registrationNumber: true },
-    }),
-  ]);
+  const logisticsWhere = {
+    OR: variants.map((v) => ({
+      plateNumber: { equals: v, mode: "insensitive" as const },
+    })),
+    ...(exclude?.logisticsVehicleId ? { id: { not: exclude.logisticsVehicleId } } : {}),
+  };
+
+  // Perform parallel checks across all 5 registries
+  const [cvrMatch, tracasMatch, vehicleMatch, submissionMatch, logisticsMatch] =
+    await Promise.all([
+      db.cvrVehicle.findFirst({
+        where: cvrWhere,
+        select: { id: true, plateNumber: true },
+      }),
+      db.tracasVehicle.findFirst({
+        where: tracasWhere,
+        select: { id: true, registrationNumber: true, fleetNumber: true },
+      }),
+      db.vehicle.findFirst({
+        where: vehicleWhere,
+        select: { id: true, registrationNumber: true },
+      }),
+      db.vehicleSubmission.findFirst({
+        where: submissionWhere,
+        select: { id: true, registrationNumber: true },
+      }),
+      db.logisticsVehicle.findFirst({
+        where: logisticsWhere,
+        select: { id: true, plateNumber: true },
+      }),
+    ]);
 
   if (cvrMatch) {
     return {
@@ -185,6 +212,16 @@ export async function checkDuplicatePlateNumber(
       matchedPlate: submissionMatch.registrationNumber,
       vehicleId: submissionMatch.id,
       message: `Plate number "${submissionMatch.registrationNumber}" is already recorded in an active Mass Transit vehicle submission. Duplicate plate numbers are not permitted.`,
+    };
+  }
+
+  if (logisticsMatch) {
+    return {
+      isTaken: true,
+      module: "Logistics Fleet",
+      matchedPlate: logisticsMatch.plateNumber,
+      vehicleId: logisticsMatch.id,
+      message: `Plate number "${logisticsMatch.plateNumber}" is already registered under Logistics Fleet. Duplicate plate numbers are not permitted.`,
     };
   }
 

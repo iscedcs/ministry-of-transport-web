@@ -44,6 +44,11 @@ import { FileText, Download, ShieldCheck, Plus, Bus } from "lucide-react";
 import { FleetWorkflowActions } from "./fleet-workflow-actions";
 import { AttachStickerDialog } from "@/components/mass-transit/attach-sticker-dialog";
 
+// An applicant may grow their fleet in every live state of the application —
+// while it is in the review pipeline and after approval. Only a dead
+// application freezes the fleet.
+const FLEET_FROZEN_STATUSES = ["REJECTED", "WAITLISTED", "REVOKED"];
+
 // ── Action Bar ─────────────────────────────────────────────────────────────────
 
 function ActionBar({
@@ -92,7 +97,7 @@ function ActionBar({
       "HOD_PARKS_REVALIDATION",
     ].includes(role) ||
     (role === "EXTERNAL_APPLICANT" &&
-      ["DRAFT", "SUBMITTED", "UNDER_REVIEW"].includes(status));
+      !FLEET_FROZEN_STATUSES.includes(status));
 
   const canFleetChange =
     role === "EXTERNAL_APPLICANT" &&
@@ -345,7 +350,7 @@ export default async function FleetOperatorDetailPage({ params }: PageProps) {
       "HOD_PARKS_REVALIDATION",
     ].includes(session.role) ||
     (session.role === "EXTERNAL_APPLICANT" &&
-      ["DRAFT", "SUBMITTED", "UNDER_REVIEW"].includes(co.applicationStatus));
+      !FLEET_FROZEN_STATUSES.includes(co.applicationStatus));
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl">

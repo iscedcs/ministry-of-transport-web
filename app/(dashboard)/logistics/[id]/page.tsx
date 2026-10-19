@@ -11,6 +11,7 @@ import { RowGrid as Row } from "@/components/ui/row";
 import { fmtDateShort as fmt } from "@/lib/utils/format";
 import LogisticsWorkflowActions from "./workflow-actions";
 import AddVehicleButton from "./add-vehicle-button";
+import { VehicleDetailDialog } from "@/components/logistics/vehicle-detail-dialog";
 
 export const metadata = {
   title: "Logistics Applicant — Ministry of Transport",
@@ -99,6 +100,7 @@ export default async function LogisticsDetailPage({
             <>
               <Row label="Company Name" value={applicant.companyName} />
               <Row label="CAC Number" value={applicant.cacNumber} />
+              <Row label="ASIN" value={applicant.asinNumber} />
             </>
           )}
           <Row label="Contact Person" value={applicant.contactPerson} />
@@ -122,14 +124,7 @@ export default async function LogisticsDetailPage({
           {applicant.vehicles.map((v) => (
             <div key={v.id} className="rounded-xl border border-border p-3 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="font-mono font-semibold">{v.plateNumber}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {v.vehicleType}
-                    {v.make || v.model ? ` · ${[v.make, v.model].filter(Boolean).join(" ")}` : ""}
-                    {v.color ? ` · ${v.color}` : ""}
-                  </p>
-                </div>
+                <VehicleDetailDialog vehicle={v} />
                 {applicant.applicationStatus === "APPROVED" && (
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/logistics/${applicant.id}/letter/${v.id}`} target="_blank">

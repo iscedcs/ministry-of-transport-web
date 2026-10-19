@@ -2208,6 +2208,9 @@ model LogisticsApplicant {
   // Company fields — set when applicantType = COMPANY
   companyName String?
   cacNumber   String? @unique
+  /// Anambra State Identification Number — the company's Paydirect billing
+  /// identity, quoted on the approval letter. Required for companies.
+  asinNumber  String? @unique
 
   // Applies to both: the company's contact person, or the individual
   // operator's own details.
