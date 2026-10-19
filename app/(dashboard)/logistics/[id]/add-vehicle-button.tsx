@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StickerScanModal } from "@/components/mass-transit/attach-sticker-dialog";
 import { addLogisticsVehicle, type LogisticsVehicleInput } from "@/app/actions/logistics";
+import { normalizePlateInput } from "@/lib/plate-validation";
 
 const EMPTY: LogisticsVehicleInput = {
   plateNumber: "",
@@ -62,7 +63,11 @@ export default function AddVehicleButton({ applicantId }: { applicantId: string 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label>Plate number</Label>
-          <Input value={form.plateNumber} onChange={(e) => set("plateNumber", e.target.value)} />
+          <Input
+            value={form.plateNumber}
+            onChange={(e) => set("plateNumber", normalizePlateInput(e.target.value))}
+            placeholder="No spaces — e.g. GRS4246HG"
+          />
         </div>
         <div className="space-y-1.5">
           <Label>Vehicle type</Label>

@@ -6,7 +6,8 @@
  *
  * External applicant adds a single vehicle to the fleet during application.
  *
- * Access: EXTERNAL_APPLICANT (application status SUBMITTED / UNDER_REVIEW)
+ * Access: EXTERNAL_APPLICANT (own company, any live application status —
+ *          only REJECTED / WAITLISTED / REVOKED freeze the fleet)
  */
 
 import { useActionState, useEffect, useState } from "react";

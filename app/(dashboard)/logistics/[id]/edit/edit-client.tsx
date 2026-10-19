@@ -17,6 +17,7 @@ interface ApplicantRecord {
   applicantType: LogisticsApplicantType;
   companyName: string | null;
   cacNumber: string | null;
+  asinNumber: string | null;
   contactPerson: string;
   contactPhone: string;
   contactEmail: string | null;
@@ -30,6 +31,7 @@ export default function EditLogisticsClient({ applicant }: { applicant: Applican
   const [isPending, startTransition] = useTransition();
   const [companyName, setCompanyName] = useState(applicant.companyName ?? "");
   const [cacNumber, setCacNumber] = useState(applicant.cacNumber ?? "");
+  const [asinNumber, setAsinNumber] = useState(applicant.asinNumber ?? "");
   const [contactPerson, setContactPerson] = useState(applicant.contactPerson);
   const [contactPhone, setContactPhone] = useState(applicant.contactPhone);
   const [contactEmail, setContactEmail] = useState(applicant.contactEmail ?? "");
@@ -42,6 +44,10 @@ export default function EditLogisticsClient({ applicant }: { applicant: Applican
       toast.error("Company name is required.");
       return;
     }
+    if (isCompany && !asinNumber.trim()) {
+      toast.error("The company's ASIN is required.");
+      return;
+    }
     if (!contactPerson.trim() || !contactPhone.trim()) {
       toast.error("Contact name and phone number are required.");
       return;
@@ -51,6 +57,7 @@ export default function EditLogisticsClient({ applicant }: { applicant: Applican
         applicantType: applicant.applicantType,
         companyName,
         cacNumber,
+        asinNumber,
         contactPerson,
         contactPhone,
         contactEmail,
@@ -109,6 +116,17 @@ export default function EditLogisticsClient({ applicant }: { applicant: Applican
               <div className="space-y-1.5">
                 <Label htmlFor="cacNumber">CAC number</Label>
                 <Input id="cacNumber" value={cacNumber} onChange={(e) => setCacNumber(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="asinNumber">
+                  ASIN <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="asinNumber"
+                  value={asinNumber}
+                  onChange={(e) => setAsinNumber(e.target.value)}
+                  placeholder="Anambra State Identification Number"
+                />
               </div>
             </>
           )}

@@ -896,7 +896,8 @@ export async function getFleetApplication(
 
 /**
  * FR-022/FR-028: Add a single vehicle to the fleet.
- * Accessible by EXTERNAL_APPLICANT (own company only).
+ * Accessible by EXTERNAL_APPLICANT (own company, any live application
+ * status — only REJECTED / WAITLISTED / REVOKED freeze the fleet).
  */
 export async function addVehicle(
   prevState: ActionResult<{ vehicleId: string }> | undefined,
@@ -934,6 +935,20 @@ export async function addVehicle(
 
   if (!isStaffOrEnumerator && company.contactUserId !== session.userId) {
     return { success: false, error: "Access denied" };
+  }
+
+  // The owner may grow the fleet in any live state of the application — in
+  // the review pipeline or after approval. Only a dead application freezes
+  // the fleet; staff roles above may add regardless of status.
+  if (
+    !isStaffOrEnumerator &&
+    ["REJECTED", "WAITLISTED", "REVOKED"].includes(company.applicationStatus)
+  ) {
+    return {
+      success: false,
+      error:
+        "Vehicles cannot be added while the application is not active.",
+    };
   }
 
   const parsed = vehicleDetailSchema.safeParse({

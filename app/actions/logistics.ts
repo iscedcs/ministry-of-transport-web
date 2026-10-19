@@ -15,6 +15,10 @@ import { authorize } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
 import {
+  checkDuplicatePlateNumber,
+  normalizePlateInput,
+} from "@/lib/plate-validation";
+import {
   LOGISTICS_BASE_WRITE_ROLES,
   LOGISTICS_BASE_VIEW_ROLES,
   LOGISTICS_HOD_OPS_ROLES,
@@ -44,6 +48,7 @@ export interface LogisticsApplicantInput {
   applicantType: LogisticsApplicantType;
   companyName?: string;
   cacNumber?: string;
+  asinNumber?: string;
   contactPerson: string;
   contactPhone: string;
   contactEmail?: string;
@@ -64,25 +69,45 @@ export async function registerLogisticsApplicant(
   if (input.applicantType === "COMPANY" && !input.companyName?.trim()) {
     return { success: false, error: "Company name is required." };
   }
+  if (input.applicantType === "COMPANY" && !input.asinNumber?.trim()) {
+    return { success: false, error: "The company's ASIN is required." };
+  }
   if (!input.vehicles || input.vehicles.length === 0) {
     return { success: false, error: "At least one vehicle is required." };
   }
   if (input.applicantType === "INDIVIDUAL" && input.vehicles.length > 1) {
     return { success: false, error: "An individual registers a single vehicle." };
   }
-  for (const v of input.vehicles) {
-    if (!v.plateNumber?.trim() || !v.vehicleType?.trim()) {
+  // Plates are stored uppercased with no whitespace, and must be unique
+  // platform-wide (CVR, TRACAS, Mass Transit, Logistics — not just this module).
+  const plates = input.vehicles.map((v) => normalizePlateInput(v.plateNumber ?? ""));
+  for (let i = 0; i < input.vehicles.length; i++) {
+    if (!plates[i] || !input.vehicles[i].vehicleType?.trim()) {
       return { success: false, error: "Every vehicle needs a plate number and a vehicle type." };
     }
   }
+  if (new Set(plates).size !== plates.length) {
+    return { success: false, error: "The same plate number appears more than once." };
+  }
+  for (const plate of plates) {
+    const plateCheck = await checkDuplicatePlateNumber(plate);
+    if (plateCheck.isTaken) {
+      return {
+        success: false,
+        error: plateCheck.message || `Plate number ${plate} is already registered.`,
+      };
+    }
+  }
 
-  const plates = input.vehicles.map((v) => v.plateNumber.trim().toUpperCase());
-  const clash = await db.logisticsVehicle.findFirst({
-    where: { plateNumber: { in: plates } },
-    select: { plateNumber: true },
-  });
-  if (clash) {
-    return { success: false, error: `Plate number ${clash.plateNumber} is already registered.` };
+  const asin = input.applicantType === "COMPANY" ? blank(input.asinNumber) : null;
+  if (asin) {
+    const asinClash = await db.logisticsApplicant.findFirst({
+      where: { asinNumber: asin },
+      select: { id: true },
+    });
+    if (asinClash) {
+      return { success: false, error: "This ASIN is already registered." };
+    }
   }
 
   try {
@@ -91,6 +116,7 @@ export async function registerLogisticsApplicant(
         applicantType: input.applicantType,
         companyName: input.applicantType === "COMPANY" ? input.companyName!.trim() : null,
         cacNumber: input.applicantType === "COMPANY" ? blank(input.cacNumber) : null,
+        asinNumber: asin,
         contactPerson: input.contactPerson.trim(),
         contactPhone: input.contactPhone.trim(),
         contactEmail: blank(input.contactEmail),
@@ -98,7 +124,7 @@ export async function registerLogisticsApplicant(
         capturedByUserId: authz.session.userId,
         vehicles: {
           create: input.vehicles.map((v) => ({
-            plateNumber: v.plateNumber.trim().toUpperCase(),
+            plateNumber: normalizePlateInput(v.plateNumber),
             vehicleType: v.vehicleType.trim(),
             chassisNumber: blank(v.chassisNumber),
             make: blank(v.make),
@@ -150,12 +176,14 @@ export async function addLogisticsVehicle(
     return { success: false, error: "An individual operator registers a single vehicle." };
   }
 
-  const plateNumber = vehicle.plateNumber.trim().toUpperCase();
-  const clash = await db.logisticsVehicle.findUnique({
-    where: { plateNumber },
-    select: { id: true },
-  });
-  if (clash) return { success: false, error: "This plate number is already registered." };
+  const plateNumber = normalizePlateInput(vehicle.plateNumber);
+  const plateCheck = await checkDuplicatePlateNumber(plateNumber);
+  if (plateCheck.isTaken) {
+    return {
+      success: false,
+      error: plateCheck.message || "This plate number is already registered.",
+    };
+  }
 
   await db.logisticsVehicle.create({
     data: {
@@ -195,6 +223,9 @@ export async function updateLogisticsApplicant(
   if (input.applicantType === "COMPANY" && !input.companyName?.trim()) {
     return { success: false, error: "Company name is required." };
   }
+  if (input.applicantType === "COMPANY" && !input.asinNumber?.trim()) {
+    return { success: false, error: "The company's ASIN is required." };
+  }
 
   const existing = await db.logisticsApplicant.findUnique({
     where: { id },
@@ -202,12 +233,24 @@ export async function updateLogisticsApplicant(
   });
   if (!existing) return { success: false, error: "Applicant not found." };
 
+  const asin = input.applicantType === "COMPANY" ? blank(input.asinNumber) : null;
+  if (asin) {
+    const asinClash = await db.logisticsApplicant.findFirst({
+      where: { asinNumber: asin },
+      select: { id: true },
+    });
+    if (asinClash && asinClash.id !== id) {
+      return { success: false, error: "This ASIN is already registered." };
+    }
+  }
+
   try {
     await db.logisticsApplicant.update({
       where: { id },
       data: {
         companyName: input.applicantType === "COMPANY" ? input.companyName!.trim() : null,
         cacNumber: input.applicantType === "COMPANY" ? blank(input.cacNumber) : null,
+        asinNumber: asin,
         contactPerson: input.contactPerson.trim(),
         contactPhone: input.contactPhone.trim(),
         contactEmail: blank(input.contactEmail),

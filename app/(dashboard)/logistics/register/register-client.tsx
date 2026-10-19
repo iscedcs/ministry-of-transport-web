@@ -15,6 +15,7 @@ import {
   type LogisticsApplicantInput,
   type LogisticsVehicleInput,
 } from "@/app/actions/logistics";
+import { normalizePlateInput } from "@/lib/plate-validation";
 import type { LogisticsApplicantType } from "@prisma/client";
 
 const EMPTY_VEHICLE: LogisticsVehicleInput = {
@@ -33,6 +34,7 @@ export default function RegisterLogisticsClient() {
   const [applicantType, setApplicantType] = useState<LogisticsApplicantType>("COMPANY");
   const [companyName, setCompanyName] = useState("");
   const [cacNumber, setCacNumber] = useState("");
+  const [asinNumber, setAsinNumber] = useState("");
   const [contactPerson, setContactPerson] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [contactEmail, setContactEmail] = useState("");
@@ -51,6 +53,10 @@ export default function RegisterLogisticsClient() {
       toast.error("Company name is required.");
       return;
     }
+    if (applicantType === "COMPANY" && !asinNumber.trim()) {
+      toast.error("The company's ASIN is required.");
+      return;
+    }
     if (!contactPerson.trim() || !contactPhone.trim()) {
       toast.error("Contact name and phone number are required.");
       return;
@@ -66,6 +72,7 @@ export default function RegisterLogisticsClient() {
       applicantType,
       companyName: applicantType === "COMPANY" ? companyName : undefined,
       cacNumber: applicantType === "COMPANY" ? cacNumber : undefined,
+      asinNumber: applicantType === "COMPANY" ? asinNumber : undefined,
       contactPerson,
       contactPhone,
       contactEmail,
@@ -151,6 +158,17 @@ export default function RegisterLogisticsClient() {
             <div className="space-y-1.5">
               <Label htmlFor="cacNumber">CAC number</Label>
               <Input id="cacNumber" value={cacNumber} onChange={(e) => setCacNumber(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="asinNumber">
+                ASIN <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="asinNumber"
+                value={asinNumber}
+                onChange={(e) => setAsinNumber(e.target.value)}
+                placeholder="Anambra State Identification Number"
+              />
             </div>
           </CardContent>
         </Card>
@@ -246,7 +264,10 @@ export default function RegisterLogisticsClient() {
                   </Label>
                   <Input
                     value={v.plateNumber}
-                    onChange={(e) => setVehicle(i, { plateNumber: e.target.value })}
+                    onChange={(e) =>
+                      setVehicle(i, { plateNumber: normalizePlateInput(e.target.value) })
+                    }
+                    placeholder="No spaces — e.g. GRS4246HG"
                   />
                 </div>
                 <div className="space-y-1.5">
