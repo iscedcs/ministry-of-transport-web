@@ -24,6 +24,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Upload, FileText, CheckCircle2 } from "lucide-react";
 import { submitParkMonitorApplication } from "@/app/actions/park-monitor";
 import { uploadGenericDocument } from "@/app/actions/upload";
+import { PassportPhotoInput } from "@/components/park-monitor/passport-photo-input";
 
 export function ApplyForm() {
   const router = useRouter();
@@ -64,6 +65,11 @@ export function ApplyForm() {
   });
 
   const [declarationChecked, setDeclarationChecked] = useState(false);
+
+  // Passport photograph for the ID card — optional here, required before the
+  // ID can be issued.
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
 
   // File upload states
   const [credentialFile, setCredentialFile] = useState<File | null>(null);
@@ -109,6 +115,7 @@ export function ApplyForm() {
         ...suitability,
         referees: referees,
         ...nextOfKin,
+        idCardPhotoUrl: photoUrl,
       };
 
       const res = await submitParkMonitorApplication(data);
@@ -220,6 +227,25 @@ export function ApplyForm() {
             <Label>Residential Address</Label>
             <Textarea required value={biodata.residentialAddress} onChange={e => setBiodata({...biodata, residentialAddress: e.target.value})} />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* PASSPORT PHOTOGRAPH — printed on the ID card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Passport Photograph</CardTitle>
+          <CardDescription>
+            This photo is printed on the Park Monitor ID card. Take one now
+            with the camera, or upload an existing one.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <PassportPhotoInput
+            value={photoUrl}
+            onChange={setPhotoUrl}
+            onBusyChange={setPhotoBusy}
+            disabled={isPending}
+          />
         </CardContent>
       </Card>
 
@@ -436,7 +462,7 @@ export function ApplyForm() {
         </div>
       </div>
 
-      <Button type="submit" disabled={isPending || isUploading} className="w-full h-12 text-base font-semibold">
+      <Button type="submit" disabled={isPending || isUploading || photoBusy} className="w-full h-12 text-base font-semibold">
         {isPending ? (
           <>
             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
