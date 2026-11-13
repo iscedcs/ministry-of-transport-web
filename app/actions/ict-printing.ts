@@ -284,7 +284,9 @@ const parkMonitorSource: QueueSource<{
     refOrCode: `ID: PM-${m.id.slice(0, 6).toUpperCase()}`,
     issueDate: m.createdAt,
     status: m.status,
-    printUrl: `/verify/park-staff/${m.id}`,
+    // Was /verify/park-staff/<id>, which looks the id up as a ParkStaff and so
+    // 404'd for every monitor.
+    printUrl: `/admin/park-monitors/${m.id}/id-card`,
     photoUrl: m.idCardPhotoUrl,
   }),
 };

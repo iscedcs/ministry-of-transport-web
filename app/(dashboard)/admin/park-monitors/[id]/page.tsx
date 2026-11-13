@@ -5,7 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { StatusPill } from "@/components/ui/badge";
 import { format } from "date-fns";
 import Image from "next/image";
+import Link from "next/link";
 import { ReviewActions } from "./review-actions";
+import { PhotoControl } from "./photo-control";
 
 export const metadata = {
   title: "Application Details | Park Monitors",
@@ -41,6 +43,9 @@ export default async function ParkMonitorAppDetailsPage({ params }: { params: Pr
   const isPaymentCompleted = payment?.status === "COMPLETED";
   const canReview = isExecutive && (app.status === "SUBMITTED" || app.status === "UNDER_REVIEW" || app.status === "WAITLISTED");
   const canIssueId = isHod && app.status === "APPROVED" && isPaymentCompleted && !app.idCardIssued;
+  // Whoever onboarded the applicant may not have captured a photo; HOD can add
+  // or replace it until the card is issued.
+  const canEditPhoto = isHod && app.status !== "REJECTED" && !app.idCardIssued;
 
   // Type assertion since Prisma Json is loosely typed
   const referees = (app.referees as any[]) || [];
@@ -156,23 +161,35 @@ export default async function ParkMonitorAppDetailsPage({ params }: { params: Pr
             />
           )}
 
+          {app.status !== "REJECTED" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Passport Photograph</CardTitle>
+                <CardDescription>Printed on the ID card.</CardDescription>
+              </CardHeader>
+              <CardContent className="text-sm">
+                {canEditPhoto ? (
+                  <PhotoControl
+                    applicationId={app.id}
+                    initialUrl={app.idCardPhotoUrl}
+                  />
+                ) : app.idCardPhotoUrl ? (
+                  <div className="relative h-32 w-28 overflow-hidden rounded-lg border">
+                    <Image src={app.idCardPhotoUrl} alt="Applicant Photo" fill className="object-cover" />
+                  </div>
+                ) : (
+                  <span className="text-amber-600 font-medium">No photograph yet</span>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {app.status === "APPROVED" && (
             <Card>
               <CardHeader>
                 <CardTitle>ID Card Requirements</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
-                <div>
-                  <span className="text-muted-foreground block text-xs">Passport Photo</span>
-                  {app.idCardPhotoUrl ? (
-                    <div className="mt-2 relative w-24 h-24 rounded-lg overflow-hidden border">
-                      <Image src={app.idCardPhotoUrl} alt="Applicant Photo" fill className="object-cover" />
-                    </div>
-                  ) : (
-                    <span className="text-amber-600 font-medium mt-1 inline-block">Pending Upload</span>
-                  )}
-                </div>
-                
                 <div>
                   <span className="text-muted-foreground block text-xs">ID Fee Payment (₦20,000)</span>
                   {isPaymentCompleted ? (
@@ -187,6 +204,9 @@ export default async function ParkMonitorAppDetailsPage({ params }: { params: Pr
                     <span className="text-green-600 font-medium flex items-center">
                       <span className="mr-2">✓</span> ID Card Issued
                     </span>
+                    <Link href={`/admin/park-monitors/${app.id}/id-card`} className="text-primary hover:underline block mt-2 text-xs">
+                      Open ID card for printing
+                    </Link>
                     <a href={app.qrCodeUrl!} target="_blank" rel="noreferrer" className="text-primary hover:underline block mt-2 text-xs">
                       View QR Code
                     </a>

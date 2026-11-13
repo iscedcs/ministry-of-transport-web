@@ -87,10 +87,32 @@ export async function uploadDocument(
 }
 
 /**
+ * The browser shrinks every ID photograph to ~100 KB before uploading
+ * (lib/image-compress.ts). This ceiling is the backstop for a client that
+ * skipped that step — an old cached page, a direct call — so storage cannot
+ * quietly fill with multi-megabyte originals.
+ */
+const PASSPORT_MAX_BYTES = 1024 * 1024; // 1 MB
+
+/**
  * Upload a Photo specifically to the Park Monitor bucket prefix.
  */
 export async function uploadParkMonitorPhoto(
   file: File,
 ): Promise<UploadResult> {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("The photograph must be an image.");
+  }
+  if (file.size > PASSPORT_MAX_BYTES) {
+    throw new Error(
+      "This photo is too large. Retake it or choose a smaller one — it is normally shrunk automatically.",
+    );
+  }
   return uploadDocument(file, "passports", process.env.DO_SPACES_STORAGE_PREFIX || "mot-anambra-park-monitor-images");
+}
+
+/** True when `url` points at our own object storage. */
+export function isOwnStorageUrl(url: string): boolean {
+  const base = process.env.DO_SPACES_PUBLIC_BASE;
+  return !!base && url.startsWith(`${base}/`);
 }
