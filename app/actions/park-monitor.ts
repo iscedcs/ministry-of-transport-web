@@ -5,6 +5,10 @@ import { checkStoredUrl } from "@/lib/media-url";
 import { isOwnStorageUrl } from "@/lib/spaces";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import {
+  DEFAULT_ENFORCEMENT_TYPE,
+  isEnforcementType,
+} from "@/lib/enforcement-type";
 
 export type ParkMonitorApplicationResult =
   | { success: true; applicationId: string }
@@ -27,7 +31,8 @@ export interface ParkMonitorApplicationInput {
   nin: string;
   residentialAddress: string;
   phoneNumber: string;
-  emailAddress: string;
+  /** Optional — an applicant may not have an email address. */
+  emailAddress?: string;
   maritalStatus: string;
   currentOccupation?: string;
   employer?: string;
@@ -38,7 +43,10 @@ export interface ParkMonitorApplicationInput {
   hasCriminalConviction: boolean;
   agreesToSecurityCheck: boolean;
   reasonForJoining: string;
-  referees: unknown;
+  /** Enforcement unit; defaults to the Special Enforcement Unit. */
+  enforcementType?: string;
+  /** Optional. Blank rows are dropped; a started row needs a name and phone. */
+  referees?: unknown;
   nextOfKinName: string;
   nextOfKinPhone: string;
   nextOfKinRelationship: string;
@@ -58,6 +66,58 @@ function photoUrlProblem(url: string | null | undefined): string | null {
   return null;
 }
 
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+interface Referee {
+  name: string;
+  phone: string;
+  relation: string;
+  email: string;
+  address: string;
+}
+
+/**
+ * References are optional. Rows left completely blank are dropped; a row the
+ * applicant started must at least have a name and a phone number so it is
+ * something the Ministry can actually follow up.
+ */
+function cleanReferees(
+  raw: unknown,
+): { ok: true; value: Referee[] } | { ok: false; error: string } {
+  if (raw == null) return { ok: true, value: [] };
+  if (!Array.isArray(raw)) return { ok: false, error: "Invalid referees." };
+  if (raw.length > 5) return { ok: false, error: "Too many referees." };
+
+  const out: Referee[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const r = (raw[i] ?? {}) as Record<string, unknown>;
+    const str = (k: string) =>
+      typeof r[k] === "string" ? (r[k] as string).trim() : "";
+    const row: Referee = {
+      name: str("name"),
+      phone: str("phone"),
+      relation: str("relation"),
+      email: str("email"),
+      address: str("address"),
+    };
+    if (!row.name && !row.phone && !row.relation && !row.email && !row.address) {
+      continue; // untouched row
+    }
+    if (!row.name || !row.phone) {
+      return {
+        ok: false,
+        error: `Referee ${i + 1}: enter both a name and a phone number, or clear that referee.`,
+      };
+    }
+    if (row.email && !EMAIL_RE.test(row.email)) {
+      return { ok: false, error: `Referee ${i + 1}: the email address is not valid.` };
+    }
+    out.push(row);
+  }
+  return { ok: true, value: out };
+}
+
 export async function submitParkMonitorApplication(
   input: ParkMonitorApplicationInput,
 ): Promise<ParkMonitorApplicationResult> {
@@ -66,6 +126,19 @@ export async function submitParkMonitorApplication(
 
     const photoProblem = photoUrlProblem(input.idCardPhotoUrl);
     if (photoProblem) return { success: false, error: photoProblem };
+
+    const email = input.emailAddress?.trim() || null;
+    if (email && !EMAIL_RE.test(email)) {
+      return { success: false, error: "The email address is not valid." };
+    }
+
+    const refs = cleanReferees(input.referees);
+    if (!refs.ok) return { success: false, error: refs.error };
+
+    // Only a known unit is accepted; anything else falls back to the default.
+    const enforcementType = isEnforcementType(input.enforcementType)
+      ? input.enforcementType
+      : DEFAULT_ENFORCEMENT_TYPE;
 
     // Check if user already applied with this NIN to prevent duplicates
     const existing = await db.parkMonitorApplication.findUnique({
@@ -92,7 +165,7 @@ export async function submitParkMonitorApplication(
         nin: input.nin,
         residentialAddress: input.residentialAddress,
         phoneNumber: input.phoneNumber,
-        emailAddress: input.emailAddress,
+        emailAddress: email,
         maritalStatus: input.maritalStatus,
         currentOccupation: input.currentOccupation || null,
         employer: input.employer || null,
@@ -103,7 +176,8 @@ export async function submitParkMonitorApplication(
         hasCriminalConviction: input.hasCriminalConviction,
         agreesToSecurityCheck: input.agreesToSecurityCheck,
         reasonForJoining: input.reasonForJoining,
-        referees: input.referees as never,
+        referees: refs.value as never,
+        enforcementType,
         nextOfKinName: input.nextOfKinName,
         nextOfKinPhone: input.nextOfKinPhone,
         nextOfKinRelationship: input.nextOfKinRelationship,
@@ -158,10 +232,10 @@ export async function reviewParkMonitorApplication(
     await db.$transaction(async (tx) => {
       // Create user if approved and they don't have one
       if (status === "APPROVED" && !app.userId) {
-        // Check if user already exists by email
-        let user = await tx.user.findUnique({
-          where: { email: app.emailAddress },
-        });
+        // Check if user already exists by email (an email is optional)
+        let user = app.emailAddress
+          ? await tx.user.findUnique({ where: { email: app.emailAddress } })
+          : null;
 
         // Also check by phone if not found by email
         if (!user && app.phoneNumber) {
@@ -195,7 +269,7 @@ export async function reviewParkMonitorApplication(
             data: {
               firstName: app.firstName,
               lastName: app.surname,
-              email: app.emailAddress,
+              email: app.emailAddress ?? null,
               phone: app.phoneNumber,
               asinNumber: app.nin, // fallback to nin
               role: "PARK_MONITOR",

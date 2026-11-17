@@ -8,6 +8,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ReviewActions } from "./review-actions";
 import { PhotoControl } from "./photo-control";
+import { enforcementTypeLabel } from "@/lib/enforcement-type";
 
 export const metadata = {
   title: "Application Details | Park Monitors",
@@ -86,7 +87,7 @@ export default async function ParkMonitorAppDetailsPage({ params }: { params: Pr
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-4 text-sm">
               <div><span className="text-muted-foreground block text-xs">Phone Number</span>{app.phoneNumber}</div>
-              <div><span className="text-muted-foreground block text-xs">Email Address</span>{app.emailAddress}</div>
+              <div><span className="text-muted-foreground block text-xs">Email Address</span>{app.emailAddress || "Not provided"}</div>
             </CardContent>
           </Card>
 
@@ -98,6 +99,7 @@ export default async function ParkMonitorAppDetailsPage({ params }: { params: Pr
               <div><span className="text-muted-foreground block text-xs">Current Occupation</span>{app.currentOccupation || "None"}</div>
               <div><span className="text-muted-foreground block text-xs">Employer</span>{app.employer || "None"}</div>
               <div><span className="text-muted-foreground block text-xs">Position Held</span>{app.positionHeld || "None"}</div>
+              <div><span className="text-muted-foreground block text-xs">Enforcement Type</span>{enforcementTypeLabel(app.enforcementType)}</div>
               <div><span className="text-muted-foreground block text-xs">Medically Fit?</span>{app.isMedicallyFit ? "Yes" : "No"}</div>
               <div><span className="text-muted-foreground block text-xs">Height</span>{app.height || "-"}</div>
               <div><span className="text-muted-foreground block text-xs">Weight</span>{app.weight || "-"}</div>
@@ -136,6 +138,9 @@ export default async function ParkMonitorAppDetailsPage({ params }: { params: Pr
               <div>
                 <span className="font-medium">Referees</span>
                 <div className="mt-2 space-y-2">
+                  {referees.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No referees provided.</p>
+                  )}
                   {referees.map((r: any, i: number) => (
                     <div key={i} className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-secondary/30 p-2 rounded-md text-xs">
                       <div><span className="text-muted-foreground block">Name</span>{r.name}</div>

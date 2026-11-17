@@ -276,10 +276,12 @@ export async function initiateParkMonitorIdPayment(): Promise<never> {
       id: true,
       status: true,
       emailAddress: true,
+      phoneNumber: true,
       nin: true,
       idCardIssued: true,
       user: {
         select: {
+          email: true,
           firstName: true,
           lastName: true,
         },
@@ -306,8 +308,16 @@ export async function initiateParkMonitorIdPayment(): Promise<never> {
 
   const amountKobo = 20000 * 100; // 20,000 NGN
 
+  // The applicant's email is optional, but Paystack requires one to open a
+  // checkout. Use theirs if given, else the account's, else a placeholder
+  // derived from their phone number (a receipt simply goes nowhere).
+  const payerEmail =
+    app.emailAddress ||
+    app.user?.email ||
+    `${app.phoneNumber.replace(/\D/g, "") || app.nin}@no-email.mot.anambrastate.gov.ng`;
+
   const txn = await initializeTransaction({
-    email: app.emailAddress,
+    email: payerEmail,
     amountKobo,
     reference,
     callbackUrl,
@@ -337,7 +347,7 @@ export async function initiateParkMonitorIdPayment(): Promise<never> {
         paystackAuthorizationUrl: txn.authorization_url,
         payerUserId: session.userId,
         payerAsinNumber: app.nin, // using NIN as ASIN fallback since they don't have ASIN yet
-        payerEmail: app.emailAddress,
+        payerEmail,
         amount: amountKobo,
         currency: "NGN",
         paymentType: "PARK_MONITOR_ID",

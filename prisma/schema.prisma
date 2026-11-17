@@ -1456,7 +1456,7 @@ model ParkMonitorApplication {
   nin                String  @unique
   residentialAddress String  @db.Text
   phoneNumber        String
-  emailAddress       String
+  emailAddress       String? // Optional — applicants may not have an email
   maritalStatus      String  @db.VarChar(20) // SINGLE/MARRIED/DIVORCED/WIDOWED
 
   // SECTION B: Educational Qualifications
@@ -1478,8 +1478,10 @@ model ParkMonitorApplication {
 
   // SECTION F: Enforcement Suitability
   reasonForJoining String @db.Text
+  // Which enforcement unit the applicant is joining. See lib/enforcement-type.ts.
+  enforcementType String @default("SPECIAL_ENFORCEMENT_UNIT") @db.VarChar(50)
 
-  // SECTION G: References (JSON array of {name, phone, relation, email, address})
+  // SECTION G: References — OPTIONAL. JSON array of {name, phone, relation, email, address}; [] when none given.
   referees Json
 
   // SECTION H: Next of Kin

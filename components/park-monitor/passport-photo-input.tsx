@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import { Camera, ImageUp, Loader2, CheckCircle2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { uploadGenericDocument } from "@/app/actions/upload";
+import { uploadPassportPhoto } from "@/app/actions/upload";
 import {
   compressImage,
   formatBytes,
@@ -51,17 +51,9 @@ export function PassportPhotoInput({
       const { file: small, originalBytes, compressedBytes } =
         await compressImage(file);
 
-      const result = await uploadGenericDocument(
-        small,
-        "passports",
-        "PARK_MONITOR_APP",
-      );
+      const result = await uploadPassportPhoto(small);
       if (!result.success) {
-        setError(
-          /sign|log ?in|unauthor/i.test(result.error)
-            ? "Please sign in to attach a photo. You can also add it later."
-            : result.error,
-        );
+        setError(result.error);
         return;
       }
 

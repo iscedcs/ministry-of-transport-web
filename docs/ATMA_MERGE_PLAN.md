@@ -27,7 +27,7 @@
 
 | # | Decision | Default |
 |---|---|---|
-| D1 | Mount point | **Confirmed — one domain, ARTMA under a path.** Everything under **`/atma/*`** (`/atma/login`, `/atma/officer/*`, `/atma/admin/*`, `/atma/portal`). Backend proxy under **`/api/atma/*`** → backend `/api/v1/*`. Route strings centralised in one `lib/atma/routes.ts`. |
+| D1 | Mount point | **Confirmed — one domain, ARTMA under a path.** Everything under **`/atma/*`** (`/atma/login`, `/atma/officer/*`, `/atma/admin/*`, `/atma/portal`). Browser-facing backend proxy at **`/api/atma/v1/*`** → backend `/api/v1/*` (NextAuth lives at `/api/atma/auth/*`, so the two never collide). Route strings centralised in one `lib/atma/routes.ts`. |
 | D2 | Auth | **Phase A (this merge): coexist, no unification.** NextAuth scoped to `/atma` with its own `basePath` and cookie names; MOT's `mot-session` untouched. SSO between the two would need backend work → later phase. **Because ARTMA is part of MOT, users will notice a second login — accepted for the first release, tracked as the follow-up in §6.** |
 | D3 | UI kit | Copy only the **used** shadcn primitives into `components/atma/ui/` (button, input, dialog, card, badge, table, select, dropdown-menu, native-select, input-otp, field, sonner + their deps). **Do not modify MOT's `components/ui`.** Consolidate later, if ever. |
 | D4 | Layout isolation | Start with a nested `app/atma/layout.tsx` (carries `SessionProvider`, `AuthWatcher`, `Toaster`, metadata override for robots). Theme bleed is no longer a concern (D5), so only Lenis smooth-scroll vs the camera scanner / long tables and the PWA banner need checking; escalate to separate root layouts via route groups only if those prove painful. |
@@ -51,7 +51,7 @@
 - Bump Next (D9), rebuild, smoke test login + dashboard. Commit.
 - Pin the Atma source revision being imported (currently `c7073e7`).
 
-**Phase 1 — Foundation (1 day)**
+**Phase 1 — Foundation (1 day) — ✅ DONE**
 - Add deps: `next-auth@5.0.0-beta.31`, `jwt-decode`, `radix-ui`, `react-hook-form`, `@hookform/resolvers`, `input-otp`, `tw-animate-css`, `shadcn` (css import), `react-icons`; later only if used: `cmdk`, `embla-carousel-react`, `react-day-picker`, `react-resizable-panels`, `vaul`, `next-themes` (already present).
 - `globals.css`: add `tw-animate-css`, sidebar/chart tokens.
 - `proxy.ts` consolidation per D6 with a **stub** Atma branch; verify MOT behaviour is byte-for-byte unchanged.
@@ -116,3 +116,13 @@ Mitigation: old host stays up and redirects (or keep identical legacy paths via 
 | 5 | Own subdomain | **No** — single URL (D12). |
 
 **Follow-up after the first release (needs backend work, not in this merge):** single sign-on so an MOT-logged-in officer does not log in again to ARTMA. Requires the ARTMA backend to accept an MOT-issued identity (or MOT users to be provisioned there).
+
+## 7. Phase 1 status (done)
+
+Built and smoke-tested against a fake backend on a production build:
+- Deps added; `globals.css` gained `tw-animate-css`, `shadcn/tailwind.css`, sidebar/chart tokens mapped onto MOT's tokens.
+- `middleware.ts` → `proxy.ts` (git rename). `proxy()` dispatches `/atma/*` + `/api/atma/*` to `lib/atma/proxy.ts`; the MOT logic is untouched (now `motProxy`). MOT checks after the change: `/` 200, `/dashboard` and `/admin/*` → `/login`, `/login` 200, verify pages unchanged.
+- `lib/atma/{routes,api,auth,auth.config,proxy}.ts`, `app/api/atma/auth/[...nextauth]/route.ts`, `types/atma-next-auth.d.ts`.
+- Verified: path mapping `/api/atma/v1/x` → backend `/api/v1/x`; Bearer injected from the ARTMA session cookie; camera `x-camera-key` pass-through; anonymous → 401; OFFICER bounced from `/atma/admin`; landing redirects by role.
+- **Behaviour change vs. old Atma:** `/atma/forgot-password` is now public. The old app's allow-list omitted it, so an anonymous user was bounced to login before they could reset a password (looks like a bug).
+- Env vars added to `.env.example` (placeholders only): `ARTMA_API_URL`, `ATMA_AUTH_SECRET`, `TRANSPAY_API_URL`, `TRANSPAY_API_KEY`. **These must be set in Vercel before Phase 5.**

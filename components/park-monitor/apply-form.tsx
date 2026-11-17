@@ -25,6 +25,10 @@ import { Loader2, Upload, FileText, CheckCircle2 } from "lucide-react";
 import { submitParkMonitorApplication } from "@/app/actions/park-monitor";
 import { uploadGenericDocument } from "@/app/actions/upload";
 import { PassportPhotoInput } from "@/components/park-monitor/passport-photo-input";
+import {
+  DEFAULT_ENFORCEMENT_TYPE,
+  ENFORCEMENT_TYPES,
+} from "@/lib/enforcement-type";
 
 export function ApplyForm() {
   const router = useRouter();
@@ -51,6 +55,7 @@ export function ApplyForm() {
   });
 
   const [suitability, setSuitability] = useState({
+    enforcementType: DEFAULT_ENFORCEMENT_TYPE as string,
     reasonForJoining: ""
   });
 
@@ -139,8 +144,10 @@ export function ApplyForm() {
         <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto" />
         <h2 className="text-2xl font-bold text-green-800">Application Submitted!</h2>
         <p className="text-green-700">
-          Your application for the Park Monitor position has been successfully submitted.
-          We will review it and notify you via email regarding the outcome.
+          Your application for the Special Enforcement Unit has been successfully submitted.
+          {biodata.emailAddress.trim()
+            ? " We will review it and notify you via email regarding the outcome."
+            : " We will review it and contact you on the phone number you provided regarding the outcome."}
         </p>
       </div>
     );
@@ -208,8 +215,8 @@ export function ApplyForm() {
             <Input required value={biodata.phoneNumber} onChange={e => setBiodata({...biodata, phoneNumber: e.target.value})} />
           </div>
           <div className="space-y-1">
-            <Label>Email Address</Label>
-            <Input type="email" required value={biodata.emailAddress} onChange={e => setBiodata({...biodata, emailAddress: e.target.value})} />
+            <Label>Email Address <span className="font-normal text-muted-foreground">(optional)</span></Label>
+            <Input type="email" value={biodata.emailAddress} onChange={e => setBiodata({...biodata, emailAddress: e.target.value})} />
           </div>
           <div className="space-y-1">
             <Label>Marital Status</Label>
@@ -380,6 +387,20 @@ export function ApplyForm() {
           <CardTitle>Section F: Enforcement Suitability Assessment</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 space-y-1">
+            <Label>Enforcement Type</Label>
+            <Select
+              onValueChange={v => setSuitability({...suitability, enforcementType: v})}
+              value={suitability.enforcementType}
+            >
+              <SelectTrigger><SelectValue placeholder="Select enforcement type" /></SelectTrigger>
+              <SelectContent>
+                {ENFORCEMENT_TYPES.map(t => (
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-1">
             <Label>Why do you want to join the Special Enforcement Unit?</Label>
             <Textarea required value={suitability.reasonForJoining} onChange={e => setSuitability({...suitability, reasonForJoining: e.target.value})} rows={4} />
@@ -390,8 +411,10 @@ export function ApplyForm() {
       {/* SECTION G: REFERENCES */}
       <Card>
         <CardHeader>
-          <CardTitle>Section G: References</CardTitle>
-          <CardDescription>Provide 3 referees.</CardDescription>
+          <CardTitle>Section G: References <span className="text-sm font-normal text-muted-foreground">(optional)</span></CardTitle>
+          <CardDescription>
+            You may add up to 3 referees. Leave a referee blank to skip them; if you fill one in, a name and phone number are needed.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {referees.map((referee, index) => (
@@ -399,11 +422,11 @@ export function ApplyForm() {
               <div className="font-semibold col-span-full">Referee {index + 1}</div>
               <div className="space-y-1">
                 <Label>Name</Label>
-                <Input required value={referee.name} onChange={e => updateReferee(index, 'name', e.target.value)} />
+                <Input value={referee.name} onChange={e => updateReferee(index, 'name', e.target.value)} />
               </div>
               <div className="space-y-1">
                 <Label>Phone</Label>
-                <Input required value={referee.phone} onChange={e => updateReferee(index, 'phone', e.target.value)} />
+                <Input value={referee.phone} onChange={e => updateReferee(index, 'phone', e.target.value)} />
               </div>
               <div className="space-y-1">
                 <Label>Email</Label>
