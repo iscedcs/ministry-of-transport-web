@@ -280,7 +280,7 @@ const parkMonitorSource: QueueSource<{
     title:
       [m.firstName, m.otherNames, m.surname].filter(Boolean).join(" ").trim() ||
       "Park Staff Monitor",
-    subtitle: `Park Monitor · ${[m.communityTown, m.lga].filter(Boolean).join(", ") || "Anambra State"}`,
+    subtitle: `Special Enforcement Unit · ${[m.communityTown, m.lga].filter(Boolean).join(", ") || "Anambra State"}`,
     refOrCode: `ID: PM-${m.id.slice(0, 6).toUpperCase()}`,
     issueDate: m.createdAt,
     status: m.status,

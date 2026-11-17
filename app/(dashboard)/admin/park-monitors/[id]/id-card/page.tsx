@@ -16,6 +16,7 @@ import { cr80PrintCss } from "@/lib/card-spec";
  */
 const PRINT_ROLES = [
   "HOD_PARKS",
+  "HOD_PARKS_REVALIDATION",
   "SYSTEM_ADMIN",
   "ADMIN",
   "ICT_OFFICER",
@@ -137,7 +138,7 @@ export default async function ParkMonitorIdCardPage({
               {name}
             </h3>
             <p className="mt-1 text-center text-[15px] font-extrabold uppercase tracking-wider text-primary">
-              Park Monitor
+              Special Enforcement Unit
             </p>
 
             <div className="mt-3 w-full rounded-lg bg-gray-100 px-3 py-2 text-center">
@@ -205,7 +206,7 @@ export default async function ParkMonitorIdCardPage({
               M.O.T
             </p>
             <p className="text-[19px] font-extrabold uppercase leading-tight text-primary">
-              Approved Park Monitor
+              Special Enforcement Unit
             </p>
 
             <p className="mt-2 font-mono text-[15px] font-extrabold text-slate-900">
@@ -228,7 +229,7 @@ export default async function ParkMonitorIdCardPage({
               {name}
             </p>
             <p className="text-[12px] font-semibold text-gray-600">
-              Park Monitor · {area || "Anambra State"}
+              Special Enforcement Unit · {area || "Anambra State"}
             </p>
           </div>
         </div>

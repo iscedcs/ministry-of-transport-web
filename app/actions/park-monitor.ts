@@ -5,6 +5,7 @@ import { checkStoredUrl } from "@/lib/media-url";
 import { isOwnStorageUrl } from "@/lib/spaces";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { isEnforcementApprover } from "@/lib/enforcement-roles";
 import {
   DEFAULT_ENFORCEMENT_TYPE,
   isEnforcementType,
@@ -198,6 +199,37 @@ export async function submitParkMonitorApplication(
   }
 }
 
+/**
+ * The ID card is generated the moment an application is approved: it is simply
+ * "issued" — the card page renders from the stored data and the QR code points
+ * at the public verification page. There is no fee and no claim step.
+ */
+function idCardIssueFields(applicationId: string, issuerUserId: string) {
+  const idUrl = `${process.env.NEXT_PUBLIC_APP_URL}/verify/park-monitor/${applicationId}`;
+  return {
+    idCardIssued: true,
+    idCardIssuedAt: new Date(),
+    idCardIssuedByUserId: issuerUserId,
+    idCardUrl: idUrl,
+    qrCodeUrl: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(idUrl)}`,
+  };
+}
+
+const NO_PHOTO_ERROR =
+  "Add the applicant's passport photograph first — the ID card is printed with it.";
+
+function revalidateEnforcement(applicationId: string) {
+  revalidatePath(`/admin/park-monitors/${applicationId}`);
+  revalidatePath("/admin/park-monitors");
+  revalidatePath("/admin/park-monitors/groups");
+  revalidatePath("/dashboard");
+}
+
+/**
+ * Approve, reject or waitlist an application. Approving also issues the ID
+ * card in the same step. Approvers: HOD Parks, HOD Parks Revalidation, System
+ * Admin, Commissioner (lib/enforcement-roles.ts).
+ */
 export async function reviewParkMonitorApplication(
   id: string,
   status: "APPROVED" | "REJECTED" | "WAITLISTED",
@@ -205,10 +237,11 @@ export async function reviewParkMonitorApplication(
 ) {
   try {
     const session = await getSession();
-    if (!session || session.role !== "COMMISSIONER") {
+    if (!session || !isEnforcementApprover(session.role)) {
       return {
         success: false,
-        error: "Unauthorized. Only Commissioner can review.",
+        error:
+          "Unauthorized. Only an HOD, the System Admin or the Commissioner can review.",
       };
     }
 
@@ -216,80 +249,47 @@ export async function reviewParkMonitorApplication(
     if (!app) {
       return { success: false, error: "Application not found." };
     }
+    if (app.idCardIssued) {
+      return {
+        success: false,
+        error: "This application is already approved and its ID card issued.",
+      };
+    }
+    if (status === "APPROVED" && app.status === "APPROVED") {
+      // Legacy: approved under the old flow but never issued — use issue.
+      return { success: false, error: "This application is already approved." };
+    }
 
-    const updateData: any = {
+    const data: Record<string, unknown> = {
       status,
       reviewedByUserId: session.userId,
       reviewedAt: new Date(),
     };
 
-    if (status === "REJECTED") {
-      updateData.rejectionReason = notes;
+    if (status === "APPROVED") {
+      if (!app.idCardPhotoUrl) return { success: false, error: NO_PHOTO_ERROR };
+      Object.assign(data, idCardIssueFields(id, session.userId), {
+        rejectionReason: null,
+        waitlistReason: null,
+      });
+    } else if (status === "REJECTED") {
+      data.rejectionReason = notes;
     } else if (status === "WAITLISTED") {
-      updateData.waitlistReason = notes;
+      data.waitlistReason = notes;
     }
 
     await db.$transaction(async (tx) => {
-      // Create user if approved and they don't have one
-      if (status === "APPROVED" && !app.userId) {
-        // Check if user already exists by email (an email is optional)
-        let user = app.emailAddress
-          ? await tx.user.findUnique({ where: { email: app.emailAddress } })
-          : null;
-
-        // Also check by phone if not found by email
-        if (!user && app.phoneNumber) {
-          user = await tx.user.findFirst({
-            where: { phone: app.phoneNumber },
-          });
-        }
-
-        if (user) {
-          // If user exists, just update their role
-          // And set a password if they don't have one (because they were an external applicant)
-          const updatePayload: any = {
-            role: "PARK_MONITOR",
-          };
-
-          if (!user.passwordHash) {
-            const bcrypt = (await import("bcryptjs")).default;
-            updatePayload.passwordHash = await bcrypt.hash("Password0123", 12);
-          }
-
-          user = await tx.user.update({
-            where: { id: user.id },
-            data: updatePayload,
-          });
-        } else {
-          // Create new user
-          const bcrypt = (await import("bcryptjs")).default;
-          const passwordHash = await bcrypt.hash("Password0123", 12);
-
-          user = await tx.user.create({
-            data: {
-              firstName: app.firstName,
-              lastName: app.surname,
-              email: app.emailAddress ?? null,
-              phone: app.phoneNumber,
-              asinNumber: app.nin, // fallback to nin
-              role: "PARK_MONITOR",
-              passwordHash,
-            },
-          });
-        }
-
-        updateData.userId = user.id;
+      await tx.parkMonitorApplication.update({ where: { id }, data });
+      // Applicants from the old flow may already have an account; keep its role.
+      if (status === "APPROVED" && app.userId) {
+        await tx.user.update({
+          where: { id: app.userId },
+          data: { role: "PARK_MONITOR" },
+        });
       }
-
-      await tx.parkMonitorApplication.update({
-        where: { id },
-        data: updateData,
-      });
     });
 
-    revalidatePath("/admin/park-monitors");
-    revalidatePath("/dashboard");
-
+    revalidateEnforcement(id);
     return { success: true };
   } catch (error) {
     console.error("[ReviewParkMonitorApplication Error]", error);
@@ -302,9 +302,9 @@ export async function reviewParkMonitorApplication(
 }
 
 /**
- * Staff add or replace an applicant's photograph — for example when the
- * onboarding officer did not capture one, or it came out unusable. Any status
- * except a rejected application; the photo only matters once an ID is issued.
+ * Add or replace an applicant's photograph — for example when the onboarding
+ * officer did not capture one, or it came out unusable. Any status except a
+ * rejected application, and only until the ID card is issued.
  */
 export async function setParkMonitorPhotoByStaff(
   applicationId: string,
@@ -312,10 +312,7 @@ export async function setParkMonitorPhotoByStaff(
 ) {
   try {
     const session = await getSession();
-    if (
-      !session ||
-      (session.role !== "HOD_PARKS" && session.role !== "SYSTEM_ADMIN")
-    ) {
+    if (!session || !isEnforcementApprover(session.role)) {
       return { success: false, error: "Unauthorized." };
     }
 
@@ -353,107 +350,43 @@ export async function setParkMonitorPhotoByStaff(
   }
 }
 
-export async function updateParkMonitorPhoto(photoUrl: string) {
-  try {
-    const photoProblem = photoUrlProblem(photoUrl);
-    if (photoProblem) return { success: false, error: photoProblem };
-
-    const session = await getSession();
-    if (
-      !session ||
-      (session.role !== "EXTERNAL_APPLICANT" && session.role !== "PARK_MONITOR")
-    ) {
-      return { success: false, error: "Unauthorized" };
-    }
-
-    const app = await db.parkMonitorApplication.findUnique({
-      where: { userId: session.userId },
-    });
-
-    if (!app || app.status !== "APPROVED") {
-      return { success: false, error: "Application is not approved yet" };
-    }
-
-    await db.parkMonitorApplication.update({
-      where: { id: app.id },
-      data: { idCardPhotoUrl: photoUrl },
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error("[UpdateParkMonitorPhoto Error]", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Failed to update photo",
-    };
-  }
-}
-
+/**
+ * Issue the ID card for an application that was approved under the old flow
+ * (approved, fee/claim pending) and so has no card yet. New approvals issue
+ * the card themselves.
+ */
 export async function issueParkMonitorId(applicationId: string) {
   try {
     const session = await getSession();
-    if (
-      !session ||
-      (session.role !== "HOD_PARKS" && session.role !== "SYSTEM_ADMIN")
-    ) {
-      return { success: false, error: "Unauthorized. Only HOD can issue ID." };
+    if (!session || !isEnforcementApprover(session.role)) {
+      return { success: false, error: "Unauthorized." };
     }
 
     const app = await db.parkMonitorApplication.findUnique({
       where: { id: applicationId },
-      include: { user: true },
     });
-
     if (!app || app.status !== "APPROVED") {
       return { success: false, error: "Application is not approved." };
     }
-
     if (app.idCardIssued) {
       return { success: false, error: "ID Card already issued." };
     }
-
-    // The card is printed with this photograph; an ID without one is useless.
-    if (!app.idCardPhotoUrl) {
-      return {
-        success: false,
-        error: "Upload the applicant's passport photograph before issuing the ID.",
-      };
-    }
-
-    // Generate unique URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL!;
-    const idUrl = `${baseUrl}/verify/park-monitor/${app.id}`;
-
-    // In a real implementation, we would generate a QR code image and upload it to Spaces.
-    // For now, we store the URL and generate the QR code on the fly in the UI, or use a public API
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(idUrl)}`;
+    if (!app.idCardPhotoUrl) return { success: false, error: NO_PHOTO_ERROR };
 
     await db.$transaction(async (tx) => {
       await tx.parkMonitorApplication.update({
         where: { id: applicationId },
-        data: {
-          idCardIssued: true,
-          idCardIssuedAt: new Date(),
-          idCardIssuedByUserId: session.userId,
-          idCardUrl: idUrl,
-          qrCodeUrl: qrCodeUrl,
-        },
+        data: idCardIssueFields(applicationId, session.userId),
       });
-
       if (app.userId) {
-        // Update the applicant's role to PARK_MONITOR
         await tx.user.update({
           where: { id: app.userId },
-          data: {
-            role: "PARK_MONITOR",
-          },
+          data: { role: "PARK_MONITOR" },
         });
       }
     });
 
-    revalidatePath(`/admin/park-monitors/${applicationId}`);
-    revalidatePath("/admin/park-monitors");
-
+    revalidateEnforcement(applicationId);
     return { success: true };
   } catch (error) {
     console.error("[IssueParkMonitorId Error]", error);

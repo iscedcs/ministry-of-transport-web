@@ -367,7 +367,30 @@ export async function getRoleDashboard(
       actions.push(
         item(
           "monitors",
-          "Park monitor applications",
+          "Special Enforcement Unit applications",
+          "Applications requiring your review",
+          monitors,
+          "/admin/park-monitors",
+        ),
+      );
+  }
+
+  // ── HOD Parks Revalidation: Special Enforcement Unit applications ───────
+  // The revalidation HOD also reviews these (approval issues the ID card).
+  if (isHodReval && !isHodParks && !isAdmin) {
+    const monitors = await db.parkMonitorApplication.count({
+      where: {
+        OR: [
+          { status: { in: ["SUBMITTED", "UNDER_REVIEW", "WAITLISTED"] } },
+          { status: "APPROVED", idCardIssued: false },
+        ],
+      },
+    });
+    if (monitors)
+      actions.push(
+        item(
+          "monitors",
+          "Special Enforcement Unit applications",
           "Applications requiring your review",
           monitors,
           "/admin/park-monitors",
@@ -677,7 +700,7 @@ export async function getRoleDashboard(
       actions.push(
         item(
           "adm-monitors",
-          "Park monitor applications",
+          "Special Enforcement Unit applications",
           "Applications requiring review",
           monitors,
           "/admin/park-monitors",

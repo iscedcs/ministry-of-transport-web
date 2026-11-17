@@ -65,7 +65,7 @@ export function Footer() {
               <a
                 href="/apply-park-monitor"
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors block">
-                Apply For Park Monitoring
+                Apply For The Special Enforcement Unit
               </a>
             </nav>
           </div>

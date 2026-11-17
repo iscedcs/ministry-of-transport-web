@@ -1512,10 +1512,33 @@ model ParkMonitorApplication {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Unit membership — see EnforcementGroup. A person is in at most one group.
+  groupId String?
+  group   EnforcementGroup? @relation(fields: [groupId], references: [id])
+
   user User? @relation(fields: [userId], references: [id])
 
   @@index([status])
   @@index([idCardIssued])
+  @@index([groupId])
+}
+
+/// A team of approved Special Enforcement Unit / Recovery Unit / Park Monitor
+/// members, formed by an HOD. Needs at least ENFORCEMENT_GROUP_MIN_MEMBERS (5)
+/// members, a team leader (one of the members) and an area.
+model EnforcementGroup {
+  id                  String   @id @default(cuid())
+  name                String
+  unit                String   @db.VarChar(50) // see lib/enforcement-type.ts
+  area                String // LGA / operating area
+  leaderApplicationId String? // a member's ParkMonitorApplication.id
+  createdByUserId     String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  members ParkMonitorApplication[]
+
+  @@index([unit])
 }
 
 // ==================== REVALIDATION MODULE ====================
