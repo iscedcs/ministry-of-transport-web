@@ -49,7 +49,7 @@ export default async function VerifyParkMonitorPage({
           <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-white/20">
             <span className="text-3xl">✓</span>
           </div>
-          <h1 className="text-xl font-bold">Verified Park Monitor</h1>
+          <h1 className="text-xl font-bold">Verified Special Enforcement Unit Member</h1>
           <p className="text-sm text-green-100">
             Ministry of Transport, Anambra State
           </p>
@@ -73,7 +73,7 @@ export default async function VerifyParkMonitorPage({
 
           <h2 className="mt-4 text-center text-2xl font-bold">{name}</h2>
           <Badge className="mt-2 border-primary/20 bg-primary/10 text-sm text-primary hover:bg-primary/20">
-            Park Monitor
+            Special Enforcement Unit
           </Badge>
 
           <div className="mt-8 w-full space-y-4">

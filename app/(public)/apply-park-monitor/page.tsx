@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
 export const metadata = {
-  title: "Apply for Park Monitor | Ministry of Transport",
+  title: "Apply for the Special Enforcement Unit | Ministry of Transport",
 };
 
 export default function ParkMonitorPublicApplyPage() {
@@ -16,9 +16,9 @@ export default function ParkMonitorPublicApplyPage() {
             <ChevronLeft className="w-4 h-4 mr-1" />
             Back to Home
           </Link>
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Park Monitor Application</h1>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight">Special Enforcement Unit Application</h1>
           <p className="mt-2 text-primary-foreground/80 max-w-2xl">
-            Complete the form below to apply for the position of Park Monitor under the Special Enforcement Unit.
+            Complete the form below to apply to join the Special Enforcement Unit.
           </p>
         </div>
       </div>

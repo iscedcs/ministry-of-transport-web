@@ -72,3 +72,37 @@ export async function uploadGenericDocument(
     };
   }
 }
+
+/**
+ * Passport photo for the Special Enforcement Unit / Park Monitor application.
+ *
+ * Uses the PUBLIC endpoint, because an applicant is not signed in. Works the
+ * same for signed-in staff. The general /api/upload stays login-only.
+ */
+export async function uploadPassportPhoto(
+  file: File,
+): Promise<{ success: true; url: string } | { success: false; error: string }> {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await fetch("/api/public/park-monitor-photo", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.url) {
+      return {
+        success: false,
+        error: data.error || `Upload failed with status ${res.status}`,
+      };
+    }
+    return { success: true, url: data.url };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Upload failed.",
+    };
+  }
+}

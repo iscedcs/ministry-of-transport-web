@@ -34,9 +34,9 @@ export const coreServices = [
     href: "/register/revalidation",
   },
   {
-    title: "Park Monitoring",
+    title: "Special Enforcement Unit",
     description:
-      "Apply to become a verified park monitor and help enforce compliance across Anambra state.",
+      "Apply to join the Special Enforcement Unit and help enforce compliance across Anambra state.",
     icon: ShieldCheck,
     href: "/apply-park-monitor",
   },

@@ -8,9 +8,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { ReviewActions } from "./review-actions";
 import { PhotoControl } from "./photo-control";
+import { enforcementTypeLabel } from "@/lib/enforcement-type";
+import {
+  isEnforcementApprover,
+  isEnforcementViewer,
+} from "@/lib/enforcement-roles";
 
 export const metadata = {
-  title: "Application Details | Park Monitors",
+  title: "Application Details | Special Enforcement Unit",
 };
 
 export default async function ParkMonitorAppDetailsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -19,33 +24,33 @@ export default async function ParkMonitorAppDetailsPage({ params }: { params: Pr
   const session = await getSession();
   if (!session) redirect("/auth/login");
 
-  const isExecutive = session.role === "COMMISSIONER" || session.role === "PERMANENT_SECRETARY";
-  const isHod = session.role === "HOD_PARKS" || session.role === "SYSTEM_ADMIN";
-
-  if (!isExecutive && !isHod) {
+  if (!isEnforcementViewer(session.role)) {
     redirect("/dashboard");
   }
+  // HODs, System Admin and Commissioner approve; the PS and Admin view only.
+  const isApprover = isEnforcementApprover(session.role);
 
   const app = await db.parkMonitorApplication.findUnique({
     where: { id: resolvedParams.id },
     include: {
       user: true,
-    }
+      group: { select: { id: true, name: true, unit: true, area: true } },
+    },
   });
 
   if (!app) notFound();
 
-  let payment = null;
-  if (app.idCardPaymentId) {
-    payment = await db.payment.findUnique({ where: { id: app.idCardPaymentId } });
-  }
-
-  const isPaymentCompleted = payment?.status === "COMPLETED";
-  const canReview = isExecutive && (app.status === "SUBMITTED" || app.status === "UNDER_REVIEW" || app.status === "WAITLISTED");
-  const canIssueId = isHod && app.status === "APPROVED" && isPaymentCompleted && !app.idCardIssued;
-  // Whoever onboarded the applicant may not have captured a photo; HOD can add
-  // or replace it until the card is issued.
-  const canEditPhoto = isHod && app.status !== "REJECTED" && !app.idCardIssued;
+  const canReview =
+    isApprover &&
+    (app.status === "SUBMITTED" ||
+      app.status === "UNDER_REVIEW" ||
+      app.status === "WAITLISTED");
+  // Approved under the old flow (fee/claim step) and never issued a card.
+  const canIssueLegacyId =
+    isApprover && app.status === "APPROVED" && !app.idCardIssued;
+  // Approving prints the card, so a photograph must be on file first.
+  const canEditPhoto =
+    isApprover && app.status !== "REJECTED" && !app.idCardIssued;
 
   // Type assertion since Prisma Json is loosely typed
   const referees = (app.referees as any[]) || [];
@@ -86,7 +91,7 @@ export default async function ParkMonitorAppDetailsPage({ params }: { params: Pr
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-4 text-sm">
               <div><span className="text-muted-foreground block text-xs">Phone Number</span>{app.phoneNumber}</div>
-              <div><span className="text-muted-foreground block text-xs">Email Address</span>{app.emailAddress}</div>
+              <div><span className="text-muted-foreground block text-xs">Email Address</span>{app.emailAddress || "Not provided"}</div>
             </CardContent>
           </Card>
 
@@ -98,6 +103,7 @@ export default async function ParkMonitorAppDetailsPage({ params }: { params: Pr
               <div><span className="text-muted-foreground block text-xs">Current Occupation</span>{app.currentOccupation || "None"}</div>
               <div><span className="text-muted-foreground block text-xs">Employer</span>{app.employer || "None"}</div>
               <div><span className="text-muted-foreground block text-xs">Position Held</span>{app.positionHeld || "None"}</div>
+              <div><span className="text-muted-foreground block text-xs">Enforcement Type</span>{enforcementTypeLabel(app.enforcementType)}</div>
               <div><span className="text-muted-foreground block text-xs">Medically Fit?</span>{app.isMedicallyFit ? "Yes" : "No"}</div>
               <div><span className="text-muted-foreground block text-xs">Height</span>{app.height || "-"}</div>
               <div><span className="text-muted-foreground block text-xs">Weight</span>{app.weight || "-"}</div>
@@ -136,6 +142,9 @@ export default async function ParkMonitorAppDetailsPage({ params }: { params: Pr
               <div>
                 <span className="font-medium">Referees</span>
                 <div className="mt-2 space-y-2">
+                  {referees.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No referees provided.</p>
+                  )}
                   {referees.map((r: any, i: number) => (
                     <div key={i} className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-secondary/30 p-2 rounded-md text-xs">
                       <div><span className="text-muted-foreground block">Name</span>{r.name}</div>
@@ -152,12 +161,12 @@ export default async function ParkMonitorAppDetailsPage({ params }: { params: Pr
 
         {/* Sidebar Actions */}
         <div className="space-y-6">
-          {(canReview || canIssueId) && (
-            <ReviewActions 
-              applicationId={app.id} 
-              canReview={canReview} 
-              canIssueId={canIssueId} 
-              isExecutive={isExecutive}
+          {(canReview || canIssueLegacyId) && (
+            <ReviewActions
+              applicationId={app.id}
+              canReview={canReview}
+              canIssueId={canIssueLegacyId}
+              hasPhoto={!!app.idCardPhotoUrl}
             />
           )}
 
@@ -187,30 +196,55 @@ export default async function ParkMonitorAppDetailsPage({ params }: { params: Pr
           {app.status === "APPROVED" && (
             <Card>
               <CardHeader>
-                <CardTitle>ID Card Requirements</CardTitle>
+                <CardTitle>ID Card</CardTitle>
+                <CardDescription>
+                  Generated automatically when an application is approved.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4 text-sm">
-                <div>
-                  <span className="text-muted-foreground block text-xs">ID Fee Payment (₦20,000)</span>
-                  {isPaymentCompleted ? (
-                    <span className="text-green-600 font-medium inline-block mt-1">Completed</span>
-                  ) : (
-                    <span className="text-amber-600 font-medium inline-block mt-1">Pending</span>
-                  )}
-                </div>
-
-                {app.idCardIssued && (
-                  <div className="pt-4 border-t">
+              <CardContent className="space-y-3 text-sm">
+                {app.idCardIssued ? (
+                  <div>
                     <span className="text-green-600 font-medium flex items-center">
                       <span className="mr-2">✓</span> ID Card Issued
                     </span>
                     <Link href={`/admin/park-monitors/${app.id}/id-card`} className="text-primary hover:underline block mt-2 text-xs">
                       Open ID card for printing
                     </Link>
-                    <a href={app.qrCodeUrl!} target="_blank" rel="noreferrer" className="text-primary hover:underline block mt-2 text-xs">
-                      View QR Code
-                    </a>
+                    {app.qrCodeUrl && (
+                      <a href={app.qrCodeUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline block mt-2 text-xs">
+                        View QR Code
+                      </a>
+                    )}
                   </div>
+                ) : (
+                  <span className="text-amber-600 font-medium">Not issued yet</span>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {app.status === "APPROVED" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Unit &amp; Group</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div>
+                  <span className="text-muted-foreground block text-xs">Unit</span>
+                  {enforcementTypeLabel(app.enforcementType)}
+                </div>
+                {app.group ? (
+                  <div>
+                    <span className="text-muted-foreground block text-xs">Group</span>
+                    <Link href={`/admin/park-monitors/groups/${app.group.id}`} className="text-primary hover:underline">
+                      {app.group.name}
+                    </Link>
+                    <span className="text-muted-foreground"> · {app.group.area}</span>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">
+                    Not in a group yet. An HOD can add them when forming a unit.
+                  </p>
                 )}
               </CardContent>
             </Card>

@@ -94,6 +94,7 @@ export default async function DashboardPage() {
   const canManageParkMonitors =
     isExecutive ||
     session.role === "HOD_PARKS" ||
+    session.role === "HOD_PARKS_REVALIDATION" ||
     session.role === "SYSTEM_ADMIN";
 
   return (
@@ -107,7 +108,7 @@ export default async function DashboardPage() {
             {isApplicant
               ? "My Applications"
               : isParkMonitor
-                ? "Park Monitor Dashboard"
+                ? "Special Enforcement Unit Dashboard"
                 : isExecutive
                   ? "Executive Dashboard"
                   : "Platform Overview"}
@@ -116,7 +117,7 @@ export default async function DashboardPage() {
             {isApplicant
               ? "Track the status of your motor park applications."
               : isParkMonitor
-                ? "Manage your park monitor profile and claim your ID."
+                ? "Your Special Enforcement Unit profile."
                 : "Real-time view of all applications and workflow activity."}
           </p>
         </div>
@@ -337,12 +338,11 @@ async function ParkMonitorStatusCard({ userId }: { userId: string }) {
     return (
       <Card className="border-border/60 bg-secondary/50">
         <CardHeader>
-          <CardTitle className="text-base">Apply as a Park Monitor</CardTitle>
+          <CardTitle className="text-base">Apply to the Special Enforcement Unit</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-4">
-            You can apply to become a Park Monitor and join the Special
-            Enforcement Unit.
+            You can apply to join the Special Enforcement Unit.
           </p>
           <Button asChild>
             <Link href="/park-monitor/apply">Start Application</Link>
@@ -361,7 +361,7 @@ async function ParkMonitorStatusCard({ userId }: { userId: string }) {
         isApproved ? "border-green-500/50 bg-green-50 dark:bg-green-950/20" : ""
       }>
       <CardHeader>
-        <CardTitle className="text-base">Park Monitor Application</CardTitle>
+        <CardTitle className="text-base">Special Enforcement Unit Application</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-4 mb-4">
@@ -385,31 +385,14 @@ async function ParkMonitorStatusCard({ userId }: { userId: string }) {
             Your application was rejected. Reason: {app.rejectionReason}
           </p>
         )}
-        {needsId && !app.idCardPaymentId && (
+        {needsId && (
           <div className="space-y-4">
             <p className="text-sm text-green-700 dark:text-green-400 font-medium">
               Congratulations! Your application has been approved.
             </p>
             <p className="text-sm text-muted-foreground">
-              Please proceed to claim your official ID card to complete your
-              registration.
-            </p>
-            <Button
-              asChild
-              className="bg-green-600 hover:bg-green-700 text-white">
-              <Link href="/park-monitor/claim-id">Claim Your ID</Link>
-            </Button>
-          </div>
-        )}
-        {needsId && app.idCardPaymentId && (
-          <div className="space-y-4">
-            <p className="text-sm text-green-700 dark:text-green-400 font-medium">
-              Payment Confirmed.
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Your application is being reviewed by an official. Please come
-              back in 24hr to check your ID status, or pick up your ID from the
-              HOD office.
+              Your ID card is being prepared by the Ministry. There is nothing
+              further for you to do or pay.
             </p>
           </div>
         )}
@@ -419,7 +402,7 @@ async function ParkMonitorStatusCard({ userId }: { userId: string }) {
               Your ID Card has been issued!
             </p>
             <p className="text-sm text-muted-foreground">
-              You are now an official Park Monitor.
+              You are now an official member of the Special Enforcement Unit.
             </p>
           </div>
         )}
@@ -459,7 +442,7 @@ async function AdminParkMonitorCard() {
       <CardHeader className="pb-3 border-b bg-muted/20">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-lg">Pending Park Monitors</CardTitle>
+            <CardTitle className="text-lg">Special Enforcement Unit Applications</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
               Applications requiring your review.
             </p>
@@ -510,7 +493,7 @@ async function AdminParkMonitorCard() {
             size="sm"
             className="w-full text-xs text-primary">
             <Link href="/admin/park-monitors">
-              View all park monitor applications
+              View all Special Enforcement Unit applications
             </Link>
           </Button>
         </div>

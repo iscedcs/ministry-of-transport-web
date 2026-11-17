@@ -255,13 +255,14 @@ const NAV_ITEMS: NavItem[] = [
 
   // ── Park Monitors ──
   {
-    label: "Park Monitors",
+    label: "Special Enforcement Unit",
     href: "/admin/park-monitors",
     icon: "👮",
     allowedRoles: [
       "COMMISSIONER",
       "PERMANENT_SECRETARY",
       "HOD_PARKS",
+      "HOD_PARKS_REVALIDATION",
       "SYSTEM_ADMIN",
       "ADMIN",
     ],

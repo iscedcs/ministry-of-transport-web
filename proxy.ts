@@ -1,9 +1,13 @@
 /**
- * Route Protection Middleware — Ministry of Transport Platform
+ * Route Protection Proxy — Ministry of Transport Platform
  * Reference: node_modules/next/dist/docs/01-app/02-guides/authentication.md
  *            docs/ROLES_AND_DUTIES.md
  *
- * Runs on the Edge Runtime (before every matched request).
+ * Runs before every matched request (Node runtime — Next 16 `proxy`).
+ *
+ * One file serves two modules (Next allows exactly one proxy):
+ *  - ARTMA (`/atma/*`, `/api/atma/*`) → lib/atma/proxy.ts, its own session
+ *  - everything else → the MOT logic below, unchanged
  *
  * Responsibilities:
  *  1. Block unauthenticated access to all protected routes → redirect to /login
@@ -20,8 +24,15 @@
  * STORY-006: Auth framework
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import {
+  NextRequest,
+  NextResponse,
+  type NextFetchEvent,
+  type NextMiddleware,
+} from "next/server";
 import { decryptFromToken, refreshSession } from "@/lib/session";
+import { atmaProxy } from "@/lib/atma/proxy";
+import { isAtmaPath } from "@/lib/atma/routes";
 
 // ==================== ROUTE CONFIGURATION ====================
 
@@ -44,6 +55,7 @@ const PUBLIC_ROUTES = [
 const PUBLIC_PREFIXES = [
   "/register/",
   "/api/webhooks/",
+  "/api/public/", // narrow, self-validating public endpoints (e.g. applicant passport photo)
   "/_next/",
   "/favicon.ico",
   "/public/",
@@ -120,9 +132,20 @@ const ROLE_DENIED_PREFIXES: Record<string, string[]> = {
   ],
 };
 
-// ==================== MIDDLEWARE ====================
+// ==================== PROXY ====================
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest, event: NextFetchEvent) {
+  // ARTMA module: separate session + rules, handled entirely in its own branch
+  // BEFORE any MOT logic (MOT would otherwise bounce ARTMA visitors to /login).
+  if (isAtmaPath(request.nextUrl.pathname)) {
+    // next-auth's `auth(cb)` is typed as a route handler when the callback
+    // takes one argument; at runtime it is the (request, event) proxy.
+    return (atmaProxy as unknown as NextMiddleware)(request, event);
+  }
+  return motProxy(request);
+}
+
+async function motProxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. Skip middleware for static assets and public API routes
