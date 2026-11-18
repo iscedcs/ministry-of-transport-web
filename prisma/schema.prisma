@@ -1507,6 +1507,9 @@ model ParkMonitorApplication {
   idCardIssuedByUserId String? // HOD who issued it
   idCardUrl            String?   @db.VarChar(500)
   qrCodeUrl            String?   @db.VarChar(500)
+  // Printed on the card and vest, e.g. MOT/Awk/SEU./001. Assigned once when the
+  // card is issued and never regenerated. See lib/enforcement-code.ts.
+  idCode               String?   @unique @db.VarChar(40)
 
   // System
   createdAt DateTime @default(now())

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { enforcementDisplayCode } from "@/lib/enforcement-code";
 
 /**
  * Public verification for a Park Monitor ID card — the page the card's QR code
@@ -32,6 +33,7 @@ export default async function VerifyParkMonitorPage({
       idCardIssued: true,
       idCardIssuedAt: true,
       idCardPhotoUrl: true,
+      idCode: true,
     },
   });
 
@@ -95,7 +97,7 @@ export default async function VerifyParkMonitorPage({
             <div className="flex justify-between py-3">
               <span className="text-sm text-slate-500">ID Number</span>
               <span className="font-mono font-medium">
-                PM-{app.id.slice(0, 6).toUpperCase()}
+                {enforcementDisplayCode(app)}
               </span>
             </div>
           </div>

@@ -7,6 +7,11 @@ import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { isEnforcementApprover } from "@/lib/enforcement-roles";
 import {
+  buildEnforcementCode,
+  enforcementCodePrefix,
+  serialOf,
+} from "@/lib/enforcement-code";
+import {
   DEFAULT_ENFORCEMENT_TYPE,
   isEnforcementType,
 } from "@/lib/enforcement-type";
@@ -215,6 +220,38 @@ function idCardIssueFields(applicationId: string, issuerUserId: string) {
   };
 }
 
+type Tx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
+
+/**
+ * The next ID number for this member's town, e.g. MOT/Awk/SEU./007. Read inside
+ * the issuing transaction; the unique index on idCode is the real guard, and
+ * withCodeRetry() re-runs the transaction if two approvals race for a number.
+ */
+async function nextIdCode(tx: Tx, town: string): Promise<string> {
+  const prefix = enforcementCodePrefix(town);
+  const taken = await tx.parkMonitorApplication.findMany({
+    where: { idCode: { startsWith: prefix } },
+    select: { idCode: true },
+  });
+  const highest = taken.reduce(
+    (max, r) => Math.max(max, serialOf(r.idCode ?? "", prefix)),
+    0,
+  );
+  return buildEnforcementCode(town, highest + 1);
+}
+
+/** Re-run `work` when it loses a race for an ID number (unique violation). */
+async function withCodeRetry<T>(work: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await work();
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      if (code !== "P2002" || attempt >= 5) throw error;
+    }
+  }
+}
+
 const NO_PHOTO_ERROR =
   "Add the applicant's passport photograph first — the ID card is printed with it.";
 
@@ -278,16 +315,21 @@ export async function reviewParkMonitorApplication(
       data.waitlistReason = notes;
     }
 
-    await db.$transaction(async (tx) => {
-      await tx.parkMonitorApplication.update({ where: { id }, data });
-      // Applicants from the old flow may already have an account; keep its role.
-      if (status === "APPROVED" && app.userId) {
-        await tx.user.update({
-          where: { id: app.userId },
-          data: { role: "PARK_MONITOR" },
-        });
-      }
-    });
+    await withCodeRetry(() =>
+      db.$transaction(async (tx) => {
+        if (status === "APPROVED") {
+          data.idCode = await nextIdCode(tx, app.communityTown || app.lga);
+        }
+        await tx.parkMonitorApplication.update({ where: { id }, data });
+        // Applicants from the old flow may already have an account; keep its role.
+        if (status === "APPROVED" && app.userId) {
+          await tx.user.update({
+            where: { id: app.userId },
+            data: { role: "PARK_MONITOR" },
+          });
+        }
+      }),
+    );
 
     revalidateEnforcement(id);
     return { success: true };
@@ -373,18 +415,25 @@ export async function issueParkMonitorId(applicationId: string) {
     }
     if (!app.idCardPhotoUrl) return { success: false, error: NO_PHOTO_ERROR };
 
-    await db.$transaction(async (tx) => {
-      await tx.parkMonitorApplication.update({
-        where: { id: applicationId },
-        data: idCardIssueFields(applicationId, session.userId),
-      });
-      if (app.userId) {
-        await tx.user.update({
-          where: { id: app.userId },
-          data: { role: "PARK_MONITOR" },
+    await withCodeRetry(() =>
+      db.$transaction(async (tx) => {
+        await tx.parkMonitorApplication.update({
+          where: { id: applicationId },
+          data: {
+            ...idCardIssueFields(applicationId, session.userId),
+            // Keep a code already assigned; otherwise take the next one.
+            idCode:
+              app.idCode ?? (await nextIdCode(tx, app.communityTown || app.lga)),
+          },
         });
-      }
-    });
+        if (app.userId) {
+          await tx.user.update({
+            where: { id: app.userId },
+            data: { role: "PARK_MONITOR" },
+          });
+        }
+      }),
+    );
 
     revalidateEnforcement(applicationId);
     return { success: true };

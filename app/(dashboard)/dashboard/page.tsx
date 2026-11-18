@@ -26,6 +26,8 @@ import { getRoleDashboard } from "@/lib/role-dashboard";
 import { getApplicantDashboard } from "@/lib/applicant-dashboard";
 import { ApplicantPanels } from "@/components/dashboard/applicant-panels";
 import { WorkQueues } from "@/components/dashboard/work-queues";
+import { SystemAdminOverviewView } from "@/components/dashboard/system-admin-overview";
+import { getSystemAdminOverview } from "@/lib/system-admin-stats";
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -65,9 +67,14 @@ export default async function DashboardPage() {
       ? await getRoleDashboard(session.role, session.userId)
       : null;
 
+  // The System Admin gets the platform-wide overview (vehicles, stickers,
+  // users, staff); the Commissioner and PS keep the executive summary.
+  const isSystemAdmin = session.role === "SYSTEM_ADMIN";
+  const adminOverview = isSystemAdmin ? await getSystemAdminOverview() : null;
+
   let execStats = null;
   let execError = null;
-  if (isExecutive) {
+  if (isExecutive && !isSystemAdmin) {
     const res = await getExecutiveDashboardStats();
     if (res.success) {
       execStats = res.data;
@@ -98,7 +105,8 @@ export default async function DashboardPage() {
     session.role === "SYSTEM_ADMIN";
 
   return (
-    <div className="flex flex-col gap-8 max-w-5xl">
+    <div
+      className={`flex flex-col gap-8 ${isSystemAdmin ? "max-w-7xl" : "max-w-5xl"}`}>
       {/* Page header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -109,16 +117,20 @@ export default async function DashboardPage() {
               ? "My Applications"
               : isParkMonitor
                 ? "Special Enforcement Unit Dashboard"
-                : isExecutive
-                  ? "Executive Dashboard"
-                  : "Platform Overview"}
+                : isSystemAdmin
+                  ? "System Admin Dashboard"
+                  : isExecutive
+                    ? "Executive Dashboard"
+                    : "Platform Overview"}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {isApplicant
               ? "Track the status of your motor park applications."
               : isParkMonitor
                 ? "Your Special Enforcement Unit profile."
-                : "Real-time view of all applications and workflow activity."}
+                : isSystemAdmin
+                  ? "Everything on the platform at a glance: vehicles, stickers, users and staff."
+                  : "Real-time view of all applications and workflow activity."}
           </p>
         </div>
         {/* {isApplicant && (
@@ -133,7 +145,9 @@ export default async function DashboardPage() {
       {applicantDashboard && <ApplicantPanels data={applicantDashboard} />}
 
       {/* Stats grid */}
-      {isExecutive ? (
+      {isSystemAdmin ? (
+        adminOverview && <SystemAdminOverviewView data={adminOverview} />
+      ) : isExecutive ? (
         <ExecutiveDashboard initialStats={execStats} error={execError} userRole={session.role} />
       ) : (
         stats &&

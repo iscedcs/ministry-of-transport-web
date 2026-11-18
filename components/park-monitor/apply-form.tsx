@@ -140,7 +140,7 @@ export function ApplyForm() {
 
   if (isSuccess) {
     return (
-      <div className="bg-green-50 border border-green-200 p-8 rounded-lg text-center space-y-4">
+      <div className="mt-10 mb-10 bg-green-50 border border-green-200 p-8 rounded-lg text-center space-y-4">
         <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto" />
         <h2 className="text-2xl font-bold text-green-800">Application Submitted!</h2>
         <p className="text-green-700">

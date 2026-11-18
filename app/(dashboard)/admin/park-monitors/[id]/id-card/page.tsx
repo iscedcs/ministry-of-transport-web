@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PrintButton } from "@/components/ui/print-button";
 import { cr80PrintCss } from "@/lib/card-spec";
+import { enforcementDisplayCode } from "@/lib/enforcement-code";
 
 /**
  * Park Monitor ID card — CR80 (ISO/IEC 7810 ID-1), front and back, laid out
@@ -48,6 +49,7 @@ export default async function ParkMonitorIdCardPage({
       idCardIssued: true,
       idCardPhotoUrl: true,
       qrCodeUrl: true,
+      idCode: true,
     },
   });
 
@@ -57,7 +59,7 @@ export default async function ParkMonitorIdCardPage({
     .filter(Boolean)
     .join(" ")
     .trim();
-  const code = `PM-${app.id.slice(0, 6).toUpperCase()}`;
+  const code = enforcementDisplayCode(app);
   const area = [app.communityTown, app.lga].filter(Boolean).join(", ");
 
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
@@ -69,7 +71,7 @@ export default async function ParkMonitorIdCardPage({
     `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(verifyUrl)}`;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-4 print:m-0 print:max-w-none print:gap-0 print:bg-white print:p-0">
+    <div className="mx-auto flex max-w-5xl flex-col gap-6 p-4 print:m-0 print:max-w-none print:gap-0 print:bg-white print:p-0">
       <style
         dangerouslySetInnerHTML={{ __html: cr80PrintCss("monitor-id-sheet") }}
       />
@@ -81,7 +83,15 @@ export default async function ParkMonitorIdCardPage({
           <ArrowLeft className="h-4 w-4" />
           Back to application
         </Link>
-        <PrintButton />
+        <div className="flex items-center gap-2">
+          {/* The vest is printed from separate artwork by a garment printer. */}
+          <Link
+            href={`/admin/park-monitors/${app.id}/vest-qr`}
+            className="inline-flex h-9 items-center rounded-lg border border-border px-3 text-sm font-medium transition-colors hover:bg-secondary">
+            Vest QR artwork
+          </Link>
+          <PrintButton />
+        </div>
       </div>
 
       <p className="rounded-xl border border-border bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground print:hidden">
