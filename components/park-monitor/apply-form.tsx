@@ -55,8 +55,7 @@ export function ApplyForm() {
   });
 
   const [suitability, setSuitability] = useState({
-    enforcementType: DEFAULT_ENFORCEMENT_TYPE as string,
-    reasonForJoining: ""
+    enforcementType: DEFAULT_ENFORCEMENT_TYPE as string
   });
 
   const [referees, setReferees] = useState([
@@ -140,7 +139,7 @@ export function ApplyForm() {
 
   if (isSuccess) {
     return (
-      <div className="bg-green-50 border border-green-200 p-8 rounded-lg text-center space-y-4">
+      <div className="mt-10 mb-10 bg-green-50 border border-green-200 p-8 rounded-lg text-center space-y-4">
         <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto" />
         <h2 className="text-2xl font-bold text-green-800">Application Submitted!</h2>
         <p className="text-green-700">
@@ -387,7 +386,7 @@ export function ApplyForm() {
           <CardTitle>Section F: Enforcement Suitability Assessment</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="mb-4 space-y-1">
+          <div className="space-y-1">
             <Label>Enforcement Type</Label>
             <Select
               onValueChange={v => setSuitability({...suitability, enforcementType: v})}
@@ -400,10 +399,6 @@ export function ApplyForm() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-1">
-            <Label>Why do you want to join the Special Enforcement Unit?</Label>
-            <Textarea required value={suitability.reasonForJoining} onChange={e => setSuitability({...suitability, reasonForJoining: e.target.value})} rows={4} />
           </div>
         </CardContent>
       </Card>

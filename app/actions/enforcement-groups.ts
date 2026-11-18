@@ -33,6 +33,19 @@ const DENIED = {
   error: "Unauthorized. Only an HOD or the System Admin can manage groups.",
 };
 
+type Tx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
+
+/**
+ * Take a row lock on the group for the rest of the transaction. Anything that
+ * checks the group's membership and then changes it takes this first, so those
+ * check-then-write steps run one at a time per group.
+ */
+async function lockGroup(tx: Tx, groupId: string): Promise<boolean> {
+  const rows = await tx.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "EnforcementGroup" WHERE "id" = ${groupId} FOR UPDATE`;
+  return rows.length > 0;
+}
+
 function refresh(groupId?: string) {
   revalidatePath("/admin/park-monitors");
   revalidatePath("/admin/park-monitors/groups");
@@ -154,35 +167,45 @@ export async function removeGroupMember(
     const session = await requireGrouper();
     if (!session) return DENIED;
 
-    const group = await db.enforcementGroup.findUnique({
-      where: { id: groupId },
-      include: { _count: { select: { members: true } } },
+    // The size check and the removal must be one atomic step. Two HODs removing
+    // different people from a six-person group would otherwise both read "6",
+    // both pass, and leave four. Locking the group row makes the second request
+    // wait and then see the true count.
+    const outcome = await db.$transaction(async (tx): Promise<Result> => {
+      const locked = await lockGroup(tx, groupId);
+      if (!locked) return { success: false, error: "Group not found." };
+
+      const group = await tx.enforcementGroup.findUnique({
+        where: { id: groupId },
+        include: { _count: { select: { members: true } } },
+      });
+      if (!group) return { success: false, error: "Group not found." };
+
+      if (group.leaderApplicationId === applicationId) {
+        return {
+          success: false,
+          error: "This person is the team leader. Choose another leader first.",
+        };
+      }
+      if (group._count.members - 1 < MIN) {
+        return {
+          success: false,
+          error: `A group needs at least ${MIN} members. Add someone else first, or disband the group.`,
+        };
+      }
+
+      const removed = await tx.parkMonitorApplication.updateMany({
+        where: { id: applicationId, groupId },
+        data: { groupId: null },
+      });
+      if (removed.count === 0) {
+        return { success: false, error: "That person is not in this group." };
+      }
+      return { success: true };
     });
-    if (!group) return { success: false, error: "Group not found." };
 
-    if (group.leaderApplicationId === applicationId) {
-      return {
-        success: false,
-        error: "This person is the team leader. Choose another leader first.",
-      };
-    }
-    if (group._count.members - 1 < MIN) {
-      return {
-        success: false,
-        error: `A group needs at least ${MIN} members. Add someone else first, or disband the group.`,
-      };
-    }
-
-    const removed = await db.parkMonitorApplication.updateMany({
-      where: { id: applicationId, groupId },
-      data: { groupId: null },
-    });
-    if (removed.count === 0) {
-      return { success: false, error: "That person is not in this group." };
-    }
-
-    refresh(groupId);
-    return { success: true };
+    if (outcome.success) refresh(groupId);
+    return outcome;
   } catch (error) {
     console.error("[RemoveGroupMember Error]", error);
     return {
@@ -200,21 +223,28 @@ export async function setGroupLeader(
     const session = await requireGrouper();
     if (!session) return DENIED;
 
-    const member = await db.parkMonitorApplication.findFirst({
-      where: { id: applicationId, groupId },
-      select: { id: true },
+    // Same lock as removeGroupMember, so a member cannot be made leader while
+    // they are being removed.
+    const outcome = await db.$transaction(async (tx): Promise<Result> => {
+      if (!(await lockGroup(tx, groupId))) {
+        return { success: false, error: "Group not found." };
+      }
+      const member = await tx.parkMonitorApplication.findFirst({
+        where: { id: applicationId, groupId },
+        select: { id: true },
+      });
+      if (!member) {
+        return { success: false, error: "The team leader must be a member of the group." };
+      }
+      await tx.enforcementGroup.update({
+        where: { id: groupId },
+        data: { leaderApplicationId: applicationId },
+      });
+      return { success: true };
     });
-    if (!member) {
-      return { success: false, error: "The team leader must be a member of the group." };
-    }
 
-    await db.enforcementGroup.update({
-      where: { id: groupId },
-      data: { leaderApplicationId: applicationId },
-    });
-
-    refresh(groupId);
-    return { success: true };
+    if (outcome.success) refresh(groupId);
+    return outcome;
   } catch (error) {
     console.error("[SetGroupLeader Error]", error);
     return {

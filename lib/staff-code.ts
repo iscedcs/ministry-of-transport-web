@@ -12,7 +12,7 @@
  */
 
 /** "Awka South" -> "Awk"; "Onitsha" -> "Oni" */
-function townPart(town: string | null | undefined): string {
+export function townPart(town: string | null | undefined): string {
   const clean = (town ?? "").replace(/[^A-Za-z ]/g, "").trim();
   if (!clean) return "ANS";
   const first = clean.split(/\s+/)[0];

@@ -1,5 +1,6 @@
 "use server";
 
+import { enforcementDisplayCode } from "@/lib/enforcement-code";
 import { db } from "@/lib/db";
 import { authorize } from "@/lib/auth";
 import { PRINTING_PAGE_SIZE } from "@/lib/query-limits";
@@ -239,6 +240,7 @@ const parkMonitorSource: QueueSource<{
   status: string;
   createdAt: Date;
   idCardPhotoUrl: string | null;
+  idCode: string | null;
 }> = {
   where: (terms) => ({
     status: "APPROVED",
@@ -269,6 +271,7 @@ const parkMonitorSource: QueueSource<{
         status: true,
         createdAt: true,
         idCardPhotoUrl: true,
+        idCode: true,
       },
     }) as never,
   // The name was previously assembled from firstName and a lastName that does
@@ -281,7 +284,7 @@ const parkMonitorSource: QueueSource<{
       [m.firstName, m.otherNames, m.surname].filter(Boolean).join(" ").trim() ||
       "Park Staff Monitor",
     subtitle: `Special Enforcement Unit · ${[m.communityTown, m.lga].filter(Boolean).join(", ") || "Anambra State"}`,
-    refOrCode: `ID: PM-${m.id.slice(0, 6).toUpperCase()}`,
+    refOrCode: `ID: ${enforcementDisplayCode(m)}`,
     issueDate: m.createdAt,
     status: m.status,
     // Was /verify/park-staff/<id>, which looks the id up as a ParkStaff and so

@@ -1477,7 +1477,9 @@ model ParkMonitorApplication {
   agreesToSecurityCheck Boolean
 
   // SECTION F: Enforcement Suitability
-  reasonForJoining String @db.Text
+  /// No longer asked on the form (removed). Kept, optional, so applications
+  /// that already answered it keep that answer; safe to drop later.
+  reasonForJoining String? @db.Text
   // Which enforcement unit the applicant is joining. See lib/enforcement-type.ts.
   enforcementType String @default("SPECIAL_ENFORCEMENT_UNIT") @db.VarChar(50)
 
@@ -1507,6 +1509,9 @@ model ParkMonitorApplication {
   idCardIssuedByUserId String? // HOD who issued it
   idCardUrl            String?   @db.VarChar(500)
   qrCodeUrl            String?   @db.VarChar(500)
+  // Printed on the card and vest, e.g. MOT/Awk/SEU./001. Assigned once when the
+  // card is issued and never regenerated. See lib/enforcement-code.ts.
+  idCode               String?   @unique @db.VarChar(40)
 
   // System
   createdAt DateTime @default(now())
