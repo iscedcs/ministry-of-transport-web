@@ -117,10 +117,6 @@ export default async function ParkMonitorAppDetailsPage({ params }: { params: Pr
             <CardContent className="grid grid-cols-2 gap-4 text-sm">
               <div><span className="text-muted-foreground block text-xs">Criminal Conviction?</span>{app.hasCriminalConviction ? "Yes" : "No"}</div>
               <div><span className="text-muted-foreground block text-xs">Agrees to Background Check?</span>{app.agreesToSecurityCheck ? "Yes" : "No"}</div>
-              <div className="col-span-2">
-                <span className="text-muted-foreground block text-xs">Reason for Joining Unit</span>
-                <p className="mt-1 bg-secondary/50 p-3 rounded-md text-slate-700">{app.reasonForJoining}</p>
-              </div>
             </CardContent>
           </Card>
 

@@ -48,7 +48,6 @@ export interface ParkMonitorApplicationInput {
   isMedicallyFit: boolean;
   hasCriminalConviction: boolean;
   agreesToSecurityCheck: boolean;
-  reasonForJoining: string;
   /** Enforcement unit; defaults to the Special Enforcement Unit. */
   enforcementType?: string;
   /** Optional. Blank rows are dropped; a started row needs a name and phone. */
@@ -181,7 +180,6 @@ export async function submitParkMonitorApplication(
         isMedicallyFit: input.isMedicallyFit,
         hasCriminalConviction: input.hasCriminalConviction,
         agreesToSecurityCheck: input.agreesToSecurityCheck,
-        reasonForJoining: input.reasonForJoining,
         referees: refs.value as never,
         enforcementType,
         nextOfKinName: input.nextOfKinName,
