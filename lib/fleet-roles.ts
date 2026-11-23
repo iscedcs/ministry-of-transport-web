@@ -77,6 +77,22 @@ export function canEditFleet(role: UserRole | string | null): boolean {
   return canWriteFleet(role);
 }
 
+/**
+ * TRACAS embargo pool — vehicles caught operating without being onboarded.
+ *
+ * PLACING is open to everyone with fleet visibility: an enforcement officer,
+ * inspector or enumerator who spots an un-onboarded vehicle on the road must
+ * be able to flag it on the spot. LIFTING is deliberately narrow — only the
+ * System Admin, the Admin (team lead) or the TRACAS MD can clear a vehicle
+ * for registration, because lifting is what lets the enumerator proceed.
+ */
+export const EMBARGO_PLACE_ROLES: UserRole[] = FLEET_VIEW_ROLES;
+export const EMBARGO_LIFT_ROLES: UserRole[] = [
+  "SYSTEM_ADMIN",
+  "ADMIN",
+  "TRACAS_MD",
+];
+
 /** True when the role may view fleet records. */
 export function canViewFleet(role: UserRole | string | null): boolean {
   return !!role && (FLEET_VIEW_ROLES as string[]).includes(role);

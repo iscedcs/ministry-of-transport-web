@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PrintButton } from "@/components/ui/print-button";
-import { enforcementDisplayCode } from "@/lib/enforcement-code";
+import { enforcementDisplayCode, operationLgaOf } from "@/lib/enforcement-code";
 
 /**
  * Reflective vest artwork for a Special Enforcement Unit member — the QR and
@@ -47,7 +47,7 @@ export default async function EnforcementVestQrPage({
       otherNames: true,
       surname: true,
       lga: true,
-      communityTown: true,
+      operationLga: true,
       status: true,
       idCardIssued: true,
       idCode: true,
@@ -61,7 +61,7 @@ export default async function EnforcementVestQrPage({
     .join(" ")
     .trim();
   const code = enforcementDisplayCode(app);
-  const area = [app.communityTown, app.lga].filter(Boolean).join(", ");
+  const area = operationLgaOf(app);
 
   const base = process.env.NEXT_PUBLIC_APP_URL!;
   const verifyUrl = `${base}/verify/park-monitor/${app.id}`;
@@ -158,7 +158,7 @@ export default async function EnforcementVestQrPage({
         <div className="mt-6 w-full border-t pt-3 text-center">
           <p className="text-[13px] font-bold uppercase">{name}</p>
           <p className="text-[11px] text-neutral-600">
-            Special Enforcement Unit · {area || "Anambra State"}
+            Special Enforcement Unit · {area}
           </p>
         </div>
       </div>

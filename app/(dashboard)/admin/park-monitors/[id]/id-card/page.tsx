@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { PrintButton } from "@/components/ui/print-button";
 import { cr80PrintCss } from "@/lib/card-spec";
-import { enforcementDisplayCode } from "@/lib/enforcement-code";
+import { enforcementDisplayCode, operationLgaOf } from "@/lib/enforcement-code";
 
 /**
  * Park Monitor ID card — CR80 (ISO/IEC 7810 ID-1), front and back, laid out
@@ -44,7 +44,7 @@ export default async function ParkMonitorIdCardPage({
       otherNames: true,
       surname: true,
       lga: true,
-      communityTown: true,
+      operationLga: true,
       status: true,
       idCardIssued: true,
       idCardPhotoUrl: true,
@@ -60,7 +60,9 @@ export default async function ParkMonitorIdCardPage({
     .join(" ")
     .trim();
   const code = enforcementDisplayCode(app);
-  const area = [app.communityTown, app.lga].filter(Boolean).join(", ");
+  // Where this member operates — the one the HOD assigned at approval, not
+  // the applicant's own local government.
+  const area = operationLgaOf(app);
 
   const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const verifyUrl = `${base}/verify/park-monitor/${app.id}`;
@@ -153,10 +155,10 @@ export default async function ParkMonitorIdCardPage({
 
             <div className="mt-3 w-full rounded-lg bg-gray-100 px-3 py-2 text-center">
               <p className="text-[11px] font-extrabold uppercase text-gray-500">
-                Area
+                Local Government of Operation
               </p>
               <p className="line-clamp-2 text-[14px] font-bold leading-snug">
-                {area || "Anambra State"}
+                {area}
               </p>
             </div>
 
@@ -239,7 +241,7 @@ export default async function ParkMonitorIdCardPage({
               {name}
             </p>
             <p className="text-[12px] font-semibold text-gray-600">
-              Special Enforcement Unit · {area || "Anambra State"}
+              Special Enforcement Unit · {area}
             </p>
           </div>
         </div>

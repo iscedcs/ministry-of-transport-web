@@ -19,6 +19,7 @@ import {
   DRIVER_EDIT_ROLES,
 } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
+import { findActiveEmbargo, embargoBlockMessage } from "@/lib/tracas-embargo";
 import {
   checkDuplicatePlateNumber,
   normalizePlateDisplay,
@@ -281,6 +282,11 @@ export async function onboardTracasVehicle(input: OnboardTracasVehicleInput) {
     }
 
     const regNo = input.registrationNumber.trim();
+
+    // A vehicle in the embargo pool cannot be registered until the embargo is
+    // lifted. Checked first, so the enumerator sees the reason straight away.
+    const embargo = await findActiveEmbargo(regNo);
+    if (embargo) return { success: false, error: embargoBlockMessage(embargo) };
 
     // Enrolment status and ownership decide the fleet-number prefix (FT vs LV).
     // They previously defaulted silently, so an enumerator who skipped past
@@ -962,6 +968,9 @@ export async function getTracasFleetData(params?: {
       stickerTotal,
       newJoinerCount,
       activeVehicleCount,
+      ftCount,
+      lvCount,
+      embargoActiveCount,
       availableDrivers,
       availableStickers,
     ] = await Promise.all([
@@ -1006,6 +1015,14 @@ export async function getTracasFleetData(params?: {
       db.tracasSticker.count(),
       db.tracasVehicle.count({ where: { enrollmentType: "NEW_JOINER" } }),
       db.tracasVehicle.count({ where: { status: "ACTIVE" } }),
+      // FT (state fleet) and LV (private) by fleet-number prefix.
+      db.tracasVehicle.count({
+        where: { fleetNumber: { startsWith: "FT", mode: "insensitive" } },
+      }),
+      db.tracasVehicle.count({
+        where: { fleetNumber: { startsWith: "LV", mode: "insensitive" } },
+      }),
+      db.tracasEmbargo.count({ where: { status: "ACTIVE" } }),
 
       // Assignment pools. Small by definition — a driver leaves the pool the
       // moment they hold a vehicle, and a sticker the moment it is assigned.
@@ -1046,6 +1063,9 @@ export async function getTracasFleetData(params?: {
         stickerTotal,
         newJoinerCount,
         activeVehicleCount,
+        ftCount,
+        lvCount,
+        embargoActiveCount,
         availableStickerCount: availableStickers.length,
       },
       pagination: {
@@ -1352,6 +1372,10 @@ export async function updateTracasVehicle(
     // Registration must stay unique across the register and the entire platform.
     const nextReg = input.registrationNumber?.trim().toUpperCase();
     if (nextReg && nextReg !== existing.registrationNumber.toUpperCase()) {
+      // Changing a plate to an embargoed one would be registration by the back door.
+      const embargo = await findActiveEmbargo(nextReg);
+      if (embargo) return { success: false, error: embargoBlockMessage(embargo) };
+
       const plateCheck = await checkDuplicatePlateNumber(nextReg, {
         tracasVehicleId: vehicleId,
       });

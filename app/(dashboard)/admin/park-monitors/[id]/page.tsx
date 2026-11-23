@@ -9,6 +9,7 @@ import Link from "next/link";
 import { ReviewActions } from "./review-actions";
 import { PhotoControl } from "./photo-control";
 import { enforcementTypeLabel } from "@/lib/enforcement-type";
+import { suggestedOperationLga } from "@/lib/enforcement-code";
 import {
   isEnforcementApprover,
   isEnforcementViewer,
@@ -81,6 +82,8 @@ export default async function ParkMonitorAppDetailsPage({ params }: { params: Pr
               <div><span className="text-muted-foreground block text-xs">Marital Status</span>{app.maritalStatus}</div>
               <div><span className="text-muted-foreground block text-xs">Origin</span>{app.lga}, {app.stateOfOrigin} State</div>
               <div><span className="text-muted-foreground block text-xs">Community/Town</span>{app.communityTown}</div>
+              <div><span className="text-muted-foreground block text-xs">LGA of Operation (requested)</span>{app.preferredOperationLga || "Not given"}</div>
+              <div><span className="text-muted-foreground block text-xs">LGA of Operation (assigned)</span>{app.operationLga || "Not yet assigned"}</div>
               <div className="col-span-2"><span className="text-muted-foreground block text-xs">Residential Address</span>{app.residentialAddress}</div>
             </CardContent>
           </Card>
@@ -163,6 +166,10 @@ export default async function ParkMonitorAppDetailsPage({ params }: { params: Pr
               canReview={canReview}
               canIssueId={canIssueLegacyId}
               hasPhoto={!!app.idCardPhotoUrl}
+              suggestedLga={
+                app.operationLga || suggestedOperationLga(app)
+              }
+              requestedLga={app.preferredOperationLga}
             />
           )}
 

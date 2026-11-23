@@ -29,6 +29,7 @@ import {
   DEFAULT_ENFORCEMENT_TYPE,
   ENFORCEMENT_TYPES,
 } from "@/lib/enforcement-type";
+import { ANAMBRA_LGAS } from "@/lib/consts";
 
 export function ApplyForm() {
   const router = useRouter();
@@ -55,7 +56,8 @@ export function ApplyForm() {
   });
 
   const [suitability, setSuitability] = useState({
-    enforcementType: DEFAULT_ENFORCEMENT_TYPE as string
+    enforcementType: DEFAULT_ENFORCEMENT_TYPE as string,
+    preferredOperationLga: ""
   });
 
   const [referees, setReferees] = useState([
@@ -101,6 +103,10 @@ export function ApplyForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!suitability.preferredOperationLga) {
+      setError("Choose your Local Government of Operation in Section F.");
+      return;
+    }
     if (!declarationChecked) {
       setError("You must agree to the declaration to submit.");
       return;
@@ -386,6 +392,23 @@ export function ApplyForm() {
           <CardTitle>Section F: Enforcement Suitability Assessment</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 space-y-1">
+            <Label>Local Government of Operation</Label>
+            <Select
+              onValueChange={v => setSuitability({...suitability, preferredOperationLga: v})}
+              value={suitability.preferredOperationLga}
+            >
+              <SelectTrigger><SelectValue placeholder="Select the local government you want to operate in" /></SelectTrigger>
+              <SelectContent>
+                {ANAMBRA_LGAS.map(l => (
+                  <SelectItem key={l} value={l}>{l}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              The area you would like to work in. The Ministry confirms your final area when your application is approved.
+            </p>
+          </div>
           <div className="space-y-1">
             <Label>Enforcement Type</Label>
             <Select

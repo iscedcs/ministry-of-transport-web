@@ -1480,6 +1480,13 @@ model ParkMonitorApplication {
   /// No longer asked on the form (removed). Kept, optional, so applications
   /// that already answered it keep that answer; safe to drop later.
   reasonForJoining String? @db.Text
+  /// Local Government of Operation the APPLICANT asked for. A request only.
+  preferredOperationLga String? @db.VarChar(80)
+  /// Local Government of Operation the approving HOD assigned. This is the
+  /// final one: it overrides the request, and it is what the ID card, the
+  /// vest, the verify page and the ID number use. Null until approval (cards
+  /// issued before this existed fall back to the applicant's own `lga`).
+  operationLga          String? @db.VarChar(80)
   // Which enforcement unit the applicant is joining. See lib/enforcement-type.ts.
   enforcementType String @default("SPECIAL_ENFORCEMENT_UNIT") @db.VarChar(50)
 
@@ -1528,8 +1535,8 @@ model ParkMonitorApplication {
   @@index([groupId])
 }
 
-/// A team of approved Special Enforcement Unit / Recovery Unit / Park Monitor
-/// members, formed by an HOD. Needs at least ENFORCEMENT_GROUP_MIN_MEMBERS (5)
+/// A team of approved enforcement-unit members (see lib/enforcement-type.ts),
+/// formed by an HOD. Needs at least ENFORCEMENT_GROUP_MIN_MEMBERS (5)
 /// members, a team leader (one of the members) and an area.
 model EnforcementGroup {
   id                  String   @id @default(cuid())
@@ -1845,6 +1852,47 @@ model BoatRider {
 }
 
 // ==================== TRACAS MODULE ====================
+
+/// The TRACAS embargo pool: vehicles caught operating WITHOUT being onboarded
+/// (task-force arrests) that may not be registered until the sanction on them
+/// is lifted. Deliberately its own table, not a flag on TracasVehicle — these
+/// vehicles are not on the register, so they are never counted in the fleet.
+/// Anyone with fleet visibility may place one; only the System Admin, Admin
+/// or TRACAS MD may lift it.
+model TracasEmbargo {
+  id String @id @default(cuid())
+
+  /// As entered, normalised for display (upper case, no spaces): "GRS4246HG".
+  plateNumber String @db.VarChar(40)
+  /// Letters and digits only — what plates are matched on, so "GRS 4246 HG",
+  /// "grs-4246-hg" and "GRS4246HG" are one vehicle.
+  plateKey    String @db.VarChar(40)
+
+  /// Why the embargo was placed.
+  reason        String @db.Text
+  /// Where the vehicle was found when the embargo was placed.
+  locationFound String @db.Text
+  /// Penalty or sanction required before it can be lifted. Free text, optional.
+  sanction      String? @db.Text
+
+  /// "ACTIVE" | "LIFTED"
+  status String @default("ACTIVE") @db.VarChar(10)
+  /// Equals plateKey while ACTIVE, null once lifted. Unique, so a plate can
+  /// have only one active embargo, while any number of lifted ones can pile
+  /// up in its history (NULLs do not collide).
+  activeKey String? @unique @db.VarChar(40)
+
+  placedByUserId String
+  placedAt       DateTime @default(now())
+
+  liftedByUserId String?
+  liftedAt       DateTime?
+  /// Why it was lifted — e.g. the penalty receipt reference. Required to lift.
+  liftNote       String?   @db.Text
+
+  @@index([plateKey])
+  @@index([status, placedAt])
+}
 
 model TracasSticker {
   id                String    @id @default(cuid())

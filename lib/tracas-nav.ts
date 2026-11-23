@@ -43,6 +43,24 @@ export const TRACAS_TABS: TracasTab[] = [
     ],
   },
   {
+    // Vehicles caught operating un-onboarded. Anyone who can see the fleet can
+    // place one; lifting is limited inside the page (EMBARGO_LIFT_ROLES).
+    label: "Embargo Pool",
+    href: "/tracas-embargo",
+    icon: "🚫",
+    roles: [
+      "COMMISSIONER",
+      "PERMANENT_SECRETARY",
+      "HOD_TRANSPORT_OPS",
+      "HOD_PARKS",
+      "FIELD_INSPECTOR",
+      "SYSTEM_ADMIN",
+      "TRACAS_MD",
+      "ENUMERATOR",
+      "ADMIN",
+    ],
+  },
+  {
     label: "Letter Approvals",
     href: "/tracas-approvals",
     icon: "🖊️",

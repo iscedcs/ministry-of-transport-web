@@ -10,7 +10,9 @@ import {
   buildEnforcementCode,
   enforcementCodePrefix,
   serialOf,
+  suggestedOperationLga,
 } from "@/lib/enforcement-code";
+import { isAnambraLga } from "@/lib/lga-code";
 import {
   DEFAULT_ENFORCEMENT_TYPE,
   isEnforcementType,
@@ -34,6 +36,8 @@ export interface ParkMonitorApplicationInput {
   stateOfOrigin: string;
   lga: string;
   communityTown: string;
+  /** Local Government of Operation the applicant asks for; the HOD assigns the final one. */
+  preferredOperationLga: string;
   nin: string;
   residentialAddress: string;
   phoneNumber: string;
@@ -140,6 +144,13 @@ export async function submitParkMonitorApplication(
     const refs = cleanReferees(input.referees);
     if (!refs.ok) return { success: false, error: refs.error };
 
+    if (!isAnambraLga(input.preferredOperationLga)) {
+      return {
+        success: false,
+        error: "Choose the Local Government of Operation from the list.",
+      };
+    }
+
     // Only a known unit is accepted; anything else falls back to the default.
     const enforcementType = isEnforcementType(input.enforcementType)
       ? input.enforcementType
@@ -167,6 +178,7 @@ export async function submitParkMonitorApplication(
         stateOfOrigin: input.stateOfOrigin,
         lga: input.lga,
         communityTown: input.communityTown,
+        preferredOperationLga: input.preferredOperationLga,
         nin: input.nin,
         residentialAddress: input.residentialAddress,
         phoneNumber: input.phoneNumber,
@@ -225,8 +237,8 @@ type Tx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
  * the issuing transaction; the unique index on idCode is the real guard, and
  * withCodeRetry() re-runs the transaction if two approvals race for a number.
  */
-async function nextIdCode(tx: Tx, town: string): Promise<string> {
-  const prefix = enforcementCodePrefix(town);
+async function nextIdCode(tx: Tx, lga: string): Promise<string> {
+  const prefix = enforcementCodePrefix(lga);
   const taken = await tx.parkMonitorApplication.findMany({
     where: { idCode: { startsWith: prefix } },
     select: { idCode: true },
@@ -235,7 +247,7 @@ async function nextIdCode(tx: Tx, town: string): Promise<string> {
     (max, r) => Math.max(max, serialOf(r.idCode ?? "", prefix)),
     0,
   );
-  return buildEnforcementCode(town, highest + 1);
+  return buildEnforcementCode(lga, highest + 1);
 }
 
 /** Re-run `work` when it loses a race for an ID number (unique violation). */
@@ -269,6 +281,8 @@ export async function reviewParkMonitorApplication(
   id: string,
   status: "APPROVED" | "REJECTED" | "WAITLISTED",
   notes: string,
+  /** Required when approving: the Local Government of Operation the HOD assigns. */
+  operationLga?: string,
 ) {
   try {
     const session = await getSession();
@@ -301,8 +315,18 @@ export async function reviewParkMonitorApplication(
       reviewedAt: new Date(),
     };
 
+    let assignedLga = "";
     if (status === "APPROVED") {
       if (!app.idCardPhotoUrl) return { success: false, error: NO_PHOTO_ERROR };
+      // The HOD's choice is final and overrides what the applicant asked for.
+      if (!isAnambraLga(operationLga)) {
+        return {
+          success: false,
+          error: "Choose the Local Government of Operation before approving.",
+        };
+      }
+      assignedLga = operationLga;
+      data.operationLga = assignedLga;
       Object.assign(data, idCardIssueFields(id, session.userId), {
         rejectionReason: null,
         waitlistReason: null,
@@ -316,7 +340,7 @@ export async function reviewParkMonitorApplication(
     await withCodeRetry(() =>
       db.$transaction(async (tx) => {
         if (status === "APPROVED") {
-          data.idCode = await nextIdCode(tx, app.communityTown || app.lga);
+          data.idCode = await nextIdCode(tx, assignedLga);
         }
         await tx.parkMonitorApplication.update({ where: { id }, data });
         // Applicants from the old flow may already have an account; keep its role.
@@ -395,7 +419,10 @@ export async function setParkMonitorPhotoByStaff(
  * (approved, fee/claim pending) and so has no card yet. New approvals issue
  * the card themselves.
  */
-export async function issueParkMonitorId(applicationId: string) {
+export async function issueParkMonitorId(
+  applicationId: string,
+  operationLga?: string,
+) {
   try {
     const session = await getSession();
     if (!session || !isEnforcementApprover(session.role)) {
@@ -413,15 +440,25 @@ export async function issueParkMonitorId(applicationId: string) {
     }
     if (!app.idCardPhotoUrl) return { success: false, error: NO_PHOTO_ERROR };
 
+    // The HOD's choice wins; otherwise one already assigned, else what the
+    // applicant asked for. It must be a real LGA — the ID number is built from it.
+    const lga = operationLga || app.operationLga || suggestedOperationLga(app);
+    if (!isAnambraLga(lga)) {
+      return {
+        success: false,
+        error: "Choose the Local Government of Operation first.",
+      };
+    }
+
     await withCodeRetry(() =>
       db.$transaction(async (tx) => {
         await tx.parkMonitorApplication.update({
           where: { id: applicationId },
           data: {
             ...idCardIssueFields(applicationId, session.userId),
+            operationLga: lga,
             // Keep a code already assigned; otherwise take the next one.
-            idCode:
-              app.idCode ?? (await nextIdCode(tx, app.communityTown || app.lga)),
+            idCode: app.idCode ?? (await nextIdCode(tx, lga)),
           },
         });
         if (app.userId) {

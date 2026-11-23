@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { enforcementDisplayCode } from "@/lib/enforcement-code";
+import { enforcementDisplayCode, operationLgaOf } from "@/lib/enforcement-code";
 
 /**
  * Public verification for a Park Monitor ID card — the page the card's QR code
@@ -28,7 +28,7 @@ export default async function VerifyParkMonitorPage({
       otherNames: true,
       surname: true,
       lga: true,
-      communityTown: true,
+      operationLga: true,
       status: true,
       idCardIssued: true,
       idCardIssuedAt: true,
@@ -88,10 +88,9 @@ export default async function VerifyParkMonitorPage({
               </span>
             </div>
             <div className="flex justify-between border-b border-slate-100 py-3">
-              <span className="text-sm text-slate-500">Area</span>
+              <span className="text-sm text-slate-500">Local Government of Operation</span>
               <span className="max-w-[60%] text-right font-medium">
-                {[app.communityTown, app.lga].filter(Boolean).join(", ") ||
-                  "Anambra State"}
+                {operationLgaOf(app)}
               </span>
             </div>
             <div className="flex justify-between py-3">
