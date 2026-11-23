@@ -1,6 +1,6 @@
 "use server";
 
-import { enforcementDisplayCode } from "@/lib/enforcement-code";
+import { enforcementDisplayCode, operationLgaOf } from "@/lib/enforcement-code";
 import { db } from "@/lib/db";
 import { authorize } from "@/lib/auth";
 import { PRINTING_PAGE_SIZE } from "@/lib/query-limits";
@@ -236,7 +236,7 @@ const parkMonitorSource: QueueSource<{
   firstName: string;
   otherNames: string | null;
   lga: string;
-  communityTown: string;
+  operationLga: string | null;
   status: string;
   createdAt: Date;
   idCardPhotoUrl: string | null;
@@ -252,7 +252,7 @@ const parkMonitorSource: QueueSource<{
       { nin: { contains: t } },
       { phoneNumber: { contains: t } },
       { lga: like(t) },
-      { communityTown: like(t) },
+      { operationLga: like(t) },
     ]),
   }),
   count: (where) => db.parkMonitorApplication.count({ where }),
@@ -267,7 +267,7 @@ const parkMonitorSource: QueueSource<{
         firstName: true,
         otherNames: true,
         lga: true,
-        communityTown: true,
+        operationLga: true,
         status: true,
         createdAt: true,
         idCardPhotoUrl: true,
@@ -283,7 +283,7 @@ const parkMonitorSource: QueueSource<{
     title:
       [m.firstName, m.otherNames, m.surname].filter(Boolean).join(" ").trim() ||
       "Park Staff Monitor",
-    subtitle: `Special Enforcement Unit · ${[m.communityTown, m.lga].filter(Boolean).join(", ") || "Anambra State"}`,
+    subtitle: `Special Enforcement Unit · ${operationLgaOf(m)}`,
     refOrCode: `ID: ${enforcementDisplayCode(m)}`,
     issueDate: m.createdAt,
     status: m.status,

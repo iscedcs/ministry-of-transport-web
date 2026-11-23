@@ -1480,6 +1480,13 @@ model ParkMonitorApplication {
   /// No longer asked on the form (removed). Kept, optional, so applications
   /// that already answered it keep that answer; safe to drop later.
   reasonForJoining String? @db.Text
+  /// Local Government of Operation the APPLICANT asked for. A request only.
+  preferredOperationLga String? @db.VarChar(80)
+  /// Local Government of Operation the approving HOD assigned. This is the
+  /// final one: it overrides the request, and it is what the ID card, the
+  /// vest, the verify page and the ID number use. Null until approval (cards
+  /// issued before this existed fall back to the applicant's own `lga`).
+  operationLga          String? @db.VarChar(80)
   // Which enforcement unit the applicant is joining. See lib/enforcement-type.ts.
   enforcementType String @default("SPECIAL_ENFORCEMENT_UNIT") @db.VarChar(50)
 

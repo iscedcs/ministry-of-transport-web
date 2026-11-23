@@ -4,7 +4,15 @@ import { useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { ANAMBRA_LGAS } from "@/lib/consts";
 import {
   reviewParkMonitorApplication,
   issueParkMonitorId,
@@ -16,15 +24,22 @@ export function ReviewActions({
   canReview,
   canIssueId,
   hasPhoto,
+  suggestedLga,
+  requestedLga,
 }: {
   applicationId: string;
   canReview: boolean;
   /** Approved under the old flow and never issued a card. */
   canIssueId: boolean;
   hasPhoto: boolean;
+  /** Pre-selected Local Government of Operation ("" when there is no sensible default). */
+  suggestedLga: string;
+  /** What the applicant typed/asked for, shown so the HOD can see when they change it. */
+  requestedLga: string | null;
 }) {
   const [isPending, startTransition] = useTransition();
   const [notes, setNotes] = useState("");
+  const [operationLga, setOperationLga] = useState(suggestedLga);
   const [actionType, setActionType] = useState<
     "APPROVED" | "REJECTED" | "WAITLISTED" | "ISSUE" | null
   >(null);
@@ -36,6 +51,10 @@ export function ReviewActions({
       );
       return;
     }
+    if (status === "APPROVED" && !operationLga) {
+      toast.error("Choose the Local Government of Operation first.");
+      return;
+    }
     if ((status === "REJECTED" || status === "WAITLISTED") && !notes.trim()) {
       toast.error("Please provide a reason for this action.");
       return;
@@ -43,7 +62,12 @@ export function ReviewActions({
 
     setActionType(status);
     startTransition(async () => {
-      const res = await reviewParkMonitorApplication(applicationId, status, notes);
+      const res = await reviewParkMonitorApplication(
+        applicationId,
+        status,
+        notes,
+        operationLga,
+      );
       if (res.success) {
         toast.success(
           status === "APPROVED"
@@ -61,7 +85,7 @@ export function ReviewActions({
   const handleIssueId = () => {
     setActionType("ISSUE");
     startTransition(async () => {
-      const res = await issueParkMonitorId(applicationId);
+      const res = await issueParkMonitorId(applicationId, operationLga);
       if (res.success) {
         toast.success("ID card issued.");
       } else {
@@ -70,6 +94,34 @@ export function ReviewActions({
       setActionType(null);
     });
   };
+
+  // The HOD's choice is final: it overrides the applicant's request and is what
+  // the ID card and the ID number carry.
+  const lgaPicker = (
+    <div className="space-y-2">
+      <label className="text-sm font-medium">Local Government of Operation</label>
+      <Select value={operationLga} onValueChange={setOperationLga} disabled={isPending}>
+        <SelectTrigger>
+          <SelectValue placeholder="Choose where this member will operate" />
+        </SelectTrigger>
+        <SelectContent>
+          {ANAMBRA_LGAS.map((l) => (
+            <SelectItem key={l} value={l}>
+              {l}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">
+        {requestedLga ? (
+          <>
+            Applicant asked for <span className="font-medium">{requestedLga}</span>.{" "}
+          </>
+        ) : null}
+        Your choice is final — it appears on the ID card and in the ID number.
+      </p>
+    </div>
+  );
 
   return (
     <Card>
@@ -85,6 +137,7 @@ export function ReviewActions({
                 box before approving.
               </p>
             )}
+            {lgaPicker}
             <div className="space-y-2">
               <label className="text-sm font-medium">
                 Notes / Reason (Required for Reject/Waitlist)
@@ -135,6 +188,7 @@ export function ReviewActions({
 
         {canIssueId && (
           <div className="space-y-3 text-sm">
+            {lgaPicker}
             <p className="text-muted-foreground">
               This application was approved before ID cards were generated
               automatically. Click below to generate the ID card now.
