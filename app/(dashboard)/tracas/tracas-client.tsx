@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -275,12 +275,19 @@ export default function TracasClient({
   // Form States
   // Set when the plate typed in the onboarding form is in the embargo pool.
   const [plateEmbargo, setPlateEmbargo] = useState<PlateEmbargoCheck | null>(null);
+  // Lookups can come back out of order, or after the plate was edited again.
+  // Only the most recent lookup may write, and any edit invalidates the ones
+  // still in flight — otherwise a late answer for an old plate flags the
+  // corrected one and blocks a vehicle that is not embargoed.
+  const plateCheckSeq = useRef(0);
   const checkPlate = async (plate: string) => {
+    const seq = ++plateCheckSeq.current;
     if (plate.replace(/[^A-Za-z0-9]/g, "").length < 3) {
       setPlateEmbargo(null);
       return;
     }
     const r = await checkPlateEmbargo(plate);
+    if (seq !== plateCheckSeq.current) return; // superseded or edited since
     setPlateEmbargo(r.embargoed ? r : null);
   };
 
@@ -1507,6 +1514,7 @@ export default function TracasClient({
                   placeholder="e.g. CH123 or AKD 910 YE"
                   value={vehicleForm.registrationNumber}
                   onChange={(e) => {
+                    plateCheckSeq.current++; // drop any lookup still in flight
                     setPlateEmbargo(null);
                     setVehicleForm({
                       ...vehicleForm,
