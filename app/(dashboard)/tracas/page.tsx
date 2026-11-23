@@ -56,6 +56,9 @@ export default async function TracasDashboardPage({ searchParams }: PageProps) {
               stickerTotal: 0,
               newJoinerCount: 0,
               activeVehicleCount: 0,
+              ftCount: 0,
+              lvCount: 0,
+              embargoActiveCount: 0,
               availableStickerCount: 0,
             }) as never
       }

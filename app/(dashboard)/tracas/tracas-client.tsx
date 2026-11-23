@@ -59,6 +59,10 @@ import {
   assignStickerToTracasVehicle,
   addStickerUrlsToTracasPool,
 } from "@/app/actions/tracas";
+import {
+  checkPlateEmbargo,
+  type PlateEmbargoCheck,
+} from "@/app/actions/tracas-embargo";
 import { StickerQrScannerModal } from "@/components/tracas/sticker-qr-scanner-modal";
 import { canWriteFleet, canEditDriver } from "@/lib/fleet-roles";
 import { TracasNavTabs } from "@/components/tracas/tracas-nav-tabs";
@@ -157,6 +161,9 @@ interface TracasClientProps {
     stickerTotal: number;
     newJoinerCount: number;
     activeVehicleCount: number;
+    ftCount: number;
+    lvCount: number;
+    embargoActiveCount: number;
     availableStickerCount: number;
   };
   pagination: {
@@ -266,6 +273,17 @@ export default function TracasClient({
   );
 
   // Form States
+  // Set when the plate typed in the onboarding form is in the embargo pool.
+  const [plateEmbargo, setPlateEmbargo] = useState<PlateEmbargoCheck | null>(null);
+  const checkPlate = async (plate: string) => {
+    if (plate.replace(/[^A-Za-z0-9]/g, "").length < 3) {
+      setPlateEmbargo(null);
+      return;
+    }
+    const r = await checkPlateEmbargo(plate);
+    setPlateEmbargo(r.embargoed ? r : null);
+  };
+
   const [vehicleForm, setVehicleForm] = useState({
     registrationNumber: "",
     fleetNumber: "",
@@ -537,6 +555,12 @@ export default function TracasClient({
   // Submit Vehicle Form
   const handleOnboardVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (plateEmbargo) {
+      toast.error(
+        `${plateEmbargo.plateNumber} is in the embargo pool and cannot be registered.`,
+      );
+      return;
+    }
     setIsSubmitting(true);
     try {
       if (!vehicleForm.enrollmentType) {
@@ -801,27 +825,38 @@ export default function TracasClient({
 
       {/* Fleet Metrics Overview */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-card border-border/60">
-          <CardContent className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                Total Fleet Vehicles
-              </p>
-              <h3 className="text-2xl font-bold text-foreground mt-1">
-                {stats.vehicleTotal}
-              </h3>
-              <p className="text-[11px] text-muted-foreground mt-1 font-medium">
-                {stats.vehicleTotal - newJoinerCount} existing ·{" "}
-                <span className="text-amber-500 font-bold">
-                  {newJoinerCount} new
-                </span>
-              </p>
-            </div>
-            <div className="p-3 bg-primary/10 rounded-2xl">
-              <Bus className="w-6 h-6 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
+        {/* The whole card opens the full breakdown: FT / LV and the kinds inside each. */}
+        <Link
+          href="/tracas/breakdown"
+          className="block rounded-xl focus-visible:outline-2 focus-visible:outline-primary">
+          <Card className="bg-card border-border/60 h-full transition-colors hover:border-primary/50">
+            <CardContent className="p-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Total Fleet Vehicles
+                </p>
+                <h3 className="text-2xl font-bold text-foreground mt-1">
+                  {stats.vehicleTotal}
+                </h3>
+                <p className="text-[11px] text-foreground mt-1 font-semibold">
+                  {stats.ftCount} FT · {stats.lvCount} LV
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
+                  {stats.vehicleTotal - newJoinerCount} existing ·{" "}
+                  <span className="text-amber-500 font-bold">
+                    {newJoinerCount} new
+                  </span>
+                </p>
+                <p className="text-[11px] text-primary mt-1 font-semibold">
+                  View breakdown →
+                </p>
+              </div>
+              <div className="p-3 bg-primary/10 rounded-2xl">
+                <Bus className="w-6 h-6 text-primary" />
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
 
         <Card className="bg-card border-border/60">
           <CardContent className="p-5 flex items-center justify-between">
@@ -1471,14 +1506,40 @@ export default function TracasClient({
                   id="registrationNumber"
                   placeholder="e.g. CH123 or AKD 910 YE"
                   value={vehicleForm.registrationNumber}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    setPlateEmbargo(null);
                     setVehicleForm({
                       ...vehicleForm,
                       registrationNumber: e.target.value,
-                    })
-                  }
+                    });
+                  }}
+                  onBlur={(e) => checkPlate(e.target.value)}
+                  aria-invalid={plateEmbargo ? true : undefined}
                   required
                 />
+                {plateEmbargo && (
+                  <div
+                    role="alert"
+                    className="rounded-lg border border-red-300 bg-red-50 p-3 text-xs text-red-900 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+                    <p className="font-bold">
+                      🚫 EMBARGO — {plateEmbargo.plateNumber} cannot be registered
+                    </p>
+                    <p className="mt-1">
+                      <span className="font-semibold">Reason:</span> {plateEmbargo.reason}
+                    </p>
+                    <p>
+                      <span className="font-semibold">Found at:</span> {plateEmbargo.locationFound}
+                    </p>
+                    {plateEmbargo.sanction && (
+                      <p>
+                        <span className="font-semibold">Sanction required:</span> {plateEmbargo.sanction}
+                      </p>
+                    )}
+                    <p className="mt-1 opacity-80">
+                      Only the System Admin, Admin or TRACAS MD can lift it.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5">
