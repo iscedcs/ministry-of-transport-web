@@ -1528,8 +1528,8 @@ model ParkMonitorApplication {
   @@index([groupId])
 }
 
-/// A team of approved Special Enforcement Unit / Recovery Unit / Park Monitor
-/// members, formed by an HOD. Needs at least ENFORCEMENT_GROUP_MIN_MEMBERS (5)
+/// A team of approved enforcement-unit members (see lib/enforcement-type.ts),
+/// formed by an HOD. Needs at least ENFORCEMENT_GROUP_MIN_MEMBERS (5)
 /// members, a team leader (one of the members) and an area.
 model EnforcementGroup {
   id                  String   @id @default(cuid())

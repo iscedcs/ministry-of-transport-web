@@ -10,7 +10,7 @@ import {
 import { isEnforcementGrouper } from "@/lib/enforcement-roles";
 
 /**
- * Unit groups for the Special Enforcement Unit / Recovery Unit / Park Monitors.
+ * Unit groups for the four enforcement units (see lib/enforcement-type.ts).
  *
  * Rules (enforced here, not just in the UI):
  *  - a group has a name, a unit, an area and a team leader who is a member
